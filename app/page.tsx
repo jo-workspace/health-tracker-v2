@@ -1,0 +1,45 @@
+'use client';
+import SupplementTracker from '@/components/SupplementTracker';
+import SleepCard from '@/components/SleepCard';
+import HRVCard from '@/components/HRVCard';
+import RainbowDietCard from '@/components/RainbowDietCard';
+import ActivePainsCard from '@/components/ActivePainsCard';
+import LongTermTracker from '@/components/LongTermTracker';
+import { useHealthData } from '@/hooks/useHealthData';
+
+export default function Dashboard() {
+  const { data, loading, syncing, updateData } = useHealthData();
+
+  return (
+    <div className="min-h-screen bg-[#f4f5f4] p-4 sm:p-6 flex flex-col items-center font-sans">
+      <header className="w-full max-w-md mb-6 flex items-center justify-between">
+        <h1 className="text-xl font-bold text-stone-700">健康追蹤器 V2</h1>
+        <div className="flex gap-3 items-center">
+          {syncing && <span className="text-[10px] text-stone-400 font-medium animate-pulse">儲存中...</span>}
+          <button className="p-2 bg-white rounded-full shadow-sm border border-stone-200 text-stone-500 hover:text-stone-800 transition-colors">
+            ⚙️
+          </button>
+        </div>
+      </header>
+      
+      <main className="w-full max-w-md space-y-0">
+        {loading ? (
+          <div className="text-center text-stone-400 mt-20 animate-pulse text-sm font-medium">資料連線中...</div>
+        ) : (
+          <div className="w-full max-w-md mx-auto pt-6 px-4 space-y-4">
+            <SleepCard data={data?.sleepLogs} updateData={updateData} />
+            <HRVCard data={data?.sleepLogs} updateData={updateData} />
+            <SupplementTracker data={data?.supplementLogs} settings={data?.supplementSettings} updateData={updateData} />
+            <ActivePainsCard data={data?.painLogs} updateData={updateData} />
+            <LongTermTracker 
+              data={data?.longTermLogs} 
+              tmyLogs={data?.tmySymptomsLogs} 
+              splintLogs={data?.biteSplintLogs} 
+              updateData={updateData} 
+            />
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

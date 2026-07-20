@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+/* ============================================================
+   設計系統 Tokens
+   ============================================================ */
+:root {
+  --font-sans: var(--font-outfit), 'Outfit', system-ui, sans-serif;
+
+  /* 主色 - 暖色橄欖綠 */
+  --primary: hsl(142, 45%, 38%);
+  --primary-light: hsl(142, 45%, 48%);
+  --primary-dark: hsl(142, 45%, 28%);
+  --primary-muted: hsl(142, 30%, 92%);
+
+  /* 強調色 - 琥珀橙 */
+  --accent: hsl(32, 90%, 55%);
+  --accent-muted: hsl(32, 90%, 95%);
+
+  /* 危險色 */
+  --danger: hsl(0, 72%, 51%);
+  --danger-muted: hsl(0, 72%, 96%);
+
+  /* 背景 */
+  --bg: hsl(40, 20%, 96%);
+  --bg-secondary: hsl(40, 15%, 91%);
+  --surface: hsla(0, 0%, 100%, 0.85);
+  --surface-hover: hsla(0, 0%, 100%, 0.95);
+
+  /* 邊框 */
+  --border: hsla(0, 0%, 0%, 0.07);
+  --border-strong: hsla(0, 0%, 0%, 0.14);
+
+  /* 文字 */
+  --text: hsl(220, 15%, 15%);
+  --text-secondary: hsl(220, 10%, 45%);
+  --text-muted: hsl(220, 8%, 65%);
+
+  /* 導覽列高度 */
+  --nav-height: 68px;
+
+  /* 陰影 */
+  --shadow-sm: 0 1px 3px hsla(0,0%,0%,0.06), 0 1px 2px hsla(0,0%,0%,0.04);
+  --shadow-md: 0 4px 16px hsla(0,0%,0%,0.08), 0 2px 6px hsla(0,0%,0%,0.05);
+  --shadow-lg: 0 10px 40px hsla(0,0%,0%,0.12), 0 4px 12px hsla(0,0%,0%,0.08);
+  --shadow-primary: 0 4px 16px hsla(142, 45%, 38%, 0.28);
+}
+
+
+
+/* ============================================================
+   Base Styles
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { height: 100%; }
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   Scrollbar
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border);
+}
+
+.card {
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 10px 20px;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-primary);
+  border: none;
+  cursor: pointer;
+}
+.btn-primary:hover { background: var(--primary-light); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-weight: 500;
+  border-radius: 12px;
+  padding: 10px 20px;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.btn-secondary:hover { background: var(--surface-hover); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.btn-ghost:hover { background: var(--bg-secondary); color: var(--text); }
+
+/* ============================================================
+   Animations
+   ============================================================ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes rainbowGlow {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+.animate-fade-up  { animation: fadeUp  0.25s ease both; }
+.animate-fade-in  { animation: fadeIn  0.2s ease both; }
+.animate-scale-in { animation: scaleIn 0.2s ease both; }
+
+.rainbow-gradient-fill {
+  background: linear-gradient(90deg, #ff6b6b, #fca048, #51cf66, #5c7cfa, #d0b8a8, #495057);
+  animation: rainbowGlow 3s infinite alternate;
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

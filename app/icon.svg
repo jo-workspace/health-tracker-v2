@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background: Primary Olive Green -->
+  <rect width="512" height="512" fill="#358c54" />
+  
+  <g transform="translate(256, 256) scale(1.4) translate(-256, -256)" fill="none" stroke="#ffffff" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Bowl Body -->
+    <path d="M 120 300 A 136 136 0 0 0 392 300" />
+    
+    <!-- Bowl Rim -->
+    <line x1="100" y1="300" x2="412" y2="300" />
+    
+    <!-- Minimalist Leaf -->
+    <path d="M 256 280 Q 256 160 360 160 Q 360 280 256 280 Z" fill="#ffffff" />
+  </g>
+</svg>
