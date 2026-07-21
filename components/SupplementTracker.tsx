@@ -56,7 +56,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         status: 'active',
         lastUpdated: Date.now().toString()
       }));
-      updateData({ supplementSettings: defaultSettings });
+      updateData({ supplementSettings: defaultSettings, clientTimestamp: Date.now() });
     }
   }, [settings, updateData]);
 
@@ -110,7 +110,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
           items: JSON.stringify(newState),
           status: 'active',
           lastUpdated: Date.now().toString()
-        }]
+        }],
+        clientTimestamp: Date.now()
       });
     }, 1000);
   };

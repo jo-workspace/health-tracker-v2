@@ -197,14 +197,14 @@ export default function SleepCard({ data = [], updateData }: Props) {
                 onClick={() => {
                   setIsAutoPromptOpen(false);
                   // 標記為無紀錄，發送 API
-                  const emptyLog: SleepLog = {
+                  const emptyLog = {
                     id: `sleep-${Date.now()}`,
                     date: yesterdayStr,
                     type: 'night',
                     sleepDuration: '0',
                     lastUpdated: Date.now().toString()
-                  };
-                  updateData({ sleepLogs: [emptyLog] });
+                  } as SleepLog;
+                  updateData({ sleepLogs: [emptyLog], clientTimestamp: Date.now() });
                 }}
                 className="w-full py-2.5 bg-stone-100 text-stone-600 font-bold rounded-lg hover:bg-stone-200 transition-colors"
               >

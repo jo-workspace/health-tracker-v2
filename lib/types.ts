@@ -37,15 +37,10 @@ export interface RainbowDietLog {
 export interface SupplementSetting {
   id: string;
   name: string;
-  category: string;
-  frequency: string;
-  timeOfDay: string[];
-  dosage: string;
-  startDate: string;
-  endDate?: string;
-  notes?: string;
-  status: 'active' | 'archived';
-  lastUpdated: number;
+  time: string;
+  targetAmount: string;
+  status: string;
+  lastUpdated: string;
 }
 
 export interface PainLog {

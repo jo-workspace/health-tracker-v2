@@ -10,7 +10,7 @@ export function useHealthData() {
 
   const loadData = useCallback(async () => {
     try {
-      const res = await syncBatch({});
+      const res = await syncBatch({ clientTimestamp: Date.now() });
       setData(res);
     } catch (e) {
       console.error(e);
