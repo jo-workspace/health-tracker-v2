@@ -85,12 +85,27 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
           
           let autoIgnored = false;
           const day = new Date().getDay();
-          const isWeekend = day === 0 || day === 6;
-          if ((base.time.includes('周一~五') || base.time.includes('一~五') || base.time.includes('平日')) && isWeekend) {
-            autoIgnored = true;
-          }
-          if ((base.time.includes('週末') || base.time.includes('假日') || base.time.includes('六日')) && !isWeekend) {
-            autoIgnored = true;
+          
+          const s = base.time.replace(/週/g, '周');
+          if (!s.includes('每天') && !s.includes('每日')) {
+            if (s.includes('平日') || s.includes('一~五') || s.includes('一至五') || s.includes('周一~五')) {
+              if (day === 0 || day === 6) autoIgnored = true;
+            } else if (s.includes('週末') || s.includes('假日') || s.includes('六日')) {
+              if (day >= 1 && day <= 5) autoIgnored = true;
+            } else if (s.includes('周')) {
+              const days = [];
+              if (s.includes('一')) days.push(1);
+              if (s.includes('二')) days.push(2);
+              if (s.includes('三')) days.push(3);
+              if (s.includes('四')) days.push(4);
+              if (s.includes('五')) days.push(5);
+              if (s.includes('六')) days.push(6);
+              if (s.includes('日')) days.push(0);
+              
+              if (days.length > 0 && !days.includes(day)) {
+                autoIgnored = true;
+              }
+            }
           }
           
           return { ...base, ignored: autoIgnored };
@@ -101,9 +116,29 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         setSupplements(baseSupplements.map(s => {
           let autoIgnored = false;
           const day = new Date().getDay();
-          const isWeekend = day === 0 || day === 6;
-          if ((s.time.includes('周一~五') || s.time.includes('一~五') || s.time.includes('平日')) && isWeekend) autoIgnored = true;
-          if ((s.time.includes('週末') || s.time.includes('假日') || s.time.includes('六日')) && !isWeekend) autoIgnored = true;
+          
+          const timeStr = s.time.replace(/週/g, '周');
+          if (!timeStr.includes('每天') && !timeStr.includes('每日')) {
+            if (timeStr.includes('平日') || timeStr.includes('一~五') || timeStr.includes('一至五') || timeStr.includes('周一~五')) {
+              if (day === 0 || day === 6) autoIgnored = true;
+            } else if (timeStr.includes('週末') || timeStr.includes('假日') || timeStr.includes('六日')) {
+              if (day >= 1 && day <= 5) autoIgnored = true;
+            } else if (timeStr.includes('周')) {
+              const days = [];
+              if (timeStr.includes('一')) days.push(1);
+              if (timeStr.includes('二')) days.push(2);
+              if (timeStr.includes('三')) days.push(3);
+              if (timeStr.includes('四')) days.push(4);
+              if (timeStr.includes('五')) days.push(5);
+              if (timeStr.includes('六')) days.push(6);
+              if (timeStr.includes('日')) days.push(0);
+              
+              if (days.length > 0 && !days.includes(day)) {
+                autoIgnored = true;
+              }
+            }
+          }
+          
           return { ...s, ignored: autoIgnored };
         }));
       }
@@ -111,9 +146,29 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
       setSupplements(baseSupplements.map(s => {
         let autoIgnored = false;
         const day = new Date().getDay();
-        const isWeekend = day === 0 || day === 6;
-        if ((s.time.includes('周一~五') || s.time.includes('一~五') || s.time.includes('平日')) && isWeekend) autoIgnored = true;
-        if ((s.time.includes('週末') || s.time.includes('假日') || s.time.includes('六日')) && !isWeekend) autoIgnored = true;
+        
+        const timeStr = s.time.replace(/週/g, '周');
+        if (!timeStr.includes('每天') && !timeStr.includes('每日')) {
+          if (timeStr.includes('平日') || timeStr.includes('一~五') || timeStr.includes('一至五') || timeStr.includes('周一~五')) {
+            if (day === 0 || day === 6) autoIgnored = true;
+          } else if (timeStr.includes('週末') || timeStr.includes('假日') || timeStr.includes('六日')) {
+            if (day >= 1 && day <= 5) autoIgnored = true;
+          } else if (timeStr.includes('周')) {
+            const days = [];
+            if (timeStr.includes('一')) days.push(1);
+            if (timeStr.includes('二')) days.push(2);
+            if (timeStr.includes('三')) days.push(3);
+            if (timeStr.includes('四')) days.push(4);
+            if (timeStr.includes('五')) days.push(5);
+            if (timeStr.includes('六')) days.push(6);
+            if (timeStr.includes('日')) days.push(0);
+            
+            if (days.length > 0 && !days.includes(day)) {
+              autoIgnored = true;
+            }
+          }
+        }
+        
         return { ...s, ignored: autoIgnored };
       }));
     }
