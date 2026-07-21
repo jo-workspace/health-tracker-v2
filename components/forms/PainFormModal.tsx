@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { X, Flame } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Save, Flame } from 'lucide-react';
 import type { PainLog } from '@/lib/types';
 
 interface Props {
@@ -72,10 +73,11 @@ export default function PainFormModal({ isOpen, onClose, onSave, initialData }: 
     return 'bg-[#fef2f2] text-[#dc2626] border-[#fecaca]';
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+  return typeof document !== 'undefined' ? createPortal(
+    <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="absolute inset-0" onClick={onClose} />
       <div 
-        className="bg-[#fcfcfc] w-full sm:w-[440px] sm:rounded-2xl rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-4 duration-300"
+        className="absolute bottom-0 left-0 w-full sm:left-1/2 sm:-translate-x-1/2 sm:max-w-[440px] bg-[#fcfcfc] rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full duration-300"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
@@ -177,6 +179,7 @@ export default function PainFormModal({ isOpen, onClose, onSave, initialData }: 
           </div>
         </form>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 }

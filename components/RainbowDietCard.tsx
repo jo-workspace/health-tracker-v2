@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Salad, ChevronRight, X, Plus, Check } from 'lucide-react';
 import type { SyncPayload, RainbowDietLog } from '@/lib/types';
 
@@ -236,10 +237,10 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
         </div>
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
-          <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-[#fdfdfc] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] sm:shadow-2xl border-t sm:border border-stone-200 flex flex-col max-h-[85vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-10 duration-300">
+      {isModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setIsModalOpen(false)} />
+          <div className="absolute bottom-0 left-0 w-full sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md bg-[#fdfdfc] rounded-t-2xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] sm:shadow-2xl border-t border-stone-200 flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full duration-300">
             <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
               <div className="w-8 h-8" />
               <div className="w-12 h-1.5 bg-stone-200 rounded-full sm:hidden" />
@@ -292,7 +293,8 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
