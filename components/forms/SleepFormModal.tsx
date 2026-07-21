@@ -174,6 +174,9 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
             <button onClick={onClose} className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors ml-1">
               <X size={18} />
             </button>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="p-4 overflow-y-auto w-full flex-1 flex flex-col gap-4 overflow-x-hidden">
           {/* 紀錄類型 */}
           <div className="flex bg-stone-100 p-1 rounded-lg">
