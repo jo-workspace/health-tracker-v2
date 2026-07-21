@@ -108,6 +108,7 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
       date: todayStr,
       plantName,
       color,
+      status: 'active',
       lastUpdated: Date.now().toString(),
     };
     
