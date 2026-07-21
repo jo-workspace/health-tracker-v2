@@ -26,8 +26,9 @@ export function useHealthData() {
       const res = await syncBatch({ clientTimestamp: Date.now() });
       setData(res);
       localStorage.setItem('health_data_cache', JSON.stringify(res));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      alert('同步失敗：' + e.message);
     } finally {
       setLoading(false);
       setSyncing(false);
@@ -44,8 +45,9 @@ export function useHealthData() {
       const res = await syncBatch(payload);
       setData(res);
       localStorage.setItem('health_data_cache', JSON.stringify(res));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      alert('儲存失敗：' + e.message);
     } finally {
       setSyncing(false);
     }
