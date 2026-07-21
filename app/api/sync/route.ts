@@ -98,8 +98,8 @@ async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: stri
   try {
     rows = await sheet.getRows();
   } catch (e) {
-    // Return empty array if getting rows fails
-    return [];
+    // If getting rows fails, throw an error to prevent accidental wiping of data
+    throw new Error('Failed to fetch existing rows from Google Sheets: ' + (e as Error).message);
   }
   return rows.map(row => {
     const obj: any = {};
@@ -111,11 +111,15 @@ async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: stri
 }
 
 async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], headers: string[]) {
-  await sheet.clearRows();
-  if (logs.length === 0) return;
+  if (logs.length === 0) {
+    await sheet.clearRows();
+    return;
+  }
   
   // Google Sheets API 有時對一次寫入太多筆資料會超時，我們一次最多新增 100 筆
   const chunkSize = 100;
+  const allRows = [];
+  
   for (let i = 0; i < logs.length; i += chunkSize) {
     const chunk = logs.slice(i, i + chunkSize);
     const rows = chunk.map(log => {
@@ -125,6 +129,30 @@ async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], h
       });
       return rowObj;
     });
-    await sheet.addRows(rows);
+    allRows.push(...rows);
+  }
+
+  // 先清空，再寫入
+  await sheet.clearRows();
+  
+  try {
+    // 一次性寫入或分批寫入。為了避免中途失敗導致資料遺失，如果失敗我們應該嘗試重試。
+    for (let i = 0; i < allRows.length; i += chunkSize) {
+      const chunk = allRows.slice(i, i + chunkSize);
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          await sheet.addRows(chunk);
+          break; // 成功就跳出重試迴圈
+        } catch (e) {
+          retries--;
+          if (retries === 0) throw e;
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 等待 1 秒後重試
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Critical Error saving to sheet:', error);
+    throw new Error('Failed to save to Google Sheets. The sheet might be partially cleared.');
   }
 }
