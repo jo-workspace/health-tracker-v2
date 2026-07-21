@@ -82,15 +82,40 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
           if (logged) {
             return { ...base, taken: logged.taken, amount: logged.amount, ignored: logged.ignored };
           }
-          return base;
+          
+          let autoIgnored = false;
+          const day = new Date().getDay();
+          const isWeekend = day === 0 || day === 6;
+          if ((base.time.includes('周一~五') || base.time.includes('一~五') || base.time.includes('平日')) && isWeekend) {
+            autoIgnored = true;
+          }
+          if ((base.time.includes('週末') || base.time.includes('假日') || base.time.includes('六日')) && !isWeekend) {
+            autoIgnored = true;
+          }
+          
+          return { ...base, ignored: autoIgnored };
         });
         const customLogs = parsed.filter(p => p.isCustom);
         setSupplements([...merged, ...customLogs]);
       } catch (e) {
-        setSupplements(baseSupplements);
+        setSupplements(baseSupplements.map(s => {
+          let autoIgnored = false;
+          const day = new Date().getDay();
+          const isWeekend = day === 0 || day === 6;
+          if ((s.time.includes('周一~五') || s.time.includes('一~五') || s.time.includes('平日')) && isWeekend) autoIgnored = true;
+          if ((s.time.includes('週末') || s.time.includes('假日') || s.time.includes('六日')) && !isWeekend) autoIgnored = true;
+          return { ...s, ignored: autoIgnored };
+        }));
       }
     } else {
-      setSupplements(baseSupplements);
+      setSupplements(baseSupplements.map(s => {
+        let autoIgnored = false;
+        const day = new Date().getDay();
+        const isWeekend = day === 0 || day === 6;
+        if ((s.time.includes('周一~五') || s.time.includes('一~五') || s.time.includes('平日')) && isWeekend) autoIgnored = true;
+        if ((s.time.includes('週末') || s.time.includes('假日') || s.time.includes('六日')) && !isWeekend) autoIgnored = true;
+        return { ...s, ignored: autoIgnored };
+      }));
     }
   }, [todayLog, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -122,10 +147,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   const isMorning = hour >= 4 && hour < 12;
   const isEvening = hour >= 17 || hour < 4;
 
-  const relevantSupps = supplements.filter(s => {
-    if (s.time === '周一~五' && isWeekend) return false;
-    return true;
-  });
+  const relevantSupps = supplements;
 
   const isFulfilled = (s: Supplement) => (s.amount || (s.taken ? 1 : 0)) >= (s.targetAmount || 1);
 
@@ -216,6 +238,92 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     return () => { document.body.style.overflow = 'unset'; };
   }, [isModalOpen]);
 
+  const activeSupps = relevantSupps.filter(s => !s.ignored);
+  const ignoredSupps = relevantSupps.filter(s => s.ignored);
+
+  const renderSuppCard = (item: Supplement) => {
+    const targetAmt = item.targetAmount || 1;
+    const currentAmt = item.amount || 0;
+    const full = item.taken && currentAmt >= targetAmt;
+    const partial = item.taken && currentAmt > 0 && currentAmt < targetAmt;
+
+    return (
+      <div
+        key={item.id}
+        role="button"
+        tabIndex={0}
+        onClick={(e) => toggleTaken(item.id, e)}
+        className={`cursor-pointer relative flex flex-col items-start p-3 rounded-lg border text-left transition-all ${
+          full 
+            ? 'bg-[#f4f7f4] border-[#d5e0d7] shadow-sm opacity-100' 
+            : partial
+              ? 'bg-[#fcf8f2] border-[#f2e6d5] shadow-sm opacity-100'
+              : item.ignored 
+                ? 'bg-stone-50 border-stone-200 opacity-50 grayscale'
+                : 'bg-white border-stone-200 hover:border-stone-300'
+        }`}
+      >
+        <div className={`absolute top-2 right-2 w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
+          full ? 'bg-[#6ba388] border-[#6ba388]' 
+          : partial ? 'bg-[#e5a045] border-[#e5a045]'
+          : 'border-stone-300 bg-white'
+        }`}>
+          {(full || partial) && <Check size={14} className="text-white stroke-[3]" />}
+        </div>
+        
+        <div className={`font-semibold text-sm pr-7 leading-tight mb-1.5 flex flex-wrap items-center gap-1 ${
+          full ? 'text-[#3e5f4f]' 
+          : partial ? 'text-[#8a5d21]'
+          : item.ignored ? 'text-stone-400 line-through' 
+          : 'text-stone-700'
+        }`}>
+          {item.name}
+          {item.taken && currentAmt > 1 && (
+            <span className={`text-[10px] font-black px-1 rounded-sm border ${
+              full ? 'text-[#6ba388] border-[#6ba388] bg-white' : 'text-[#e5a045] border-[#e5a045] bg-white'
+            }`}>
+              x{currentAmt}
+            </span>
+          )}
+          {targetAmt > 1 && !full && (
+            <span className="text-[10px] font-medium text-stone-400">
+              (目標: {targetAmt})
+            </span>
+          )}
+        </div>
+        
+        <div className="flex items-center justify-between w-full mt-auto min-h-[24px]">
+          <div className="flex items-center gap-1 text-[10px] text-stone-400 font-medium whitespace-nowrap"><Clock size={10} /> {item.time}</div>
+          
+          {item.taken ? (
+            <div className={`flex items-center gap-2 bg-white border rounded-full px-1.5 py-0.5 z-10 ${
+              full ? 'text-stone-600 border-[#d5e0d7]' : 'text-stone-600 border-[#f2e6d5]'
+            }`} onClick={e => e.stopPropagation()}>
+              <button onClick={(e) => updateAmount(item.id, -1, e)} className="hover:text-stone-800 disabled:opacity-30" disabled={currentAmt <= 1}>
+                <Minus size={12} />
+              </button>
+              <span className="text-[10px] font-bold min-w-[8px] text-center">{currentAmt}</span>
+              <button onClick={(e) => updateAmount(item.id, 1, e)} className="hover:text-stone-800">
+                <Plus size={12} />
+              </button>
+            </div>
+          ) : (
+            !item.ignored && (
+              <div onClick={(e) => toggleIgnored(item.id, e)} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-400 hover:bg-stone-200 hover:text-stone-600 transition-colors z-10">
+                <Ban size={10} /> 略過
+              </div>
+            )
+          )}
+          {item.ignored && !item.taken && (
+            <div onClick={(e) => toggleIgnored(item.id, e)} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-500 hover:bg-stone-300 hover:text-stone-700 transition-colors z-10">
+              恢復
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <div onClick={() => setIsModalOpen(true)} className="w-full max-w-md mx-auto bg-[#fdfdfc] rounded-lg shadow-sm border border-stone-200 mb-4 transition-all hover:shadow-md cursor-pointer group">
@@ -281,90 +389,27 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
             </div>
 
             <div className="p-4 pt-0 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-3 pb-8">
-                {relevantSupps.map((item) => {
-                  const targetAmt = item.targetAmount || 1;
-                  const currentAmt = item.amount || 0;
-                  const full = item.taken && currentAmt >= targetAmt;
-                  const partial = item.taken && currentAmt > 0 && currentAmt < targetAmt;
-
-                  return (
-                    <div
-                      key={item.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => toggleTaken(item.id, e)}
-                      className={`cursor-pointer relative flex flex-col items-start p-3 rounded-lg border text-left transition-all ${
-                        full 
-                          ? 'bg-[#f4f7f4] border-[#d5e0d7] shadow-sm opacity-100' 
-                          : partial
-                            ? 'bg-[#fcf8f2] border-[#f2e6d5] shadow-sm opacity-100'
-                            : item.ignored 
-                              ? 'bg-stone-50 border-stone-200 opacity-50 grayscale'
-                              : 'bg-white border-stone-200 hover:border-stone-300'
-                      }`}
-                    >
-                      <div className={`absolute top-2 right-2 w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
-                        full ? 'bg-[#6ba388] border-[#6ba388]' 
-                        : partial ? 'bg-[#e5a045] border-[#e5a045]'
-                        : 'border-stone-300 bg-white'
-                      }`}>
-                        {(full || partial) && <Check size={14} className="text-white stroke-[3]" />}
-                      </div>
-                      
-                      <div className={`font-semibold text-sm pr-7 leading-tight mb-1.5 flex flex-wrap items-center gap-1 ${
-                        full ? 'text-[#3e5f4f]' 
-                        : partial ? 'text-[#8a5d21]'
-                        : item.ignored ? 'text-stone-400 line-through' 
-                        : 'text-stone-700'
-                      }`}>
-                        {item.name}
-                        {item.taken && currentAmt > 1 && (
-                          <span className={`text-[10px] font-black px-1 rounded-sm border ${
-                            full ? 'text-[#6ba388] border-[#6ba388] bg-white' : 'text-[#e5a045] border-[#e5a045] bg-white'
-                          }`}>
-                            x{currentAmt}
-                          </span>
-                        )}
-                        {targetAmt > 1 && !full && (
-                          <span className="text-[10px] font-medium text-stone-400">
-                            (目標: {targetAmt})
-                          </span>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center justify-between w-full mt-auto min-h-[24px]">
-                        <div className="flex items-center gap-1 text-[10px] text-stone-400 font-medium whitespace-nowrap"><Clock size={10} /> {item.time}</div>
-                        
-                        {item.taken ? (
-                          <div className={`flex items-center gap-2 bg-white border rounded-full px-1.5 py-0.5 z-10 ${
-                            full ? 'text-stone-600 border-[#d5e0d7]' : 'text-stone-600 border-[#f2e6d5]'
-                          }`} onClick={e => e.stopPropagation()}>
-                            <button onClick={(e) => updateAmount(item.id, -1, e)} className="hover:text-stone-800 disabled:opacity-30" disabled={currentAmt <= 1}>
-                              <Minus size={12} />
-                            </button>
-                            <span className="text-[10px] font-bold min-w-[8px] text-center">{currentAmt}</span>
-                            <button onClick={(e) => updateAmount(item.id, 1, e)} className="hover:text-stone-800">
-                              <Plus size={12} />
-                            </button>
-                          </div>
-                        ) : (
-                          !item.ignored && (
-                            <div onClick={(e) => toggleIgnored(item.id, e)} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-400 hover:bg-stone-200 hover:text-stone-600 transition-colors z-10">
-                              <Ban size={10} /> {item.ignored ? '恢復' : '略過'}
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="grid grid-cols-2 gap-3 pb-4">
+                {activeSupps.map(renderSuppCard)}
                 
                 <button onClick={addCustomSupplement} className="flex flex-col items-center justify-center p-3 rounded-lg border border-dashed border-stone-300 bg-stone-50 text-stone-500 hover:bg-stone-100 transition-colors min-h-[80px]">
                   <Plus size={16} className="mb-1 text-stone-400" />
                   <span className="text-xs font-medium">新增其他</span>
                 </button>
               </div>
+
+              {ignoredSupps.length > 0 && (
+                <>
+                  <div className="flex items-center gap-3 my-2 mb-4">
+                    <div className="h-px bg-stone-200 flex-1" />
+                    <span className="text-[10px] font-bold text-stone-400 tracking-wider">已略過 / 非今日</span>
+                    <div className="h-px bg-stone-200 flex-1" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pb-8">
+                    {ignoredSupps.map(renderSuppCard)}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
