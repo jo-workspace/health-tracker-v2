@@ -19,7 +19,7 @@ export default function Dashboard() {
       <header className="w-full max-w-md mb-6 flex items-center justify-between">
         <h1 className="text-xl font-bold text-stone-700 flex items-center gap-2">
           <img src="/icon.svg" alt="logo" className="w-6 h-6 object-contain" />
-          健康追蹤器
+          Health Tracker
         </h1>
         <div className="flex gap-3 items-center">
           {syncing && <span className="text-[10px] text-stone-400 font-medium animate-pulse">儲存中...</span>}

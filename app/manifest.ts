@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: '健康追蹤器',
-    short_name: '健康紀錄',
-    description: '全方位個人健康追蹤工具',
+    name: 'Health Tracker',
+    short_name: 'Health Tracker',
+    description: 'Health & Wellness Tracking',
     start_url: '/',
     display: 'standalone',
     background_color: '#F5F3ED', // var(--bg)
