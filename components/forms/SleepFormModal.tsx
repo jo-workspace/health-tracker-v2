@@ -206,7 +206,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                     type="date" 
                     value={date} 
                     onChange={e => setDate(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                    className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                     required 
                   />
                 </div>
@@ -217,7 +217,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                       type="number" step="0.1" 
                       value={sleepDuration} 
                       onChange={e => setSleepDuration(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
+                      className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
                       placeholder="6.5"
                       required
                     />
@@ -233,7 +233,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                     type="time" 
                     value={bedTime} 
                     onChange={e => setBedTime(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                    className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5 min-w-0">
@@ -242,7 +242,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                     type="time" 
                     value={wakeTime} 
                     onChange={e => setWakeTime(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                    className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                   />
                 </div>
               </div>
@@ -255,7 +255,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                   type="date" 
                   value={date} 
                   onChange={e => setDate(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                  className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                   required 
                 />
               </div>
@@ -269,7 +269,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                       const mins = e.target.value;
                       setSleepDuration(mins ? String(+(Number(mins) / 60).toFixed(2)) : '');
                     }}
-                    className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
+                    className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
                     placeholder="30"
                     required
                   />
@@ -287,7 +287,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 type="number" 
                 value={hrv} 
                 onChange={e => setHrv(e.target.value)}
-                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
             <div className="flex flex-col gap-1.5 min-w-0">
@@ -296,7 +296,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 type="number" 
                 value={restingHeartRate} 
                 onChange={e => setRestingHeartRate(e.target.value)}
-                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
             <div className="flex flex-col gap-1.5 min-w-0">
@@ -305,7 +305,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 type="number" 
                 value={stress} 
                 onChange={e => setStress(e.target.value)}
-                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
           </div>
@@ -318,7 +318,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 type="number" step="0.1" 
                 value={deepSleep} 
                 onChange={e => setDeepSleep(e.target.value)}
-                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
             <div className="flex flex-col gap-1.5 min-w-0">
@@ -327,7 +327,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 type="number" step="0.1" 
                 value={remSleep} 
                 onChange={e => setRemSleep(e.target.value)}
-                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
           </div>
