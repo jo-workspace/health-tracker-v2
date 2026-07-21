@@ -196,54 +196,88 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
             </button>
           </div>
 
-          {/* 日期與時間 (精簡並列) */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-stone-500">起床日期</label>
-              <input 
-                type="date" 
-                value={date} 
-                onChange={e => setDate(e.target.value)}
-                className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-                required 
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-stone-500">睡眠時數</label>
-              <div className="relative">
+          {/* 日期與時間 */}
+          {type === 'night' ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-stone-500">起床日期</label>
+                  <input 
+                    type="date" 
+                    value={date} 
+                    onChange={e => setDate(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                    required 
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-stone-500">睡眠時數</label>
+                  <div className="relative">
+                    <input 
+                      type="number" step="0.1" 
+                      value={sleepDuration} 
+                      onChange={e => setSleepDuration(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
+                      placeholder="6.5"
+                      required
+                    />
+                    <span className="absolute right-3 top-2.5 text-sm text-stone-400">h</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-stone-500">上床時間</label>
+                  <input 
+                    type="time" 
+                    value={bedTime} 
+                    onChange={e => setBedTime(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-stone-500">起床時間</label>
+                  <input 
+                    type="time" 
+                    value={wakeTime} 
+                    onChange={e => setWakeTime(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-stone-500">小睡日期</label>
                 <input 
-                  type="number" step="0.1" 
-                  value={sleepDuration} 
-                  onChange={e => setSleepDuration(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
-                  placeholder="6.5"
-                  required
+                  type="date" 
+                  value={date} 
+                  onChange={e => setDate(e.target.value)}
+                  className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                  required 
                 />
-                <span className="absolute right-3 top-2.5 text-sm text-stone-400">h</span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-stone-500">小睡時間 (分鐘)</label>
+                <div className="relative">
+                  <input 
+                    type="number" 
+                    value={sleepDuration ? Math.round(Number(sleepDuration) * 60) : ''} 
+                    onChange={e => {
+                      const mins = e.target.value;
+                      setSleepDuration(mins ? String(+(Number(mins) / 60).toFixed(2)) : '');
+                    }}
+                    className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
+                    placeholder="30"
+                    required
+                  />
+                  <span className="absolute right-3 top-2.5 text-sm text-stone-400">min</span>
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-stone-500">上床時間</label>
-              <input 
-                type="time" 
-                value={bedTime} 
-                onChange={e => setBedTime(e.target.value)}
-                className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-stone-500">起床時間</label>
-              <input 
-                type="time" 
-                value={wakeTime} 
-                onChange={e => setWakeTime(e.target.value)}
-                className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-              />
-            </div>
-          </div>
+          )}
 
           {/* 心率與壓力資料 */}
           <div className="grid grid-cols-3 gap-3 pt-3 border-t border-stone-100">
