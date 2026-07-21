@@ -369,9 +369,9 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
       </div>
 
       {isModalOpen && (
-        <div className="fixed top-0 left-0 w-full h-[100dvh] z-50 flex items-end sm:items-center justify-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-[#fdfdfc] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] sm:shadow-2xl border-t sm:border border-stone-200 flex flex-col max-h-[85vh] sm:max-h-[85vh] max-h-[calc(100dvh-4rem)] pb-[env(safe-area-inset-bottom)] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-10 duration-300">
+          <div className="relative bg-[#fdfdfc] w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] sm:shadow-2xl border-t sm:border border-stone-200 flex flex-col max-h-[90vh] mb-0 animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-10 duration-300">
             <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
               <div className="w-8 h-8" />
               <div className="w-12 h-1.5 bg-stone-200 rounded-full sm:hidden" />
@@ -388,7 +388,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
               </div>
             </div>
 
-            <div className="p-4 pt-0 overflow-y-auto">
+            <div className="p-4 pt-0 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
               <div className="grid grid-cols-2 gap-3 pb-4">
                 {activeSupps.map(renderSuppCard)}
                 
