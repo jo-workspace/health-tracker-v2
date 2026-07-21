@@ -147,8 +147,8 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
   if (!isOpen) return null;
 
   return typeof document !== 'undefined' ? createPortal(
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
+    <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="absolute inset-0" onClick={onClose} />
       <div 
         className="absolute bottom-0 left-0 w-full sm:left-1/2 sm:-translate-x-1/2 sm:max-w-[420px] bg-[#fcfcfc] rounded-t-2xl shadow-xl flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full duration-300"
         onClick={e => e.stopPropagation()}
