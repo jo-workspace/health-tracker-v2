@@ -200,7 +200,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
           {type === 'night' ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 min-w-0">
                   <label className="text-xs font-bold text-stone-500">起床日期</label>
                   <input 
                     type="date" 
@@ -210,7 +210,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                     required 
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 min-w-0">
                   <label className="text-xs font-bold text-stone-500">睡眠時數</label>
                   <div className="relative">
                     <input 
@@ -227,7 +227,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 min-w-0">
                   <label className="text-xs font-bold text-stone-500">上床時間</label>
                   <input 
                     type="time" 
@@ -236,7 +236,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                     className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 min-w-0">
                   <label className="text-xs font-bold text-stone-500">起床時間</label>
                   <input 
                     type="time" 
@@ -249,7 +249,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
             </>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 min-w-0">
                 <label className="text-xs font-bold text-stone-500">小睡日期</label>
                 <input 
                   type="date" 
@@ -259,7 +259,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                   required 
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1.5 min-w-0">
                 <label className="text-xs font-bold text-stone-500">小睡時間 (分鐘)</label>
                 <div className="relative">
                   <input 
@@ -281,7 +281,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
 
           {/* 心率與壓力資料 */}
           <div className="grid grid-cols-3 gap-3 pt-3 border-t border-stone-100">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-[11px] font-bold text-stone-500">HRV (ms)</label>
               <input 
                 type="number" 
@@ -290,7 +290,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-[11px] font-bold text-stone-500">靜止心率 (bpm)</label>
               <input 
                 type="number" 
@@ -299,7 +299,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-[11px] font-bold text-stone-500">壓力分數</label>
               <input 
                 type="number" 
@@ -312,7 +312,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
 
           {/* 睡眠階段 */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-[11px] font-bold text-stone-500">深層睡眠 (小時)</label>
               <input 
                 type="number" step="0.1" 
@@ -321,7 +321,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-[11px] font-bold text-stone-500">REM (小時)</label>
               <input 
                 type="number" step="0.1" 
