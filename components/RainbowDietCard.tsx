@@ -117,7 +117,8 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
     setTimeout(() => setIsSuccessAnim(false), 2000);
     
     updateData({
-      rainbowDietLogs: [newLog]
+      rainbowDietLogs: [newLog],
+      clientTimestamp: Date.now()
     });
     
     setInputValue('');

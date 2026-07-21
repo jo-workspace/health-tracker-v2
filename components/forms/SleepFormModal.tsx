@@ -41,9 +41,9 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
     if (isOpen) {
       if (initialData) {
         setDate(initialData.date || '');
-        setType(initialData.type || 'night');
-        setBedTime(initialData.bedTime || '');
-        setWakeTime(initialData.wakeTime || '');
+        setType((initialData.type as 'night' | 'nap') || 'night');
+        setBedTime(initialData.bedtime || '');
+        setWakeTime(initialData.wakeupTime || '');
         setSleepDuration(initialData.sleepDuration || '');
         setHrv(initialData.hrv || '');
         setRestingHeartRate(initialData.restingHeartRate || '');
@@ -127,8 +127,8 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
       id: initialData?.id || crypto.randomUUID(),
       date,
       type,
-      bedTime,
-      wakeTime,
+      bedtime: bedTime,
+      wakeupTime: wakeTime,
       sleepDuration,
       hrv,
       restingHeartRate,
