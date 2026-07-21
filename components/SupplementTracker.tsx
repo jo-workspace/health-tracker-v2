@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Pill, Check, Plus, Minus, Clock, ChevronRight, X, Ban } from 'lucide-react';
 import type { SupplementLog, SupplementSetting, SyncPayload } from '@/lib/types';
 
@@ -423,7 +424,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         </div>
       </div>
 
-      {isModalOpen && (
+      {isModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsModalOpen(false)} />
           <div className="absolute bottom-0 left-0 w-full sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md bg-[#fdfdfc] rounded-t-2xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.3)] sm:shadow-2xl border-t border-stone-200 flex flex-col max-h-[90vh] animate-in slide-in-from-bottom-full duration-300">
@@ -467,7 +468,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

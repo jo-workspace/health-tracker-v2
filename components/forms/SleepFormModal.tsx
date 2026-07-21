@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Moon, Wand2, Loader2, Calendar } from 'lucide-react';
 import type { SleepLog } from '@/lib/types';
 
@@ -145,7 +146,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
 
   if (!isOpen) return null;
 
-  return (
+  return typeof document !== 'undefined' ? createPortal(
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
       <div 
@@ -252,93 +253,82 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 type="number" 
                 value={hrv} 
                 onChange={e => setHrv(e.target.value)}
-                className="w-full p-2 bg-stone-50 border border-stone-200 rounded-md text-sm text-center text-stone-700 focus:outline-none focus:bg-white focus:border-stone-400"
+                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-stone-500">靜止心率</label>
+              <label className="text-[11px] font-bold text-stone-500">靜止心率 (bpm)</label>
               <input 
                 type="number" 
                 value={restingHeartRate} 
                 onChange={e => setRestingHeartRate(e.target.value)}
-                className="w-full p-2 bg-stone-50 border border-stone-200 rounded-md text-sm text-center text-stone-700 focus:outline-none focus:bg-white focus:border-stone-400"
+                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-stone-500">壓力指數</label>
+              <label className="text-[11px] font-bold text-stone-500">壓力分數</label>
               <input 
                 type="number" 
                 value={stress} 
                 onChange={e => setStress(e.target.value)}
-                className="w-full p-2 bg-stone-50 border border-stone-200 rounded-md text-sm text-center text-stone-700 focus:outline-none focus:bg-white focus:border-stone-400"
+                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
           </div>
 
-          {/* 睡眠結構 */}
+          {/* 睡眠階段 */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-stone-500">深眠 (h)</label>
+              <label className="text-[11px] font-bold text-stone-500">深層睡眠 (小時)</label>
               <input 
-                type="number" step="0.1"
+                type="number" step="0.1" 
                 value={deepSleep} 
                 onChange={e => setDeepSleep(e.target.value)}
-                className="w-full p-2 bg-stone-50 border border-stone-200 rounded-md text-sm text-center text-stone-700 focus:outline-none focus:bg-white focus:border-stone-400"
+                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-stone-500">REM (h)</label>
+              <label className="text-[11px] font-bold text-stone-500">REM (小時)</label>
               <input 
-                type="number" step="0.1"
+                type="number" step="0.1" 
                 value={remSleep} 
                 onChange={e => setRemSleep(e.target.value)}
-                className="w-full p-2 bg-stone-50 border border-stone-200 rounded-md text-sm text-center text-stone-700 focus:outline-none focus:bg-white focus:border-stone-400"
+                className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
               />
             </div>
           </div>
 
-          {/* 體感評分 */}
+          {/* 醒來感受 */}
           <div className="flex flex-col gap-2 pt-3 border-t border-stone-100">
-            <label className="text-xs font-bold text-stone-500">起床體感</label>
-            <div className="flex justify-between gap-1">
-              {FEELINGS.map(f => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setFeeling(f.id)}
-                  className={`flex flex-col items-center justify-center p-2 rounded-xl flex-1 transition-all ${
-                    feeling === f.id 
-                    ? 'bg-stone-800 text-white shadow-md' 
-                    : 'bg-stone-50 text-stone-500 hover:bg-stone-100'
-                  }`}
-                >
-                  <span className="text-xl mb-1">{f.emoji}</span>
-                  <span className="text-[9px] font-bold whitespace-nowrap">{f.label}</span>
-                </button>
-              ))}
+            <label className="text-xs font-bold text-stone-500">醒來感受</label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setFeeling('great')} className={`flex-1 py-1.5 rounded border text-sm transition-colors ${feeling === 'great' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>很好</button>
+              <button type="button" onClick={() => setFeeling('normal')} className={`flex-1 py-1.5 rounded border text-sm transition-colors ${feeling === 'normal' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>普通</button>
+              <button type="button" onClick={() => setFeeling('bad')} className={`flex-1 py-1.5 rounded border text-sm transition-colors ${feeling === 'bad' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>差</button>
             </div>
           </div>
 
+          {/* 備註 */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-stone-500">備註</label>
             <textarea 
               value={notes} 
               onChange={e => setNotes(e.target.value)}
-              className="w-full p-3 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:bg-white focus:border-stone-400 min-h-[60px]"
-              placeholder="例如：睡前喝了酒、半夜熱醒..."
+              className="w-full p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 min-h-[60px]"
+              placeholder="例如：睡前喝了酒、太熱醒來..."
             />
           </div>
-
-          <div className="mt-2 pt-4 border-t border-stone-100 pb-2">
-            <button 
-              type="submit" 
-              className="w-full py-3.5 bg-[#444] text-white rounded-xl font-bold text-[15px] shadow-sm hover:bg-[#333] transition-colors"
-            >
-              儲存紀錄
-            </button>
-          </div>
+          
+          <button 
+            type="submit" 
+            className="w-full py-3 mt-2 bg-[#7148e5] hover:bg-[#5b36c2] text-white font-bold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2"
+          >
+            <Check size={18} />
+            {initialData ? '更新紀錄' : '儲存紀錄'}
+          </button>
         </form>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 }
