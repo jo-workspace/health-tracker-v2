@@ -9,7 +9,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Health Tracker V2",
+  title: "Health Tracker",
   description: "個人健康追蹤工具，記錄睡眠、飲食、保健食品與長期追蹤項目。",
 };
 

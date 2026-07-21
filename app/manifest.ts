@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Pantry Tracker',
-    short_name: 'Pantry',
-    description: '智能家庭食材與食譜追蹤',
+    name: '健康追蹤器',
+    short_name: '健康紀錄',
+    description: '全方位個人健康追蹤工具',
     start_url: '/',
     display: 'standalone',
     background_color: '#F5F3ED', // var(--bg)
