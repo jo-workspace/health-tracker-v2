@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
+    const authHeader = request.headers.get('authorization');
+    const expectedPassword = process.env.APP_PASSWORD;
+    if (expectedPassword && authHeader !== `Bearer ${expectedPassword}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { image, mimeType } = await request.json();
     if (!image) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });

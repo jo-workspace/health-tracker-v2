@@ -9,13 +9,28 @@ export function useHealthData() {
   const [syncing, setSyncing] = useState(false);
 
   const loadData = useCallback(async () => {
+    // 1. Optimistic UI: Load from cache immediately
+    const cached = localStorage.getItem('health_data_cache');
+    if (cached) {
+      try {
+        setData(JSON.parse(cached));
+        setLoading(false); // Stop loading immediately if cache exists
+      } catch (e) {
+        console.error('Cache parsing error:', e);
+      }
+    }
+
+    // 2. Background sync
+    setSyncing(true);
     try {
       const res = await syncBatch({ clientTimestamp: Date.now() });
       setData(res);
+      localStorage.setItem('health_data_cache', JSON.stringify(res));
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+      setSyncing(false);
     }
   }, []);
 
@@ -28,6 +43,7 @@ export function useHealthData() {
     try {
       const res = await syncBatch(payload);
       setData(res);
+      localStorage.setItem('health_data_cache', JSON.stringify(res));
     } catch (e) {
       console.error(e);
     } finally {
@@ -35,5 +51,5 @@ export function useHealthData() {
     }
   };
 
-  return { data, loading, syncing, updateData };
+  return { data, loading, syncing, updateData, forceSync: loadData };
 }

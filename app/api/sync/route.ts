@@ -15,6 +15,12 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization');
+    const expectedPassword = process.env.APP_PASSWORD;
+    if (expectedPassword && authHeader !== `Bearer ${expectedPassword}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const payload = await request.json();
     const doc = await getGoogleSheet();
     

@@ -2,9 +2,13 @@ import type { HealthData, SyncPayload } from './types';
 
 /** 同步資料到 Google Sheets */
 export async function syncBatch(payload: SyncPayload): Promise<HealthData> {
+  const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
   const res = await fetch('/api/sync', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${password}`
+    },
     body: JSON.stringify(payload),
   });
   let data;
