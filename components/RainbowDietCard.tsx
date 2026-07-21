@@ -1,15 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { Salad, ChevronRight, X, Plus, Check } from 'lucide-react';
-import type { SyncPayload } from '@/lib/types';
-
-interface RainbowDietLog {
-  id: string;
-  date: string;
-  plantName: string;
-  color: string;
-  lastUpdated: string;
-}
+import type { SyncPayload, RainbowDietLog } from '@/lib/types';
 
 interface Props {
   data?: RainbowDietLog[];

@@ -25,6 +25,15 @@ export interface SupplementLog {
   lastUpdated: string;
 }
 
+export interface RainbowDietLog {
+  id: string;
+  date: string;
+  plantName: string;
+  color: string;
+  status: string;
+  lastUpdated: string;
+}
+
 export interface SupplementSetting {
   id: string;
   name: string;
