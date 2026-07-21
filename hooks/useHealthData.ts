@@ -43,8 +43,11 @@ export function useHealthData() {
     setSyncing(true);
     try {
       const res = await syncBatch(payload);
-      setData(res);
-      localStorage.setItem('health_data_cache', JSON.stringify(res));
+      setData(prev => {
+        const newData = prev ? { ...prev, ...res } as HealthData : res;
+        localStorage.setItem('health_data_cache', JSON.stringify(newData));
+        return newData;
+      });
     } catch (e: any) {
       console.error(e);
       alert('儲存失敗：' + e.message);

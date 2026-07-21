@@ -23,10 +23,17 @@ export async function POST(request: NextRequest) {
 
     const payload = await request.json();
     const doc = await getGoogleSheet();
+    await doc.loadInfo();
     
     const responsePayload: Record<string, any[]> = {};
+    
+    // 如果 payload 只有 clientTimestamp (或完全沒有資料)，代表是「強制/完整同步」，我們就全部處理
+    // 如果 payload 有特定的欄位 (例如 sleepLogs)，我們就「只處理有被指定的欄位」，以節省 API 額度 (60/min)
+    const payloadKeys = Object.keys(payload).filter(k => k !== 'clientTimestamp');
+    const isFullSync = payloadKeys.length === 0;
+    const keysToSync = Object.keys(sheetsConfig).filter(key => isFullSync || payloadKeys.includes(key));
 
-    for (const key of Object.keys(sheetsConfig)) {
+    for (const key of keysToSync) {
       const config = sheetsConfig[key];
       let sheet = doc.sheetsByTitle[config.name];
       
