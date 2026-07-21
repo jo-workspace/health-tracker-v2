@@ -1,4 +1,5 @@
-import { X, Moon, Info } from 'lucide-react';
+import { X, Moon } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import type { SleepLog } from '@/lib/types';
 
 interface Props {
@@ -88,11 +89,11 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs }: Props) 
   });
   const deepRatio = nightHoursForDeep > 0 ? Math.round((totalDeep / nightHoursForDeep) * 100) : 0;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
+  return typeof document !== 'undefined' ? createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm transition-opacity">
+      <div className="absolute inset-0" onClick={onClose} />
       
-      <div className="relative bg-[#fdfdfc] w-full max-w-md rounded-2xl shadow-2xl border border-stone-200 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+      <div className="relative bg-[#fcfcfc] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
@@ -222,6 +223,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs }: Props) 
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
       `}} />
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 }

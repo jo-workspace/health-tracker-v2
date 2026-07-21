@@ -1,3 +1,5 @@
+import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Activity, X, Info } from 'lucide-react';
 import type { SleepLog } from '@/lib/types';
 
@@ -163,9 +165,9 @@ export default function HRVDetailModal({ isOpen, onClose, sleepLogs }: Props) {
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
+  return typeof document !== 'undefined' ? createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm transition-opacity">
+      <div className="absolute inset-0" onClick={onClose} />
       
       <div className="relative bg-[#fdfdfc] w-full max-w-md rounded-2xl shadow-2xl border border-stone-200 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
         
@@ -293,6 +295,7 @@ export default function HRVDetailModal({ isOpen, onClose, sleepLogs }: Props) {
           
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 }
