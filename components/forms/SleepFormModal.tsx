@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Moon, Wand2, Loader2, Calendar } from 'lucide-react';
+import { X, Moon, Wand2, Loader2, Calendar, Check } from 'lucide-react';
 import type { SleepLog } from '@/lib/types';
 
 interface Props {
