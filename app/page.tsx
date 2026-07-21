@@ -47,6 +47,7 @@ export default function Dashboard() {
             <SleepCard data={data?.sleepLogs} updateData={updateData} />
             <HRVCard data={data?.sleepLogs} updateData={updateData} />
             <SupplementTracker data={data?.supplementLogs} settings={data?.supplementSettings} updateData={updateData} />
+            <RainbowDietCard data={data?.rainbowDietLogs} updateData={updateData} />
             <ActivePainsCard data={data?.painLogs} updateData={updateData} />
             <LongTermTracker 
               data={data?.longTermLogs} 
