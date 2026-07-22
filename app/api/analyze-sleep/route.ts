@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 
 const MODELS = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-2.0-flash-lite'
+  'gemini-2.5-flash',
+  'gemini-2.0-flash'
 ];
 
 export async function POST(request: Request) {
@@ -71,7 +70,6 @@ For durations like 1h 36m, convert it to float hours (e.g. 1 + 36/60 = 1.6).
     let lastError = '';
     let lastStatus = 500;
 
-    // 依序嘗試多個 Gemini 模型以因應 429 (Rate Limit) 或模型暫時停用問題
     for (const model of MODELS) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -101,7 +99,6 @@ For durations like 1h 36m, convert it to float hours (e.g. 1 + 36/60 = 1.6).
           : `Gemini API Error (${model}): ${response.statusText || response.status}`;
 
         if (response.status === 429) {
-          // 若遇 429 短暫等待 800ms 後降級切換至備用模型
           await new Promise(resolve => setTimeout(resolve, 800));
         }
       } catch (err: any) {
