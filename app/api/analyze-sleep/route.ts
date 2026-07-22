@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 
+const MODELS = [
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-2.0-flash-lite'
+];
+
 export async function POST(request: Request) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -17,8 +23,6 @@ export async function POST(request: Request) {
     if (!apiKey) {
       return NextResponse.json({ error: 'API Key not configured' }, { status: 500 });
     }
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const prompt = `
 You are a health data extraction assistant. I will provide a screenshot from my Garmin app.
@@ -64,36 +68,49 @@ For durations like 1h 36m, convert it to float hours (e.g. 1 + 36/60 = 1.6).
       }
     };
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    let lastError = '';
+    let lastStatus = 500;
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Gemini API Error:', errorData);
-      return NextResponse.json({ error: `Gemini API Error: ${response.statusText}` }, { status: response.status });
+    // 依序嘗試多個 Gemini 模型以因應 429 (Rate Limit) 或模型暫時停用問題
+    for (const model of MODELS) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (text) {
+            let cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(cleanText);
+            return NextResponse.json(parsed);
+          }
+        }
+
+        const errorData = await response.text();
+        console.warn(`Gemini model [${model}] failed (${response.status}):`, errorData);
+        lastStatus = response.status;
+        lastError = response.status === 429 
+          ? 'API 呼叫次數過多 (Rate Limit Exceeded)' 
+          : `Gemini API Error (${model}): ${response.statusText || response.status}`;
+
+        if (response.status === 429) {
+          // 若遇 429 短暫等待 800ms 後降級切換至備用模型
+          await new Promise(resolve => setTimeout(resolve, 800));
+        }
+      } catch (err: any) {
+        console.error(`Fetch error for model [${model}]:`, err);
+        lastError = err.message || 'Network error';
+      }
     }
 
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!text) {
-      return NextResponse.json({ error: 'No text returned from Gemini' }, { status: 500 });
-    }
-
-    let parsed;
-    try {
-      // Strip markdown code blocks if the model accidentally included them
-      let cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-      parsed = JSON.parse(cleanText);
-    } catch (err) {
-      console.error('Failed to parse JSON from Gemini:', text);
-      return NextResponse.json({ error: 'Failed to parse JSON', rawText: text }, { status: 500 });
-    }
-
-    return NextResponse.json(parsed);
+    return NextResponse.json({ error: lastError || 'All Gemini fallback models failed' }, { status: lastStatus });
 
   } catch (err: any) {
     console.error('Server error in analyze-sleep:', err);

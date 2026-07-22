@@ -111,7 +111,12 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
           
         } catch (error: any) {
           console.error('Error analyzing image:', error);
-          alert(`解析截圖失敗：${error.message || '請稍後再試'}`);
+          const msg = error.message || '';
+          if (msg.includes('429') || msg.includes('Rate Limit')) {
+            alert('解析截圖失敗：Google Gemini 免費額度暫時達上限 (Too Many Requests)，請等待約 10~15 秒後再試一次！');
+          } else {
+            alert(`解析截圖失敗：${msg || '請稍後再試'}`);
+          }
         } finally {
           setIsAnalyzing(false);
         }
