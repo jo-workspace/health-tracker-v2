@@ -9,8 +9,9 @@ import SleepFormModal from './forms/SleepFormModal';
 interface Props {
   data?: SleepLog[];
   updateData: (payload: SyncPayload) => void;
+  forceSync?: () => Promise<void>;
 }
-export default function SleepCard({ data = [], updateData }: Props) {
+export default function SleepCard({ data = [], updateData, forceSync }: Props) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null);
@@ -19,6 +20,14 @@ export default function SleepCard({ data = [], updateData }: Props) {
   
   const [isAutoPromptOpen, setIsAutoPromptOpen] = useState(false);
   const [hasCheckedAutoPrompt, setHasCheckedAutoPrompt] = useState(false);
+
+  const openFormWithSync = (dateStr: string, typeVal: 'night' | 'nap', logToEdit?: SleepLog | null) => {
+    forceSync?.();
+    setEditingLog(logToEdit || null);
+    setDefaultDate(dateStr);
+    setDefaultType(typeVal);
+    setIsFormModalOpen(true);
+  };
 
   const activeLogs = data.filter(log => log.status !== 'deleted');
 
@@ -78,7 +87,13 @@ export default function SleepCard({ data = [], updateData }: Props) {
 
   return (
     <>
-      <div onClick={() => setIsDetailModalOpen(true)} className="w-full max-w-md mx-auto bg-[#fdfdfc] rounded-lg shadow-sm border border-stone-200 mb-4 transition-all hover:shadow-md cursor-pointer group relative">
+      <div 
+        onClick={() => {
+          forceSync?.();
+          setIsDetailModalOpen(true);
+        }} 
+        className="w-full max-w-md mx-auto bg-[#fdfdfc] rounded-lg shadow-sm border border-stone-200 mb-4 transition-all hover:shadow-md cursor-pointer group relative"
+      >
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-[#5c697b] flex-wrap">
@@ -137,10 +152,7 @@ export default function SleepCard({ data = [], updateData }: Props) {
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              setEditingLog(null);
-              setDefaultDate(new Date().toLocaleDateString('en-CA'));
-              setDefaultType('nap');
-              setIsFormModalOpen(true);
+              openFormWithSync(new Date().toLocaleDateString('en-CA'), 'nap');
             }}
             className="w-7 h-7 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:bg-stone-50 hover:text-stone-800 shadow-sm transition-colors"
             title="新增小睡"
@@ -150,10 +162,7 @@ export default function SleepCard({ data = [], updateData }: Props) {
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              setEditingLog(null);
-              setDefaultDate(new Date().toLocaleDateString('en-CA'));
-              setDefaultType('night');
-              setIsFormModalOpen(true);
+              openFormWithSync(new Date().toLocaleDateString('en-CA'), 'night');
             }}
             className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:bg-stone-50 hover:text-stone-800 shadow-sm transition-colors"
             title="新增睡眠紀錄"
@@ -186,9 +195,7 @@ export default function SleepCard({ data = [], updateData }: Props) {
               <button 
                 onClick={() => {
                   setIsAutoPromptOpen(false);
-                  setEditingLog(null);
-                  setDefaultDate(yesterdayStr);
-                  setIsFormModalOpen(true);
+                  openFormWithSync(yesterdayStr, 'night');
                 }}
                 className="w-full py-2.5 bg-[#6ba388] text-white font-bold rounded-xl hover:bg-[#5b8c74] transition-colors"
               >

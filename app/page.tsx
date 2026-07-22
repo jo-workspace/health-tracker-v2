@@ -44,7 +44,7 @@ export default function Dashboard() {
           <div className="text-center text-stone-400 mt-20 animate-pulse text-sm font-medium">資料連線中...</div>
         ) : (
           <div className="w-full max-w-md mx-auto pt-6 px-4 space-y-4">
-            <SleepCard data={data?.sleepLogs} updateData={updateData} />
+            <SleepCard data={data?.sleepLogs} updateData={updateData} forceSync={forceSync} />
             <HRVCard data={data?.sleepLogs} updateData={updateData} />
             <SupplementTracker data={data?.supplementLogs} settings={data?.supplementSettings} updateData={updateData} />
             <RainbowDietCard data={data?.rainbowDietLogs} updateData={updateData} />

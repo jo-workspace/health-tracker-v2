@@ -1,12 +1,18 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Salad, ChevronRight, X, Plus, Check } from 'lucide-react';
+import { Salad, ChevronRight, X, Plus, Check, Camera, Loader2, Sparkles } from 'lucide-react';
 import type { SyncPayload, RainbowDietLog } from '@/lib/types';
 
 interface Props {
   data?: RainbowDietLog[];
   updateData: (payload: SyncPayload) => void;
+}
+
+interface DetectedItem {
+  plantName: string;
+  color: string;
+  selected: boolean;
 }
 
 const COLOR_MAPPING: Record<string, string> = {
@@ -41,7 +47,11 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
   const [optimisticLogs, setOptimisticLogs] = useState<RainbowDietLog[]>([]);
   const [isSuccessAnim, setIsSuccessAnim] = useState(false);
   
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // AI 圖片辨識相關 State
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [detectedItems, setDetectedItems] = useState<DetectedItem[]>([]);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 當真實資料回來時，清除樂觀更新
   useEffect(() => {
@@ -83,11 +93,11 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
   const plantCount = uniquePlants.length;
   const activeColors = new Set(uniquePlants.map(p => p.color));
   
-  // 動態學習使用者的歷史顏色紀錄 (從全部資料中萃取)
+  // 動態學習使用者的歷史顏色紀錄
   const historicalColorMap = new Map<string, string>();
   data.forEach(log => {
     if (log.plantName && log.color && log.status !== 'deleted') {
-      historicalColorMap.set(log.plantName, log.color); // 越新的紀錄會覆蓋舊的
+      historicalColorMap.set(log.plantName, log.color);
     }
   });
   
@@ -105,7 +115,7 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
   const submitLog = (plantName: string, color: string) => {
     const todayStr = new Date().toLocaleDateString('en-CA');
     const newLog: RainbowDietLog = {
-      id: `diet-${Date.now()}`,
+      id: `diet-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       date: todayStr,
       plantName,
       color,
@@ -126,12 +136,101 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
     setIsSelectingColor(false);
   };
 
+  const submitBatchLogs = (items: DetectedItem[]) => {
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const selectedItems = items.filter(i => i.selected);
+    if (selectedItems.length === 0) return;
+
+    const newLogs: RainbowDietLog[] = selectedItems.map((item, idx) => ({
+      id: `diet-${Date.now()}-${idx}`,
+      date: todayStr,
+      plantName: item.plantName,
+      color: item.color,
+      status: 'active',
+      lastUpdated: Date.now().toString(),
+    }));
+
+    setOptimisticLogs(prev => [...prev, ...newLogs]);
+    setIsSuccessAnim(true);
+    setTimeout(() => setIsSuccessAnim(false), 2000);
+
+    updateData({
+      rainbowDietLogs: newLogs,
+      clientTimestamp: Date.now()
+    });
+
+    setIsAiModalOpen(false);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsAnalyzing(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64Data = event.target?.result as string;
+
+        try {
+          const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
+          const res = await fetch('/api/analyze-diet', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${password}`
+            },
+            body: JSON.stringify({
+              image: base64Data,
+              mimeType: file.type
+            })
+          });
+
+          const resData = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            throw new Error(resData.error || `HTTP ${res.status}`);
+          }
+
+          if (resData.items && Array.isArray(resData.items) && resData.items.length > 0) {
+            const parsedItems: DetectedItem[] = resData.items.map((it: any) => ({
+              plantName: it.plantName,
+              color: COLOR_MAPPING[it.plantName] || historicalColorMap.get(it.plantName) || it.color || 'green',
+              selected: true
+            }));
+            setDetectedItems(parsedItems);
+            setIsAiModalOpen(true);
+          } else {
+            alert('未能辨識出餐點中的植物食材，請更換清晰照片或手動輸入。');
+          }
+        } catch (error: any) {
+          console.error('Diet image analysis error:', error);
+          const msg = error.message || '';
+          if (msg.includes('429') || msg.includes('Rate Limit')) {
+            alert('AI 辨識失敗：Google API 次數達上限，請等待 10 秒後再試。');
+          } else {
+            alert(`AI 辨識失敗：${msg || '請稍後再試'}`);
+          }
+        } finally {
+          setIsAnalyzing(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      setIsAnalyzing(false);
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
     
     const plant = inputValue.trim();
-    // 優先使用內建對應，若無則查詢歷史紀錄，都找不到才彈出選擇器
     const mappedColor = COLOR_MAPPING[plant] || historicalColorMap.get(plant);
     
     if (mappedColor) {
@@ -143,10 +242,10 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
   };
 
   useEffect(() => {
-    if (isModalOpen) document.body.style.overflow = 'hidden';
+    if (isModalOpen || isAiModalOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = 'unset';
     return () => { document.body.style.overflow = 'unset'; };
-  }, [isModalOpen]);
+  }, [isModalOpen, isAiModalOpen]);
 
   return (
     <>
@@ -200,19 +299,33 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
                 list="diet-suggestions"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="輸入今日植物食材，如：蘋果"
-                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6ba388]/30 transition-shadow"
+                placeholder="輸入食材或點擊📷拍照AI自動辨識..."
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-3 pr-16 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6ba388]/30 transition-shadow"
               />
               <datalist id="diet-suggestions">
                 {Array.from(new Set([...Object.keys(COLOR_MAPPING), ...historicalColorMap.keys()])).map(plant => (
                   <option key={plant} value={plant} />
                 ))}
               </datalist>
-              <button type="submit" className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md transition-all duration-300 ${
-                isSuccessAnim ? 'bg-[#5b8c74] text-white scale-110' : 'bg-[#6ba388] text-white hover:bg-[#5b8c74]'
-              }`}>
-                {isSuccessAnim ? <Check size={14} strokeWidth={3} /> : <Plus size={14} />}
-              </button>
+
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isAnalyzing}
+                  className="w-6 h-6 flex items-center justify-center rounded-md bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-800 transition-colors disabled:opacity-50"
+                  title="拍照/傳圖 AI 自動辨識彩虹食材"
+                >
+                  {isAnalyzing ? <Loader2 size={13} className="animate-spin text-[#6ba388]" /> : <Camera size={13} />}
+                </button>
+                <button type="submit" className={`w-6 h-6 flex items-center justify-center rounded-md transition-all duration-300 ${
+                  isSuccessAnim ? 'bg-[#5b8c74] text-white scale-110' : 'bg-[#6ba388] text-white hover:bg-[#5b8c74]'
+                }`}>
+                  {isSuccessAnim ? <Check size={14} strokeWidth={3} /> : <Plus size={14} />}
+                </button>
+              </div>
+
+              <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
             </form>
             
             {isSelectingColor && (
@@ -237,6 +350,78 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
         </div>
       </div>
 
+      {/* AI 照片辨識結果確認 Modal */}
+      {isAiModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setIsAiModalOpen(false)} />
+          <div className="relative bg-[#fdfdfc] w-full max-w-sm rounded-2xl shadow-2xl p-5 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-3 pb-2 border-b border-stone-100">
+              <h3 className="font-bold text-stone-800 text-base flex items-center gap-1.5">
+                <Sparkles size={18} className="text-[#6ba388]" />
+                AI 辨識出的彩虹食材
+              </h3>
+              <button onClick={() => setIsAiModalOpen(false)} className="p-1 rounded-full text-stone-400 hover:bg-stone-100">
+                <X size={16} />
+              </button>
+            </div>
+            
+            <p className="text-xs text-stone-500 mb-4">請確認本次餐點包含的植物食材，取消勾選不需要的項目：</p>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1 mb-5">
+              {detectedItems.map((item, idx) => {
+                const colorObj = COLOR_INFO.find(c => c.id === item.color) || COLOR_INFO[2];
+                return (
+                  <label 
+                    key={idx}
+                    className={`flex items-center justify-between p-2.5 rounded-lg border transition-colors cursor-pointer ${
+                      item.selected ? 'bg-stone-50 border-stone-200' : 'bg-white border-stone-100 opacity-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input 
+                        type="checkbox"
+                        checked={item.selected}
+                        onChange={() => {
+                          setDetectedItems(prev => prev.map((it, i) => i === idx ? { ...it, selected: !it.selected } : it));
+                        }}
+                        className="w-4 h-4 accent-[#6ba388] rounded"
+                      />
+                      <span className="text-sm font-bold text-stone-700">{item.plantName}</span>
+                    </div>
+
+                    <span 
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${colorObj.textActive}`}
+                      style={{ backgroundColor: colorObj.hex }}
+                    >
+                      {colorObj.label}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAiModalOpen(false)}
+                className="flex-1 py-2.5 text-stone-500 font-bold text-xs bg-stone-100 rounded-xl hover:bg-stone-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => submitBatchLogs(detectedItems)}
+                className="flex-1 py-2.5 text-white font-bold text-xs bg-[#6ba388] rounded-xl hover:bg-[#5b8c74] transition-colors shadow-sm"
+              >
+                一鍵登錄 (選取 {detectedItems.filter(i => i.selected).length} 項)
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* 詳情統計 Modal */}
       {isModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsModalOpen(false)} />
@@ -264,7 +449,7 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
               
               {plantCount === 0 ? (
                 <div className="text-center text-stone-400 py-8 text-sm">
-                  本週還沒有紀錄任何植物喔！<br/>快在首頁輸入吃過的食材吧！
+                  本週還沒有紀錄任何植物喔！<br/>快在首頁輸入或拍照辨識吃過的食材吧！
                 </div>
               ) : (
                 <div className="flex flex-col gap-4 pb-8">
