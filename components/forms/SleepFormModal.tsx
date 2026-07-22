@@ -81,18 +81,24 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
         const base64Data = event.target?.result as string;
         
         try {
+          const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
           const res = await fetch('/api/analyze-sleep', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${password}`
+            },
             body: JSON.stringify({ 
               image: base64Data,
               mimeType: file.type 
             })
           });
 
-          if (!res.ok) throw new Error('API request failed');
-          
-          const data = await res.json();
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
           
           if (data.bedTime) setBedTime(data.bedTime);
           if (data.wakeTime) setWakeTime(data.wakeTime);
@@ -103,9 +109,9 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
           if (data.restingHeartRate) setRestingHeartRate(String(data.restingHeartRate));
           if (data.stress) setStress(String(data.stress));
           
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error analyzing image:', error);
-          alert('解析截圖失敗，請稍後再試。');
+          alert(`解析截圖失敗：${error.message || '請稍後再試'}`);
         } finally {
           setIsAnalyzing(false);
         }
