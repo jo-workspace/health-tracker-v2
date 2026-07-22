@@ -9,7 +9,7 @@ interface Props {
   onSave: (log: Partial<TmySymptomLog>) => void;
 }
 
-const PRESET_SYMPTOMS = ["關節喀喀聲", "咀嚼無力", "張口受限", "單側疼痛", "雙側疼痛", "肩頸痠痛", "頭痛"];
+const PRESET_SYMPTOMS = ["關節喀喀聲", "咀嚼無力", "咀嚼時關節卡鎖", "張口受限", "單側疼痛", "雙側疼痛", "肩頸痠痛", "頭痛"];
 const PRESET_MEDS = [
   { id: "muscle_relaxant", label: "肌肉鬆弛劑" },
   { id: "painkiller", label: "止痛藥" },

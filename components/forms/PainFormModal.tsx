@@ -13,10 +13,11 @@ interface Props {
 
 const COMMON_LOCATIONS = [
   "右膝外側", "右膝蓋", "左膝蓋", "右踝", "左踝", "足底筋膜",
-  "下背部", "右肩膀", "左肩膀", "小腿肌", "右臀肌", "左臀肌"
+  "下背部", "右肩膀", "左肩膀", "小腿肌", "右臀肌", "左臀肌",
+  "腸胃/排便異常", "腹部"
 ];
 
-const PRESET_TRIGGERS = ["慢跑", "間歇跑", "重訓", "久坐", "不明", "其他"];
+const PRESET_TRIGGERS = ["慢跑", "間歇跑", "重訓", "久坐", "飲食/消化", "不明", "其他"];
 
 export default function PainFormModal({ isOpen, onClose, onSave, initialData }: Props) {
   const [location, setLocation] = useState('');

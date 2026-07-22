@@ -319,13 +319,18 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
                 : 'bg-white border-stone-200 hover:border-stone-300'
         }`}
       >
-        <div className={`absolute top-2 right-2 w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
-          full ? 'bg-[#6ba388] border-[#6ba388]' 
-          : partial ? 'bg-[#e5a045] border-[#e5a045]'
-          : 'border-stone-300 bg-white'
-        }`}>
+        <button
+          type="button"
+          onClick={(e) => toggleTaken(item.id, e)}
+          className={`absolute top-2 right-2 w-6 h-6 rounded-full border flex items-center justify-center transition-all z-10 ${
+            full ? 'bg-[#6ba388] border-[#6ba388] shadow-2xs scale-105' 
+            : partial ? 'bg-[#e5a045] border-[#e5a045] shadow-2xs scale-105'
+            : 'border-stone-300 bg-white hover:border-stone-400'
+          }`}
+          title={full || partial ? "已服用 (點擊取消)" : "標記為已服用"}
+        >
           {(full || partial) && <Check size={14} className="text-white stroke-[3]" />}
-        </div>
+        </button>
         
         <div className={`font-semibold text-sm pr-7 leading-tight mb-1.5 flex flex-wrap items-center gap-1 ${
           full ? 'text-[#3e5f4f]' 
@@ -348,32 +353,46 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
           )}
         </div>
         
-        <div className="flex items-center justify-between w-full mt-auto min-h-[24px]">
+        <div className="flex items-center justify-between w-full mt-auto min-h-[28px] pt-1">
           <div className="flex items-center gap-1 text-[10px] text-stone-400 font-medium whitespace-nowrap"><Clock size={10} /> {item.time}</div>
           
           {item.taken ? (
-            <div className={`flex items-center gap-2 bg-white border rounded-full px-1.5 py-0.5 z-10 ${
+            <div className={`flex items-center gap-2 bg-white border rounded-full px-2 py-1 z-10 shadow-2xs ${
               full ? 'text-stone-600 border-[#d5e0d7]' : 'text-stone-600 border-[#f2e6d5]'
             }`} onClick={e => e.stopPropagation()}>
-              <button onClick={(e) => updateAmount(item.id, -1, e)} className="hover:text-stone-800 disabled:opacity-30" disabled={currentAmt <= 1}>
+              <button onClick={(e) => updateAmount(item.id, -1, e)} className="p-0.5 hover:text-stone-800 disabled:opacity-30" disabled={currentAmt <= 1}>
                 <Minus size={12} />
               </button>
-              <span className="text-[10px] font-bold min-w-[8px] text-center">{currentAmt}</span>
-              <button onClick={(e) => updateAmount(item.id, 1, e)} className="hover:text-stone-800">
+              <span className="text-[11px] font-bold min-w-[10px] text-center">{currentAmt}</span>
+              <button onClick={(e) => updateAmount(item.id, 1, e)} className="p-0.5 hover:text-stone-800">
                 <Plus size={12} />
               </button>
             </div>
           ) : (
             !item.ignored && (
-              <div onClick={(e) => toggleIgnored(item.id, e)} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-400 hover:bg-stone-200 hover:text-stone-600 transition-colors z-10">
-                <Ban size={10} /> 略過
-              </div>
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleIgnored(item.id, e);
+                }} 
+                className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-stone-100/90 text-stone-500 hover:bg-stone-200 border border-stone-200/80 active:scale-95 transition-all shadow-2xs z-20 touch-manipulation"
+              >
+                <Ban size={11} /> 略過
+              </button>
             )
           )}
           {item.ignored && !item.taken && (
-            <div onClick={(e) => toggleIgnored(item.id, e)} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-500 hover:bg-stone-300 hover:text-stone-700 transition-colors z-10">
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleIgnored(item.id, e);
+              }} 
+              className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-stone-200 text-stone-600 hover:bg-stone-300 border border-stone-300 active:scale-95 transition-all shadow-2xs z-20 touch-manipulation"
+            >
               恢復
-            </div>
+            </button>
           )}
         </div>
       </div>

@@ -23,6 +23,7 @@ export default function TmySummaryModal({ isOpen, onClose, logs }: Props) {
     "pain_chewing": "咀嚼痛",
     "pain_open": "開口痛",
     "click": "關節喀喀聲",
+    "lock_chewing": "咀嚼時關節卡鎖",
     "misalignment": "咬合跑位",
     "limited_open": "張口受限",
     "tinnitus": "耳鳴/耳悶",

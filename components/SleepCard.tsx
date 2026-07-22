@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Moon, Plus } from 'lucide-react';
 import type { SleepLog, SyncPayload } from '@/lib/types';
 import SleepDetailModal from './SleepDetailModal';
@@ -170,10 +171,10 @@ export default function SleepCard({ data = [], updateData }: Props) {
       />
 
       {/* 自動偵測提醒 */}
-      {isAutoPromptOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setIsAutoPromptOpen(false)} />
-          <div className="relative bg-[#fdfdfc] w-full max-w-sm rounded-xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
+      {isAutoPromptOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setIsAutoPromptOpen(false)} />
+          <div className="relative bg-[#fdfdfc] w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
             <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <Moon size={24} />
             </div>
@@ -189,7 +190,7 @@ export default function SleepCard({ data = [], updateData }: Props) {
                   setDefaultDate(yesterdayStr);
                   setIsFormModalOpen(true);
                 }}
-                className="w-full py-2.5 bg-[#6ba388] text-white font-bold rounded-lg hover:bg-[#5b8c74] transition-colors"
+                className="w-full py-2.5 bg-[#6ba388] text-white font-bold rounded-xl hover:bg-[#5b8c74] transition-colors"
               >
                 📝 立即填寫
               </button>
@@ -206,7 +207,7 @@ export default function SleepCard({ data = [], updateData }: Props) {
                   } as SleepLog;
                   updateData({ sleepLogs: [emptyLog], clientTimestamp: Date.now() });
                 }}
-                className="w-full py-2.5 bg-stone-100 text-stone-600 font-bold rounded-lg hover:bg-stone-200 transition-colors"
+                className="w-full py-2.5 bg-stone-100 text-stone-600 font-bold rounded-xl hover:bg-stone-200 transition-colors"
               >
                 當日無紀錄
               </button>
@@ -218,7 +219,8 @@ export default function SleepCard({ data = [], updateData }: Props) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 新增/編輯睡眠表單 */}
