@@ -13,6 +13,25 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   supplementSettings: { name: "SupplementSettings", headers: ["id", "name", "time", "targetAmount", "status", "lastUpdated"] }
 };
 
+/** 自動處理 Google Sheets API 429 Rate Limit 之指數退避重試 */
+async function withApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      attempt++;
+      const is429 = err.message?.includes('429') || err.message?.includes('Quota exceeded');
+      if (is429 && attempt < maxRetries) {
+        console.warn(`[Google Sheets API 429] 觸發 60/min 限流，等待 ${1.5 * attempt} 秒後進行第 ${attempt}/${maxRetries} 次重試...`);
+        await new Promise(res => setTimeout(res, 1500 * attempt));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -22,13 +41,11 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = await request.json();
-    const doc = await getGoogleSheet();
-    await doc.loadInfo();
+    const doc = await withApiRetry(() => getGoogleSheet());
+    await withApiRetry(() => doc.loadInfo());
     
     const responsePayload: Record<string, any[]> = {};
     
-    // 如果 payload 只有 clientTimestamp (或完全沒有資料)，代表是「強制/完整同步」，我們就全部處理
-    // 如果 payload 有特定的欄位 (例如 sleepLogs)，我們就「只處理有被指定的欄位」，以節省 API 額度 (60/min)
     const payloadKeys = Object.keys(payload).filter(k => k !== 'clientTimestamp');
     const isFullSync = payloadKeys.length === 0;
     const keysToSync = Object.keys(sheetsConfig).filter(key => isFullSync || payloadKeys.includes(key));
@@ -38,25 +55,12 @@ export async function POST(request: NextRequest) {
       let sheet = doc.sheetsByTitle[config.name];
       
       if (!sheet) {
-        sheet = await doc.addSheet({ title: config.name, headerValues: config.headers });
-      } else {
-        try {
-          await sheet.loadHeaderRow();
-          const currentHeaders = sheet.headerValues;
-          const missing = config.headers.filter(h => !currentHeaders.includes(h));
-          if (missing.length > 0) {
-            await sheet.setHeaderRow([...currentHeaders, ...missing]);
-          }
-        } catch (e) {
-          // If loadHeaderRow fails (e.g., header row was deleted), just set it
-          await sheet.setHeaderRow(config.headers);
-        }
+        sheet = await withApiRetry(() => doc.addSheet({ title: config.name, headerValues: config.headers }));
       }
 
-      // 讀取伺服器上的資料
+      // 讀取伺服器上的資料 (減少冗餘 loadHeaderRow，改用一次 getRows)
       const serverLogs = await getLogsFromSheet(sheet, config.headers);
       
-      // 如果前端有傳送這個 key 的資料過來，代表需要「寫入/更新」
       if (payload[key] && Array.isArray(payload[key])) {
         const clientLogs = payload[key];
         const mergedMap: Record<string, any> = {};
@@ -81,7 +85,6 @@ export async function POST(request: NextRequest) {
         await saveLogsToSheet(sheet, sheetList, config.headers);
         responsePayload[key] = mergedList;
       } else {
-        // 如果前端沒傳這個 key，代表只是「讀取」，直接回傳 serverLogs
         const activeLogs = serverLogs.filter(item => item.status !== "deleted");
         responsePayload[key] = activeLogs;
       }
@@ -95,17 +98,10 @@ export async function POST(request: NextRequest) {
 }
 
 async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: string[]) {
-  try {
-    await sheet.loadHeaderRow();
-  } catch (e) {
-    await sheet.setHeaderRow(headers);
-  }
-  
   let rows = [];
   try {
-    rows = await sheet.getRows();
+    rows = await withApiRetry(() => sheet.getRows());
   } catch (e) {
-    // If getting rows fails, throw an error to prevent accidental wiping of data
     throw new Error('Failed to fetch existing rows from Google Sheets: ' + (e as Error).message);
   }
   return rows.map(row => {
@@ -119,11 +115,10 @@ async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: stri
 
 async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], headers: string[]) {
   if (logs.length === 0) {
-    await sheet.clearRows();
+    await withApiRetry(() => sheet.clearRows());
     return;
   }
   
-  // Google Sheets API 有時對一次寫入太多筆資料會超時，我們一次最多新增 100 筆
   const chunkSize = 100;
   const allRows = [];
   
@@ -139,24 +134,12 @@ async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], h
     allRows.push(...rows);
   }
 
-  // 先清空，再寫入
-  await sheet.clearRows();
+  await withApiRetry(() => sheet.clearRows());
   
   try {
-    // 一次性寫入或分批寫入。為了避免中途失敗導致資料遺失，如果失敗我們應該嘗試重試。
     for (let i = 0; i < allRows.length; i += chunkSize) {
       const chunk = allRows.slice(i, i + chunkSize);
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          await sheet.addRows(chunk);
-          break; // 成功就跳出重試迴圈
-        } catch (e) {
-          retries--;
-          if (retries === 0) throw e;
-          await new Promise(resolve => setTimeout(resolve, 1000)); // 等待 1 秒後重試
-        }
-      }
+      await withApiRetry(() => sheet.addRows(chunk));
     }
   } catch (error) {
     console.error('Critical Error saving to sheet:', error);

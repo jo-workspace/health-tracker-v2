@@ -21,8 +21,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
   const [isAutoPromptOpen, setIsAutoPromptOpen] = useState(false);
   const [hasCheckedAutoPrompt, setHasCheckedAutoPrompt] = useState(false);
 
-  const openFormWithSync = (dateStr: string, typeVal: 'night' | 'nap', logToEdit?: SleepLog | null) => {
-    forceSync?.();
+  const openForm = (dateStr: string, typeVal: 'night' | 'nap', logToEdit?: SleepLog | null) => {
     setEditingLog(logToEdit || null);
     setDefaultDate(dateStr);
     setDefaultType(typeVal);
@@ -97,10 +96,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
   return (
     <>
       <div 
-        onClick={() => {
-          forceSync?.();
-          setIsDetailModalOpen(true);
-        }} 
+        onClick={() => setIsDetailModalOpen(true)} 
         className="w-full max-w-md mx-auto bg-[#fdfdfc] rounded-lg shadow-sm border border-stone-200 mb-4 transition-all hover:shadow-md cursor-pointer group relative"
       >
         <div className="p-4">
@@ -161,7 +157,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              openFormWithSync(new Date().toLocaleDateString('en-CA'), 'nap');
+              openForm(new Date().toLocaleDateString('en-CA'), 'nap');
             }}
             className="w-7 h-7 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:bg-stone-50 hover:text-stone-800 shadow-sm transition-colors"
             title="新增小睡"
@@ -171,7 +167,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              openFormWithSync(new Date().toLocaleDateString('en-CA'), 'night');
+              openForm(new Date().toLocaleDateString('en-CA'), 'night');
             }}
             className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:bg-stone-50 hover:text-stone-800 shadow-sm transition-colors"
             title="新增睡眠紀錄"
@@ -204,7 +200,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
               <button 
                 onClick={() => {
                   dismissPrompt();
-                  openFormWithSync(yesterdayStr, 'night');
+                  openForm(yesterdayStr, 'night');
                 }}
                 className="w-full py-2.5 bg-[#6ba388] text-white font-bold rounded-xl hover:bg-[#5b8c74] transition-colors"
               >
