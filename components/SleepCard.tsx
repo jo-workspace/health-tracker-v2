@@ -37,20 +37,29 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
   const yesterdayStr = yesterdayDate.toLocaleDateString('en-CA');
 
-  // 自動偵測今天是否有主睡眠紀錄
+  const dismissPrompt = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`dismissed_sleep_prompt_${todayStr}`, 'true');
+    }
+    setIsAutoPromptOpen(false);
+  };
+
+  // 自動偵測今天/昨天是否有主睡眠紀錄
   useEffect(() => {
     if (activeLogs.length > 0 && !hasCheckedAutoPrompt) {
-      // 舊版邏輯：雖然是問「昨晚」，但實際上寫入的 date 是「今天」
-      // 所以檢查的條件是「今天」有沒有主睡眠紀錄
-      const hasTodayNightSleep = activeLogs.some(
-        log => log.date === todayStr && log.type === 'night'
-      );
-      if (!hasTodayNightSleep) {
-        setIsAutoPromptOpen(true);
+      const isDismissed = typeof window !== 'undefined' && sessionStorage.getItem(`dismissed_sleep_prompt_${todayStr}`);
+      if (!isDismissed) {
+        // 檢查「今天」或「昨天」是否有主睡眠紀錄
+        const hasRecentNightSleep = activeLogs.some(
+          log => (log.date === todayStr || log.date === yesterdayStr) && log.type === 'night'
+        );
+        if (!hasRecentNightSleep) {
+          setIsAutoPromptOpen(true);
+        }
       }
       setHasCheckedAutoPrompt(true);
     }
-  }, [activeLogs, todayStr, hasCheckedAutoPrompt]);
+  }, [activeLogs, todayStr, yesterdayStr, hasCheckedAutoPrompt]);
 
   // 找出今天最近的一筆主睡眠 (通常記在今天，但代表昨晚) 
   // 或是最後一筆有效的主睡眠來顯示
@@ -182,7 +191,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
       {/* 自動偵測提醒 */}
       {isAutoPromptOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="absolute inset-0" onClick={() => setIsAutoPromptOpen(false)} />
+          <div className="absolute inset-0" onClick={dismissPrompt} />
           <div className="relative bg-[#fdfdfc] w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
             <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <Moon size={24} />
@@ -194,7 +203,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
             <div className="flex flex-col gap-2">
               <button 
                 onClick={() => {
-                  setIsAutoPromptOpen(false);
+                  dismissPrompt();
                   openFormWithSync(yesterdayStr, 'night');
                 }}
                 className="w-full py-2.5 bg-[#6ba388] text-white font-bold rounded-xl hover:bg-[#5b8c74] transition-colors"
@@ -203,8 +212,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
               </button>
               <button 
                 onClick={() => {
-                  setIsAutoPromptOpen(false);
-                  // 標記為無紀錄，發送 API
+                  dismissPrompt();
                   const emptyLog = {
                     id: `sleep-${Date.now()}`,
                     date: yesterdayStr,
@@ -219,7 +227,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
                 當日無紀錄
               </button>
               <button 
-                onClick={() => setIsAutoPromptOpen(false)}
+                onClick={dismissPrompt}
                 className="w-full py-2.5 text-stone-400 text-sm font-medium hover:text-stone-600 transition-colors"
               >
                 稍後再說
