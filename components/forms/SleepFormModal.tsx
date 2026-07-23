@@ -135,19 +135,20 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const isNap = type === 'nap';
     onSave({
       id: initialData?.id || crypto.randomUUID(),
       date,
       type,
-      bedtime: bedTime,
-      wakeupTime: wakeTime,
+      bedtime: isNap ? '' : bedTime,
+      wakeupTime: isNap ? '' : wakeTime,
       sleepDuration,
-      hrv,
-      restingHeartRate,
-      deepSleep,
-      remSleep,
-      stress,
-      feeling,
+      hrv: isNap ? '' : hrv,
+      restingHeartRate: isNap ? '' : restingHeartRate,
+      deepSleep: isNap ? '' : deepSleep,
+      remSleep: isNap ? '' : remSleep,
+      stress: isNap ? '' : stress,
+      feeling: isNap ? '' : feeling,
       notes,
       status: 'active',
       lastUpdated: Date.now().toString()
@@ -171,16 +172,20 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
           </h2>
           
           <div className="flex items-center gap-2">
-            <button 
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isAnalyzing}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0ecfc] hover:bg-[#e4dcf9] text-[#7148e5] text-xs font-bold rounded-full transition-colors"
-            >
-              {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-              {isAnalyzing ? '解析中...' : 'AI 截圖解析'}
-            </button>
-            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+            {type === 'night' && (
+              <>
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isAnalyzing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0ecfc] hover:bg-[#e4dcf9] text-[#7148e5] text-xs font-bold rounded-full transition-colors"
+                >
+                  {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                  {isAnalyzing ? '解析中...' : 'AI 截圖解析'}
+                </button>
+                <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+              </>
+            )}
             
             <button onClick={onClose} className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors ml-1">
               <X size={18} />
@@ -209,55 +214,120 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
 
           {/* 日期與時間 */}
           {type === 'night' ? (
-            <div className="flex flex-col gap-3">
-              <div className="grid grid-cols-[5fr_3fr] gap-2">
-                <div className="flex flex-col gap-1 min-w-0">
-                  <label className="text-[11px] font-bold text-stone-500">起床日期</label>
-                  <input 
-                    type="date" 
-                    value={date} 
-                    onChange={e => setDate(e.target.value)}
-                    className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-                    required 
-                  />
-                </div>
-                <div className="flex flex-col gap-1 min-w-0">
-                  <label className="text-[11px] font-bold text-stone-500">睡眠時數</label>
-                  <div className="relative">
+            <>
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-[5fr_3fr] gap-2">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <label className="text-[11px] font-bold text-stone-500">起床日期</label>
                     <input 
-                      type="text" inputMode="decimal"
-                      value={sleepDuration} 
-                      onChange={e => setSleepDuration(e.target.value)}
-                      className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
-                      placeholder="6.5"
-                      required
+                      type="date" 
+                      value={date} 
+                      onChange={e => setDate(e.target.value)}
+                      className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                      required 
                     />
-                    <span className="absolute right-2 top-2 text-sm text-stone-400">h</span>
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <label className="text-[11px] font-bold text-stone-500">睡眠時數</label>
+                    <div className="relative">
+                      <input 
+                        type="text" inputMode="decimal"
+                        value={sleepDuration} 
+                        onChange={e => setSleepDuration(e.target.value)}
+                        className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400" 
+                        placeholder="6.5"
+                        required
+                      />
+                      <span className="absolute right-2 top-2 text-sm text-stone-400">h</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <label className="text-[11px] font-bold text-stone-500">上床時間</label>
+                    <input 
+                      type="time" 
+                      value={bedTime} 
+                      onChange={e => setBedTime(e.target.value)}
+                      className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <label className="text-[11px] font-bold text-stone-500">起床時間</label>
+                    <input 
+                      type="time" 
+                      value={wakeTime} 
+                      onChange={e => setWakeTime(e.target.value)}
+                      className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              {/* 心率與壓力資料 */}
+              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-stone-100">
                 <div className="flex flex-col gap-1 min-w-0">
-                  <label className="text-[11px] font-bold text-stone-500">上床時間</label>
+                  <label className="text-[10px] font-bold text-stone-500 whitespace-nowrap overflow-hidden text-ellipsis">HRV(ms)</label>
                   <input 
-                    type="time" 
-                    value={bedTime} 
-                    onChange={e => setBedTime(e.target.value)}
-                    className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                    type="text" inputMode="decimal"
+                    value={hrv} 
+                    onChange={e => setHrv(e.target.value)}
+                    className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                   />
                 </div>
                 <div className="flex flex-col gap-1 min-w-0">
-                  <label className="text-[11px] font-bold text-stone-500">起床時間</label>
+                  <label className="text-[10px] font-bold text-stone-500 whitespace-nowrap overflow-hidden text-ellipsis">心率(bpm)</label>
                   <input 
-                    type="time" 
-                    value={wakeTime} 
-                    onChange={e => setWakeTime(e.target.value)}
-                    className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                    type="text" inputMode="decimal"
+                    value={restingHeartRate} 
+                    onChange={e => setRestingHeartRate(e.target.value)}
+                    className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                  />
+                </div>
+                <div className="flex flex-col gap-1 min-w-0">
+                  <label className="text-[10px] font-bold text-stone-500 whitespace-nowrap overflow-hidden text-ellipsis">壓力分數</label>
+                  <input 
+                    type="text" inputMode="decimal"
+                    value={stress} 
+                    onChange={e => setStress(e.target.value)}
+                    className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                   />
                 </div>
               </div>
-            </div>
+
+              {/* 睡眠階段 */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1 min-w-0">
+                  <label className="text-[10px] font-bold text-stone-500">深層睡眠 (h)</label>
+                  <input 
+                    type="text" inputMode="decimal"
+                    value={deepSleep} 
+                    onChange={e => setDeepSleep(e.target.value)}
+                    className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                  />
+                </div>
+                <div className="flex flex-col gap-1 min-w-0">
+                  <label className="text-[10px] font-bold text-stone-500">REM (h)</label>
+                  <input 
+                    type="text" inputMode="decimal"
+                    value={remSleep} 
+                    onChange={e => setRemSleep(e.target.value)}
+                    className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                  />
+                </div>
+              </div>
+
+              {/* 醒來感受 */}
+              <div className="flex flex-col gap-1.5 pt-3 border-t border-stone-100">
+                <label className="text-xs font-bold text-stone-500">醒來感受</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setFeeling('great')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'great' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>很好</button>
+                  <button type="button" onClick={() => setFeeling('normal')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'normal' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>普通</button>
+                  <button type="button" onClick={() => setFeeling('bad')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'bad' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>差</button>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="grid grid-cols-[5fr_3fr] gap-2">
               <div className="flex flex-col gap-1 min-w-0">
@@ -275,7 +345,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                 <div className="relative">
                   <input 
                     type="text" inputMode="decimal"
-                    value={sleepDuration ? Math.round(Number(sleepDuration) * 60) : ''} 
+                    value={sleepDuration ? String(Math.round(Number(sleepDuration) * 60)) : ''} 
                     onChange={e => {
                       const mins = e.target.value;
                       setSleepDuration(mins ? String(+(Number(mins) / 60).toFixed(2)) : '');
@@ -290,77 +360,14 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
             </div>
           )}
 
-          {/* 心率與壓力資料 */}
-          <div className="grid grid-cols-3 gap-2 pt-3 border-t border-stone-100">
-            <div className="flex flex-col gap-1 min-w-0">
-              <label className="text-[10px] font-bold text-stone-500 whitespace-nowrap overflow-hidden text-ellipsis">HRV(ms)</label>
-              <input 
-                type="text" inputMode="decimal"
-                value={hrv} 
-                onChange={e => setHrv(e.target.value)}
-                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-              />
-            </div>
-            <div className="flex flex-col gap-1 min-w-0">
-              <label className="text-[10px] font-bold text-stone-500 whitespace-nowrap overflow-hidden text-ellipsis">心率(bpm)</label>
-              <input 
-                type="text" inputMode="decimal"
-                value={restingHeartRate} 
-                onChange={e => setRestingHeartRate(e.target.value)}
-                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-              />
-            </div>
-            <div className="flex flex-col gap-1 min-w-0">
-              <label className="text-[10px] font-bold text-stone-500 whitespace-nowrap overflow-hidden text-ellipsis">壓力分數</label>
-              <input 
-                type="text" inputMode="decimal"
-                value={stress} 
-                onChange={e => setStress(e.target.value)}
-                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-              />
-            </div>
-          </div>
-
-          {/* 睡眠階段 */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1 min-w-0">
-              <label className="text-[10px] font-bold text-stone-500">深層睡眠 (h)</label>
-              <input 
-                type="text" inputMode="decimal"
-                value={deepSleep} 
-                onChange={e => setDeepSleep(e.target.value)}
-                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-              />
-            </div>
-            <div className="flex flex-col gap-1 min-w-0">
-              <label className="text-[10px] font-bold text-stone-500">REM (h)</label>
-              <input 
-                type="text" inputMode="decimal"
-                value={remSleep} 
-                onChange={e => setRemSleep(e.target.value)}
-                className="w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
-              />
-            </div>
-          </div>
-
-          {/* 醒來感受 */}
-          <div className="flex flex-col gap-1.5 pt-3 border-t border-stone-100">
-            <label className="text-xs font-bold text-stone-500">醒來感受</label>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setFeeling('great')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'great' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>很好</button>
-              <button type="button" onClick={() => setFeeling('normal')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'normal' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>普通</button>
-              <button type="button" onClick={() => setFeeling('bad')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'bad' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>差</button>
-            </div>
-          </div>
-
           {/* 備註 */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-stone-500">備註</label>
+            <label className="text-xs font-bold text-stone-500">備註 (選填)</label>
             <textarea 
               value={notes} 
               onChange={e => setNotes(e.target.value)}
               className="w-full p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 min-h-[60px]"
-              placeholder="例如：睡前喝了酒、太熱醒來..."
+              placeholder={type === 'nap' ? "例如：下午茶後小憩..." : "例如：睡前喝了酒、太熱醒來..."}
             />
           </div>
           
