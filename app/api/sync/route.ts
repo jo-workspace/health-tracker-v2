@@ -7,7 +7,7 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   longTermLogs: { name: "LongTermLogs", headers: ["id", "date", "itemName", "sizeWidth", "sizeHeight", "sizeDepth", "hospital", "doctor", "nextCheckupDate", "notes", "status", "lastUpdated"] },
   biteSplintLogs: { name: "BiteSplintLogs", headers: ["id", "date", "status", "lastUpdated"] },
   tmySymptomsLogs: { name: "TMJSymptomsLogs", headers: ["id", "date", "symptoms", "medication", "status", "lastUpdated"] },
-  sleepLogs: { name: "SleepLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "deepSleep", "remSleep", "stress", "feeling", "hrv", "restingHeartRate", "notes", "lastUpdated"] },
+  sleepLogs: { name: "SleepLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "deepSleep", "remSleep", "stress", "feeling", "hrv", "restingHeartRate", "notes", "status", "lastUpdated"] },
   rainbowDietLogs: { name: "RainbowDietLogs", headers: ["id", "date", "plantName", "color", "status", "lastUpdated"] },
   supplementLogs: { name: "SupplementLogs", headers: ["id", "date", "items", "status", "lastUpdated"] },
   supplementSettings: { name: "SupplementSettings", headers: ["id", "name", "time", "targetAmount", "status", "lastUpdated"] }
@@ -29,6 +29,21 @@ async function withApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T>
         throw err;
       }
     }
+  }
+}
+
+/** 確保工作表第 1 列的標題欄位完整性，若遭毀損自動修正 */
+async function ensureCorrectHeaders(sheet: GoogleSpreadsheetWorksheet, expectedHeaders: string[]) {
+  try {
+    await withApiRetry(() => sheet.loadHeaderRow());
+    const currentHeaders = sheet.headerValues;
+    const isMatching = expectedHeaders.every((h, i) => currentHeaders[i] === h);
+    if (!isMatching) {
+      console.warn(`[Header Mismatch] 工作表 ${sheet.title} 標題列毀損或不合，正在自動恢復預設標題列...`);
+      await withApiRetry(() => sheet.setHeaderRow(expectedHeaders));
+    }
+  } catch (e) {
+    await withApiRetry(() => sheet.setHeaderRow(expectedHeaders));
   }
 }
 
@@ -58,7 +73,10 @@ export async function POST(request: NextRequest) {
         sheet = await withApiRetry(() => doc.addSheet({ title: config.name, headerValues: config.headers }));
       }
 
-      // 讀取伺服器上的資料 (減少冗餘 loadHeaderRow，改用一次 getRows)
+      // 檢查並保護工作表標題列
+      await ensureCorrectHeaders(sheet, config.headers);
+
+      // 讀取伺服器上的資料
       const serverLogs = await getLogsFromSheet(sheet, config.headers);
       
       if (payload[key] && Array.isArray(payload[key])) {
@@ -107,42 +125,34 @@ async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: stri
   return rows.map(row => {
     const obj: any = {};
     headers.forEach(header => {
-      obj[header] = row.get(header) !== undefined ? String(row.get(header)) : "";
+      const val = row.get(header);
+      obj[header] = val !== undefined && val !== null ? String(val) : "";
     });
     return obj;
   });
 }
 
 async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], headers: string[]) {
-  if (logs.length === 0) {
-    await withApiRetry(() => sheet.clearRows());
-    return;
-  }
-  
   const chunkSize = 100;
-  const allRows = [];
-  
-  for (let i = 0; i < logs.length; i += chunkSize) {
-    const chunk = logs.slice(i, i + chunkSize);
-    const rows = chunk.map(log => {
-      const rowObj: any = {};
-      headers.forEach(header => {
-        rowObj[header] = log[header] !== undefined ? String(log[header]) : "";
-      });
-      return rowObj;
+  const allRows = logs.map(log => {
+    const rowObj: any = {};
+    headers.forEach(header => {
+      rowObj[header] = log[header] !== undefined && log[header] !== null ? String(log[header]) : "";
     });
-    allRows.push(...rows);
-  }
+    return rowObj;
+  });
 
   await withApiRetry(() => sheet.clearRows());
   
-  try {
-    for (let i = 0; i < allRows.length; i += chunkSize) {
-      const chunk = allRows.slice(i, i + chunkSize);
-      await withApiRetry(() => sheet.addRows(chunk));
+  if (allRows.length > 0) {
+    try {
+      for (let i = 0; i < allRows.length; i += chunkSize) {
+        const chunk = allRows.slice(i, i + chunkSize);
+        await withApiRetry(() => sheet.addRows(chunk));
+      }
+    } catch (error) {
+      console.error('Critical Error saving to sheet:', error);
+      throw new Error('Failed to save to Google Sheets. The sheet might be partially cleared.');
     }
-  } catch (error) {
-    console.error('Critical Error saving to sheet:', error);
-    throw new Error('Failed to save to Google Sheets. The sheet might be partially cleared.');
   }
 }
