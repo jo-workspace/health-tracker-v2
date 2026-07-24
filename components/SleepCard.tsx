@@ -63,11 +63,15 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
   // 找出今天最近的一筆主睡眠 (通常記在今天，但代表昨晚) 
   // 或是最後一筆有效的主睡眠來顯示
   const FEELING_MAP: Record<string, string> = {
+    "great": "🤩",
     "excellent": "🤩",
+    "good": "🤩",
     "normal": "🙂",
+    "ok": "🙂",
     "tired": "🥱",
     "sore": "🥵",
-    "poor": "🤢"
+    "poor": "🤢",
+    "bad": "🤢"
   };
 
   const todayNightSleep = activeLogs.find(log => log.date === todayStr && log.type === 'night');
