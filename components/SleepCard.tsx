@@ -43,22 +43,22 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
     setIsAutoPromptOpen(false);
   };
 
-  // 自動偵測今天/昨天是否有主睡眠紀錄
+  // 自動偵測今天是否有主睡眠紀錄
   useEffect(() => {
     if (activeLogs.length > 0 && !hasCheckedAutoPrompt) {
       const isDismissed = typeof window !== 'undefined' && sessionStorage.getItem(`dismissed_sleep_prompt_${todayStr}`);
       if (!isDismissed) {
-        // 檢查「今天」或「昨天」是否有主睡眠紀錄
-        const hasRecentNightSleep = activeLogs.some(
-          log => (log.date === todayStr || log.date === yesterdayStr) && log.type === 'night'
+        // 檢查「今天」是否有主睡眠紀錄
+        const hasTodayNightSleep = activeLogs.some(
+          log => log.date === todayStr && log.type === 'night'
         );
-        if (!hasRecentNightSleep) {
+        if (!hasTodayNightSleep) {
           setIsAutoPromptOpen(true);
         }
       }
       setHasCheckedAutoPrompt(true);
     }
-  }, [activeLogs, todayStr, yesterdayStr, hasCheckedAutoPrompt]);
+  }, [activeLogs, todayStr, hasCheckedAutoPrompt]);
 
   // 找出今天最近的一筆主睡眠 (通常記在今天，但代表昨晚) 
   // 或是最後一筆有效的主睡眠來顯示
@@ -194,13 +194,13 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
             </div>
             <h3 className="text-lg font-bold text-stone-800 mb-2">🔔 睡眠紀錄提醒</h3>
             <p className="text-sm text-stone-500 mb-6 leading-relaxed">
-              偵測到您昨天（{yesterdayStr}）尚未填寫夜間主睡眠紀錄。健康的睡眠是活力的基石，建議立即花費 30 秒登錄昨晚狀況！
+              偵測到您今天（{todayStr}）尚未填寫昨晚的主睡眠紀錄。健康的睡眠是活力的基石，建議立即花費 30 秒登錄昨晚狀況！
             </p>
             <div className="flex flex-col gap-2">
               <button 
                 onClick={() => {
                   dismissPrompt();
-                  openForm(yesterdayStr, 'night');
+                  openForm(todayStr, 'night');
                 }}
                 className="w-full py-2.5 bg-[#6ba388] text-white font-bold rounded-xl hover:bg-[#5b8c74] transition-colors"
               >
@@ -211,7 +211,7 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
                   dismissPrompt();
                   const emptyLog = {
                     id: `sleep-${Date.now()}`,
-                    date: yesterdayStr,
+                    date: todayStr,
                     type: 'night',
                     sleepDuration: '0',
                     lastUpdated: Date.now().toString()
