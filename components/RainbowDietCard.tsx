@@ -44,6 +44,7 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
   const [inputValue, setInputValue] = useState('');
   const [isSelectingColor, setIsSelectingColor] = useState(false);
   const [pendingPlantName, setPendingPlantName] = useState('');
+  const [pendingQueue, setPendingQueue] = useState<string[]>([]);
   const [optimisticLogs, setOptimisticLogs] = useState<RainbowDietLog[]>([]);
   const [isSuccessAnim, setIsSuccessAnim] = useState(false);
   
@@ -226,18 +227,56 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
     }
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFormSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!inputValue.trim()) return;
     
-    const plant = inputValue.trim();
-    const mappedColor = COLOR_MAPPING[plant] || historicalColorMap.get(plant);
-    
-    if (mappedColor) {
-      submitLog(plant, mappedColor);
-    } else {
-      setPendingPlantName(plant);
+    // 支援半形逗號 (,)、全形逗號 (，)、與換行符號切割多項食材
+    const rawItems = inputValue
+      .split(/[,，\n]/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    if (rawItems.length === 0) return;
+
+    const knownItems: DetectedItem[] = [];
+    const unknownItems: string[] = [];
+
+    rawItems.forEach(plant => {
+      const mappedColor = COLOR_MAPPING[plant] || historicalColorMap.get(plant);
+      if (mappedColor) {
+        knownItems.push({ plantName: plant, color: mappedColor, selected: true });
+      } else {
+        unknownItems.push(plant);
+      }
+    });
+
+    if (knownItems.length > 0) {
+      submitBatchLogs(knownItems);
+    }
+
+    if (unknownItems.length > 0) {
+      setPendingQueue(unknownItems.slice(1));
+      setPendingPlantName(unknownItems[0]);
       setIsSelectingColor(true);
+    } else {
+      setInputValue('');
+    }
+  };
+
+  const handleSelectPendingColor = (color: string) => {
+    if (!pendingPlantName) return;
+
+    submitLog(pendingPlantName, color);
+
+    if (pendingQueue.length > 0) {
+      const nextPlant = pendingQueue[0];
+      setPendingQueue(prev => prev.slice(1));
+      setPendingPlantName(nextPlant);
+    } else {
+      setPendingPlantName('');
+      setIsSelectingColor(false);
+      setInputValue('');
     }
   };
 
@@ -299,7 +338,13 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
                 list="diet-suggestions"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="輸入食材或點擊📷拍照AI自動辨識..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleFormSubmit(e);
+                  }
+                }}
+                placeholder="輸入食材 (可用逗號分隔) 或📷拍照辨識..."
                 className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-3 pr-16 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6ba388]/30 transition-shadow"
               />
               <datalist id="diet-suggestions">
@@ -336,7 +381,7 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
                     <button
                       key={c.id}
                       type="button"
-                      onClick={() => submitLog(pendingPlantName, c.id)}
+                      onClick={() => handleSelectPendingColor(c.id)}
                       className={`flex-1 aspect-square rounded-md flex flex-col items-center justify-center gap-1 hover:opacity-80 transition-opacity ${c.textActive}`}
                       style={{ backgroundColor: c.hex }}
                     >
