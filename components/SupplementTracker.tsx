@@ -1,19 +1,10 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Pill, Check, Plus, Minus, Clock, ChevronRight, X, Ban } from 'lucide-react';
+import { Pill, Check, Plus, Minus, Clock, ChevronRight, X, Ban, History } from 'lucide-react';
 import type { SupplementLog, SupplementSetting, SyncPayload } from '@/lib/types';
-
-interface Supplement {
-  id: string;
-  name: string;
-  time: string;
-  taken: boolean;
-  amount?: number;
-  targetAmount?: number;
-  ignored?: boolean;
-  isCustom?: boolean;
-}
+import { type Supplement, isScheduledDay, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
+import SupplementHistoryModal from './forms/SupplementHistoryModal';
 
 interface Props {
   data?: SupplementLog[];
@@ -21,22 +12,10 @@ interface Props {
   updateData: (payload: SyncPayload) => void;
 }
 
-const PREDEFINED_SUPPLEMENTS: Supplement[] = [
-  { id: '1', name: 'Avamys', time: '早上起床', taken: false, ignored: false },
-  { id: '2', name: 'D3 (2000 IU)', time: '隨餐', taken: false, ignored: false },
-  { id: '3', name: '鋅', time: '隨餐', taken: false, ignored: false },
-  { id: '4', name: '鐵', time: '隨餐', taken: false, ignored: false },
-  { id: '5', name: 'Q10', time: '隨餐', taken: false, ignored: false },
-  { id: '6', name: 'PQQ', time: '隨餐', taken: false, ignored: false },
-  { id: '7', name: '魚油', time: '周一~五', taken: false, ignored: false },
-  { id: '8', name: '葉黃素', time: '周一~五', taken: false, ignored: false },
-  { id: '9', name: '鎂', time: '晚餐時', taken: false, ignored: false },
-  { id: '10', name: '維他命 C', time: '晚餐時', taken: false, ignored: false },
-];
-
 export default function SupplementTracker({ data, settings, updateData }: Props) {
   const [supplements, setSupplements] = useState<Supplement[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -75,6 +54,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     : PREDEFINED_SUPPLEMENTS.map(s => ({ ...s, targetAmount: 1 }));
 
   useEffect(() => {
+    const applyAutoIgnore = (s: Supplement) => ({ ...s, ignored: !isScheduledDay(s.time, new Date()) });
+
     if (todayLog && todayLog.items) {
       try {
         const parsed: Supplement[] = JSON.parse(todayLog.items);
@@ -83,95 +64,15 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
           if (logged) {
             return { ...base, taken: logged.taken, amount: logged.amount, ignored: logged.ignored };
           }
-          
-          let autoIgnored = false;
-          const day = new Date().getDay();
-          
-          const s = base.time.replace(/週/g, '周');
-          if (!s.includes('每天') && !s.includes('每日')) {
-            if (s.includes('平日') || s.includes('一~五') || s.includes('一至五') || s.includes('周一~五')) {
-              if (day === 0 || day === 6) autoIgnored = true;
-            } else if (s.includes('週末') || s.includes('假日') || s.includes('六日')) {
-              if (day >= 1 && day <= 5) autoIgnored = true;
-            } else if (s.includes('周')) {
-              const days = [];
-              if (s.includes('一')) days.push(1);
-              if (s.includes('二')) days.push(2);
-              if (s.includes('三')) days.push(3);
-              if (s.includes('四')) days.push(4);
-              if (s.includes('五')) days.push(5);
-              if (s.includes('六')) days.push(6);
-              if (s.includes('日')) days.push(0);
-              
-              if (days.length > 0 && !days.includes(day)) {
-                autoIgnored = true;
-              }
-            }
-          }
-          
-          return { ...base, ignored: autoIgnored };
+          return applyAutoIgnore(base);
         });
         const customLogs = parsed.filter(p => p.isCustom);
         setSupplements([...merged, ...customLogs]);
       } catch (e) {
-        setSupplements(baseSupplements.map(s => {
-          let autoIgnored = false;
-          const day = new Date().getDay();
-          
-          const timeStr = s.time.replace(/週/g, '周');
-          if (!timeStr.includes('每天') && !timeStr.includes('每日')) {
-            if (timeStr.includes('平日') || timeStr.includes('一~五') || timeStr.includes('一至五') || timeStr.includes('周一~五')) {
-              if (day === 0 || day === 6) autoIgnored = true;
-            } else if (timeStr.includes('週末') || timeStr.includes('假日') || timeStr.includes('六日')) {
-              if (day >= 1 && day <= 5) autoIgnored = true;
-            } else if (timeStr.includes('周')) {
-              const days = [];
-              if (timeStr.includes('一')) days.push(1);
-              if (timeStr.includes('二')) days.push(2);
-              if (timeStr.includes('三')) days.push(3);
-              if (timeStr.includes('四')) days.push(4);
-              if (timeStr.includes('五')) days.push(5);
-              if (timeStr.includes('六')) days.push(6);
-              if (timeStr.includes('日')) days.push(0);
-              
-              if (days.length > 0 && !days.includes(day)) {
-                autoIgnored = true;
-              }
-            }
-          }
-          
-          return { ...s, ignored: autoIgnored };
-        }));
+        setSupplements(baseSupplements.map(applyAutoIgnore));
       }
     } else {
-      setSupplements(baseSupplements.map(s => {
-        let autoIgnored = false;
-        const day = new Date().getDay();
-        
-        const timeStr = s.time.replace(/週/g, '周');
-        if (!timeStr.includes('每天') && !timeStr.includes('每日')) {
-          if (timeStr.includes('平日') || timeStr.includes('一~五') || timeStr.includes('一至五') || timeStr.includes('周一~五')) {
-            if (day === 0 || day === 6) autoIgnored = true;
-          } else if (timeStr.includes('週末') || timeStr.includes('假日') || timeStr.includes('六日')) {
-            if (day >= 1 && day <= 5) autoIgnored = true;
-          } else if (timeStr.includes('周')) {
-            const days = [];
-            if (timeStr.includes('一')) days.push(1);
-            if (timeStr.includes('二')) days.push(2);
-            if (timeStr.includes('三')) days.push(3);
-            if (timeStr.includes('四')) days.push(4);
-            if (timeStr.includes('五')) days.push(5);
-            if (timeStr.includes('六')) days.push(6);
-            if (timeStr.includes('日')) days.push(0);
-            
-            if (days.length > 0 && !days.includes(day)) {
-              autoIgnored = true;
-            }
-          }
-        }
-        
-        return { ...s, ignored: autoIgnored };
-      }));
+      setSupplements(baseSupplements.map(applyAutoIgnore));
     }
   }, [todayLog, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -461,6 +362,12 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
                 <h2 className="text-xl font-bold text-stone-800">今日紀錄</h2>
                 <p className="text-xs text-stone-500 mt-1">您可以前往 Google Sheets 設定「目標數量」。</p>
               </div>
+              <button
+                onClick={() => setIsHistoryModalOpen(true)}
+                className="flex items-center gap-1 text-xs font-bold text-stone-500 hover:text-stone-700 shrink-0"
+              >
+                <History size={14} /> 90天紀錄
+              </button>
             </div>
 
             <div className="p-4 pt-0 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
@@ -490,6 +397,13 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         </div>,
         document.body
       )}
+
+      <SupplementHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        data={data}
+        settings={settings}
+      />
     </>
   );
 }
