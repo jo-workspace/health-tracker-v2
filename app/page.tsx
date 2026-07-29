@@ -49,11 +49,12 @@ export default function Dashboard() {
             <SupplementTracker data={data?.supplementLogs} settings={data?.supplementSettings} updateData={updateData} />
             <RainbowDietCard data={data?.rainbowDietLogs} updateData={updateData} />
             <ActivePainsCard data={data?.painLogs} updateData={updateData} />
-            <LongTermTracker 
-              data={data?.longTermLogs} 
-              tmyLogs={data?.tmySymptomsLogs} 
-              splintLogs={data?.biteSplintLogs} 
-              updateData={updateData} 
+            <LongTermTracker
+              data={data?.longTermLogs}
+              tmyLogs={data?.tmySymptomsLogs}
+              splintLogs={data?.biteSplintLogs}
+              allergyLogs={data?.allergyLogs}
+              updateData={updateData}
             />
           </div>
         )}

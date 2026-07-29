@@ -87,6 +87,18 @@ export interface TmySymptomLog {
   lastUpdated: number;
 }
 
+export interface AllergyLog {
+  id: string;
+  date: string;
+  locations: string; // comma-separated: 鼻子,皮膚,眼睛
+  severity: number; // 1-10
+  trigger?: string;
+  medication?: string; // comma-separated ids: antihistamine, steroid_cream
+  notes?: string;
+  status: 'active' | 'deleted';
+  lastUpdated: number;
+}
+
 export interface HealthData {
   sleepLogs?: SleepLog[];
   rainbowDietLogs?: RainbowDietLog[];
@@ -96,6 +108,7 @@ export interface HealthData {
   longTermLogs?: LongTermLog[];
   tmySymptomsLogs?: TmySymptomLog[];
   biteSplintLogs?: BiteSplintLog[];
+  allergyLogs?: AllergyLog[];
 }
 
 export interface SyncPayload {
@@ -107,5 +120,6 @@ export interface SyncPayload {
   longTermLogs?: LongTermLog[];
   tmySymptomsLogs?: TmySymptomLog[];
   biteSplintLogs?: BiteSplintLog[];
+  allergyLogs?: AllergyLog[];
   clientTimestamp: number;
 }

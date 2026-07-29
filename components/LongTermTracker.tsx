@@ -1,24 +1,30 @@
 'use client';
 import { useState } from 'react';
-import { ClipboardList, Edit3, Trash2, CalendarPlus, FileText, Plus } from 'lucide-react';
-import type { LongTermLog, TmySymptomLog, BiteSplintLog, SyncPayload } from '@/lib/types';
+import { ClipboardList, Edit3, Trash2, CalendarPlus, FileText, Plus, Sparkles } from 'lucide-react';
+import type { LongTermLog, TmySymptomLog, BiteSplintLog, AllergyLog, SyncPayload } from '@/lib/types';
 import LongTermFormModal from '@/components/forms/LongTermFormModal';
 import TmySymptomFormModal from '@/components/forms/TmySymptomFormModal';
 import TmySummaryModal from '@/components/forms/TmySummaryModal';
+import AllergyFormModal from '@/components/forms/AllergyFormModal';
+import AllergySummaryModal from '@/components/forms/AllergySummaryModal';
 
 interface Props {
   data?: LongTermLog[];
   tmyLogs?: TmySymptomLog[];
   splintLogs?: BiteSplintLog[];
+  allergyLogs?: AllergyLog[];
   updateData: (payload: SyncPayload) => void;
 }
 
-export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = [], updateData }: Props) {
+export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = [], allergyLogs = [], updateData }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<LongTermLog | null>(null);
-  
+
   const [isTmySymptomModalOpen, setIsTmySymptomModalOpen] = useState(false);
   const [isTmySummaryModalOpen, setIsTmySummaryModalOpen] = useState(false);
+
+  const [isAllergyModalOpen, setIsAllergyModalOpen] = useState(false);
+  const [isAllergySummaryModalOpen, setIsAllergySummaryModalOpen] = useState(false);
 
   const activeItems = data.filter(log => log.status !== 'deleted');
 
@@ -76,6 +82,14 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
     const weeksPassed = Math.max(1, (Date.now() - firstDate.getTime()) / (1000 * 60 * 60 * 24 * 7));
     yearlyWeeklyAvg = Number((validSplintLogs.length / weeksPassed).toFixed(1));
   }
+
+  // Calculate Allergy specific stats
+  const recentAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted' && new Date(l.date).getTime() >= thirtyDaysAgo);
+  const allergyFlareCount = recentAllergyLogs.length;
+  const allergyAvgSeverity = allergyFlareCount > 0
+    ? Number((recentAllergyLogs.reduce((sum, l) => sum + Number(l.severity || 0), 0) / allergyFlareCount).toFixed(1))
+    : 0;
+  const allergySteroidCount = recentAllergyLogs.filter(l => l.medication && l.medication.includes('steroid_cream')).length;
 
   const getCheckupBadge = (nextCheckupDateStr?: string) => {
     if (!nextCheckupDateStr) return null;
@@ -151,6 +165,11 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
   const handleSaveTmySymptom = (logData: Partial<TmySymptomLog>) => {
     const newLogs = [...tmyLogs, logData as TmySymptomLog];
     updateData({ tmySymptomsLogs: newLogs, clientTimestamp: Date.now() });
+  };
+
+  const handleSaveAllergy = (logData: Partial<AllergyLog>) => {
+    const newLogs = [...allergyLogs, logData as AllergyLog];
+    updateData({ allergyLogs: newLogs, clientTimestamp: Date.now() });
   };
 
   return (
@@ -299,6 +318,40 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                       </div>
                     </div>
                   )}
+
+                  {/* 過敏特製面板 */}
+                  {log.itemName === '過敏' && (
+                    <div className="mt-4 flex flex-col gap-2">
+                      <div className="p-3 bg-purple-50/50 border-l-4 border-[#c084a1] rounded-r-lg relative mt-2">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-bold text-stone-700 text-sm flex items-center gap-1.5">
+                            過敏發作追蹤 (30天)
+                          </span>
+                        </div>
+                        <div className="flex gap-4 text-[11px] text-stone-500">
+                          <span>發作次數：<strong className="text-[#c084a1]">{allergyFlareCount}</strong> 次</span>
+                          <span>平均嚴重度：<strong className="text-stone-700">{allergyAvgSeverity || '-'}</strong></span>
+                          <span>類固醇使用：<strong className="text-stone-700">{allergySteroidCount}</strong> 次</span>
+                        </div>
+                        <div className="absolute -top-3 -right-1 flex gap-1 z-10">
+                          <button
+                            onClick={() => setIsAllergySummaryModalOpen(true)}
+                            className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-800 hover:bg-stone-50 shadow-sm transition-colors"
+                            title="摘要"
+                          >
+                            <FileText size={14} />
+                          </button>
+                          <button
+                            onClick={() => setIsAllergyModalOpen(true)}
+                            className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-800 hover:bg-stone-50 shadow-sm transition-colors"
+                            title="新增發作紀錄"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -323,6 +376,18 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
         isOpen={isTmySummaryModalOpen}
         onClose={() => setIsTmySummaryModalOpen(false)}
         logs={tmyLogs}
+      />
+
+      <AllergyFormModal
+        isOpen={isAllergyModalOpen}
+        onClose={() => setIsAllergyModalOpen(false)}
+        onSave={handleSaveAllergy}
+      />
+
+      <AllergySummaryModal
+        isOpen={isAllergySummaryModalOpen}
+        onClose={() => setIsAllergySummaryModalOpen(false)}
+        logs={allergyLogs}
       />
     </div>
   );
