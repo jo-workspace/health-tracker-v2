@@ -47,6 +47,34 @@ async function ensureCorrectHeaders(sheet: GoogleSpreadsheetWorksheet, expectedH
   }
 }
 
+const DELETED_IDS_SHEET_NAME = 'DeletedIds';
+const DELETED_IDS_HEADERS = ['sheetKey', 'id', 'deletedAt'];
+
+/**
+ * 永久記錄已刪除的 id（獨立於主資料表之外）。
+ * 手動在 Google Sheet 上刪除的列不會被記錄在這裡，
+ * 因此只有透過 App 內建刪除（status: 'deleted'）才能真正阻止資料復活。
+ */
+async function getDeletedIdsMap(doc: any): Promise<{ sheet: GoogleSpreadsheetWorksheet; map: Record<string, Set<string>> }> {
+  let sheet = doc.sheetsByTitle[DELETED_IDS_SHEET_NAME];
+  if (!sheet) {
+    sheet = await withApiRetry(() => doc.addSheet({ title: DELETED_IDS_SHEET_NAME, headerValues: DELETED_IDS_HEADERS }));
+  }
+  await ensureCorrectHeaders(sheet, DELETED_IDS_HEADERS);
+
+  const rows = await withApiRetry<any[]>(() => sheet.getRows());
+  const map: Record<string, Set<string>> = {};
+  rows.forEach((row: any) => {
+    const sheetKey = row.get('sheetKey');
+    const id = row.get('id');
+    if (!sheetKey || !id) return;
+    if (!map[sheetKey]) map[sheetKey] = new Set();
+    map[sheetKey].add(String(id));
+  });
+
+  return { sheet, map };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -58,9 +86,12 @@ export async function POST(request: NextRequest) {
     const payload = await request.json();
     const doc = await withApiRetry(() => getGoogleSheet());
     await withApiRetry(() => doc.loadInfo());
-    
+
+    const { sheet: deletedIdsSheet, map: deletedIdsByKey } = await getDeletedIdsMap(doc);
+    const newDeletedIdRows: { sheetKey: string; id: string; deletedAt: string }[] = [];
+
     const responsePayload: Record<string, any[]> = {};
-    
+
     const payloadKeys = Object.keys(payload).filter(k => k !== 'clientTimestamp');
     const isFullSync = payloadKeys.length === 0;
     const keysToSync = Object.keys(sheetsConfig).filter(key => isFullSync || payloadKeys.includes(key));
@@ -68,7 +99,7 @@ export async function POST(request: NextRequest) {
     for (const key of keysToSync) {
       const config = sheetsConfig[key];
       let sheet = doc.sheetsByTitle[config.name];
-      
+
       if (!sheet) {
         sheet = await withApiRetry(() => doc.addSheet({ title: config.name, headerValues: config.headers }));
       }
@@ -76,23 +107,32 @@ export async function POST(request: NextRequest) {
       // 檢查並保護工作表標題列
       await ensureCorrectHeaders(sheet, config.headers);
 
-      // 讀取伺服器上的資料
-      const serverLogs = await getLogsFromSheet(sheet, config.headers);
-      
+      const deletedSet = deletedIdsByKey[key] || (deletedIdsByKey[key] = new Set());
+
+      // 讀取伺服器上的資料（永久刪除的 id 一律排除，避免手動刪列後又被舊快取復活）
+      const serverLogs = (await getLogsFromSheet(sheet, config.headers)).filter(item => !deletedSet.has(item.id));
+
       if (payload[key] && Array.isArray(payload[key])) {
         const clientLogs = payload[key];
         const mergedMap: Record<string, any> = {};
-        
+
         serverLogs.forEach(item => {
           if (item.id) mergedMap[item.id] = item;
         });
 
         clientLogs.forEach((item: any) => {
-          if (item.id) {
-            const existing = mergedMap[item.id];
-            if (!existing || Number(item.lastUpdated) > Number(existing.lastUpdated)) {
-              mergedMap[item.id] = item;
-            }
+          if (!item.id || deletedSet.has(item.id)) return;
+
+          if (item.status === 'deleted') {
+            newDeletedIdRows.push({ sheetKey: key, id: item.id, deletedAt: String(Date.now()) });
+            deletedSet.add(item.id);
+            delete mergedMap[item.id];
+            return;
+          }
+
+          const existing = mergedMap[item.id];
+          if (!existing || Number(item.lastUpdated) > Number(existing.lastUpdated)) {
+            mergedMap[item.id] = item;
           }
         });
 
@@ -106,6 +146,10 @@ export async function POST(request: NextRequest) {
         const activeLogs = serverLogs.filter(item => item.status !== "deleted");
         responsePayload[key] = activeLogs;
       }
+    }
+
+    if (newDeletedIdRows.length > 0) {
+      await withApiRetry(() => deletedIdsSheet.addRows(newDeletedIdRows));
     }
 
     return NextResponse.json(responsePayload);

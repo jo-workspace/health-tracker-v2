@@ -1,13 +1,14 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Flame } from 'lucide-react';
+import { X, Save, Flame, Trash2 } from 'lucide-react';
 import type { PainLog } from '@/lib/types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSave: (log: Partial<PainLog>) => void;
+  onDelete?: (id: string) => void;
   initialData?: PainLog | null;
 }
 
@@ -19,7 +20,7 @@ const COMMON_LOCATIONS = [
 
 const PRESET_TRIGGERS = ["慢跑", "間歇跑", "重訓", "久坐", "飲食/消化", "不明", "其他"];
 
-export default function PainFormModal({ isOpen, onClose, onSave, initialData }: Props) {
+export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initialData }: Props) {
   const [location, setLocation] = useState('');
   const [trigger, setTrigger] = useState('');
   const [intensity, setIntensity] = useState(4);
@@ -57,6 +58,13 @@ export default function PainFormModal({ isOpen, onClose, onSave, initialData }: 
       status: initialData?.status || 'active',
       lastUpdated: Date.now()
     });
+    onClose();
+  };
+
+  const handleDelete = () => {
+    if (!initialData?.id || !onDelete) return;
+    if (!window.confirm('確定要刪除這筆疼痛紀錄嗎？此操作無法復原。')) return;
+    onDelete(initialData.id);
     onClose();
   };
 
@@ -170,10 +178,19 @@ export default function PainFormModal({ isOpen, onClose, onSave, initialData }: 
             />
           </div>
 
-          <div className="mt-auto pt-4 border-t border-stone-100">
-            <button 
-              type="submit" 
-              className="w-full py-3.5 bg-[#444] text-white rounded-xl font-bold text-[15px] shadow-sm hover:bg-[#333] transition-colors"
+          <div className="mt-auto pt-4 border-t border-stone-100 flex gap-2">
+            {initialData && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="py-3.5 px-4 bg-white border border-red-200 text-red-500 rounded-xl font-bold text-[15px] hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Trash2 size={16} /> 刪除
+              </button>
+            )}
+            <button
+              type="submit"
+              className="flex-1 py-3.5 bg-[#444] text-white rounded-xl font-bold text-[15px] shadow-sm hover:bg-[#333] transition-colors"
             >
               儲存紀錄
             </button>

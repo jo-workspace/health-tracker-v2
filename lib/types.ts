@@ -50,7 +50,7 @@ export interface PainLog {
   trigger: string;
   intensity: number;
   notes?: string;
-  status: 'active' | 'recovered' | 'discontinued';
+  status: 'active' | 'recovered' | 'discontinued' | 'deleted';
   lastUpdated: number;
 }
 

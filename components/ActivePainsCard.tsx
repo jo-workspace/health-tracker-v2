@@ -49,6 +49,16 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
     updateData({ painLogs: updatedLogs, clientTimestamp: Date.now() });
   };
 
+  const handleDelete = (id: string) => {
+    const updatedLogs = data.map(log => {
+      if (log.id === id) {
+        return { ...log, status: 'deleted' as const, lastUpdated: Date.now() };
+      }
+      return log;
+    });
+    updateData({ painLogs: updatedLogs, clientTimestamp: Date.now() });
+  };
+
   const openNewModal = () => {
     setEditingLog(null);
     setIsModalOpen(true);
@@ -122,10 +132,11 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
         )}
       </div>
 
-      <PainFormModal 
+      <PainFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSave}
+        onDelete={handleDelete}
         initialData={editingLog}
       />
     </div>
