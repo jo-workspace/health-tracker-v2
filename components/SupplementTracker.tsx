@@ -16,6 +16,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   const [supplements, setSupplements] = useState<Supplement[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isCustomPickerOpen, setIsCustomPickerOpen] = useState(false);
+  const [customNameInput, setCustomNameInput] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -170,9 +172,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     });
   };
 
-  const addCustomSupplement = () => {
-    const name = prompt('請輸入今日額外補充的保健品名稱：');
-    if (!name?.trim()) return;
+  const addCustomSupplement = (name: string) => {
+    if (!name.trim()) return;
     setSupplements(prev => {
       const newSupp: Supplement = {
         id: `custom-${Date.now()}`,
@@ -188,6 +189,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
       saveToCloud(newState);
       return newState;
     });
+    setIsCustomPickerOpen(false);
+    setCustomNameInput('');
   };
 
   useEffect(() => {
@@ -195,6 +198,22 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     else document.body.style.overflow = 'unset';
     return () => { document.body.style.overflow = 'unset'; };
   }, [isModalOpen]);
+
+  // 過去曾新增過的額外補充品名稱，依使用次數排序，today 已經加過的不重複列出
+  const todayCustomNames = new Set(supplements.filter(s => s.isCustom).map(s => s.name));
+  const customNameCounts = new Map<string, number>();
+  (data || []).filter(l => l.status !== 'deleted' && l.items).forEach(l => {
+    try {
+      const parsed: Supplement[] = JSON.parse(l.items);
+      parsed.filter(p => p.isCustom).forEach(p => {
+        customNameCounts.set(p.name, (customNameCounts.get(p.name) || 0) + 1);
+      });
+    } catch (e) { /* ignore malformed rows */ }
+  });
+  const pastCustomNames = Array.from(customNameCounts.entries())
+    .filter(([name]) => !todayCustomNames.has(name))
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name);
 
   const activeSupps = relevantSupps.filter(s => !s.ignored);
   const pendingSupps = activeSupps.filter(s => !(s.taken && isFulfilled(s)));
@@ -380,7 +399,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
               <div className="grid grid-cols-2 gap-3 pb-4">
                 {pendingSupps.map(renderSuppCard)}
 
-                <button onClick={addCustomSupplement} className="flex flex-col items-center justify-center p-3 rounded-lg border border-dashed border-stone-300 bg-stone-50 text-stone-500 hover:bg-stone-100 transition-colors min-h-[80px]">
+                <button onClick={() => setIsCustomPickerOpen(true)} className="flex flex-col items-center justify-center p-3 rounded-lg border border-dashed border-stone-300 bg-stone-50 text-stone-500 hover:bg-stone-100 transition-colors min-h-[80px]">
                   <Plus size={16} className="mb-1 text-stone-400" />
                   <span className="text-xs font-medium">新增其他</span>
                 </button>
@@ -423,6 +442,67 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         data={data}
         settings={settings}
       />
+
+      {isCustomPickerOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setIsCustomPickerOpen(false)}>
+          <div
+            className="bg-[#fcfcfc] w-full max-w-sm rounded-2xl shadow-xl flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
+              <h2 className="text-base font-bold text-stone-800">新增額外補充品</h2>
+              <button type="button" onClick={() => setIsCustomPickerOpen(false)} className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex flex-col gap-4">
+              {pastCustomNames.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-bold text-stone-500">常用清單</span>
+                  <div className="flex flex-wrap gap-2">
+                    {pastCustomNames.map(name => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => addCustomSupplement(name)}
+                        className="px-3 py-1.5 rounded-full text-xs font-bold border border-stone-200 bg-white text-stone-600 hover:bg-stone-100 transition-colors"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold text-stone-500">或輸入新名稱</span>
+                <form
+                  onSubmit={(e) => { e.preventDefault(); addCustomSupplement(customNameInput); }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
+                    autoFocus
+                    value={customNameInput}
+                    onChange={e => setCustomNameInput(e.target.value)}
+                    placeholder="例如：B 群"
+                    className="flex-1 px-3 py-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#444] text-white rounded-lg font-bold text-sm hover:bg-[#333] transition-colors disabled:opacity-40"
+                    disabled={!customNameInput.trim()}
+                  >
+                    新增
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
