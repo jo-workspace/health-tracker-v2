@@ -13,8 +13,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { image, mimeType } = await request.json();
-    if (!image) {
+    const body = await request.json();
+    const imagesInput: Array<{ image: string; mimeType?: string }> = [];
+
+    if (body.images && Array.isArray(body.images) && body.images.length > 0) {
+      imagesInput.push(...body.images);
+    } else if (body.image) {
+      imagesInput.push({ image: body.image, mimeType: body.mimeType });
+    }
+
+    if (imagesInput.length === 0) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
     }
 
@@ -24,8 +32,8 @@ export async function POST(request: Request) {
     }
 
     const prompt = `
-You are a health data extraction assistant. I will provide a screenshot from my Garmin app.
-Extract the following sleep and health metrics and return ONLY a valid JSON object.
+You are a health data extraction assistant. I will provide one or more screenshots from a health/sleep tracking app (e.g. Garmin, Apple Health, Oura).
+Extract the following sleep and health metrics across ALL provided screenshots and combine them into ONLY a single valid JSON object.
 Do NOT use markdown code blocks (\`\`\`json) or any other text. JUST the raw JSON.
 
 Required JSON format:
@@ -40,28 +48,28 @@ Required JSON format:
   "stress": 14 // Integer (average stress level, if visible)
 }
 
-If a value is not visible or cannot be determined, set it to null.
+If a value is not visible or cannot be determined across any of the images, set it to null.
 Ensure times are in 24-hour format if possible. For example, 12:21 AM is 00:21. 07:13 AM is 07:13.
 For durations like 1h 36m, convert it to float hours (e.g. 1 + 36/60 = 1.6).
+If different metrics appear on different screenshots, synthesize them into the single JSON output.
 `;
 
-    // Remove the "data:image/jpeg;base64," prefix if it exists
-    const base64Data = image.split(',').pop();
+    const parts: any[] = [{ text: prompt }];
+
+    for (const img of imagesInput) {
+      const base64Data = img.image.split(',').pop() || '';
+      if (base64Data) {
+        parts.push({
+          inlineData: {
+            mimeType: img.mimeType || 'image/jpeg',
+            data: base64Data
+          }
+        });
+      }
+    }
 
     const payload = {
-      contents: [
-        {
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: mimeType || 'image/jpeg',
-                data: base64Data
-              }
-            }
-          ]
-        }
-      ],
+      contents: [{ parts }],
       generationConfig: {
         temperature: 0.1, // Keep it deterministic
       }

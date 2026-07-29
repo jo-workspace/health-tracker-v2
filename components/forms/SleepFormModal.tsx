@@ -71,65 +71,67 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
   }, [isOpen, initialData, defaultDate]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
+    const fileList = Array.from(files);
     setIsAnalyzing(true);
+
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = event.target?.result as string;
-        
-        try {
-          const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
-          const res = await fetch('/api/analyze-sleep', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${password}`
-            },
-            body: JSON.stringify({ 
-              image: base64Data,
-              mimeType: file.type 
-            })
-          });
-
-          const data = await res.json().catch(() => ({}));
-
-          if (!res.ok) {
-            throw new Error(data.error || `HTTP ${res.status}`);
-          }
-          
-          if (data.bedTime) setBedTime(data.bedTime);
-          if (data.wakeTime) setWakeTime(data.wakeTime);
-          if (data.totalSleep) setSleepDuration(String(data.totalSleep));
-          if (data.deepSleep) setDeepSleep(String(data.deepSleep));
-          if (data.remSleep) setRemSleep(String(data.remSleep));
-          if (data.hrv) setHrv(String(data.hrv));
-          if (data.restingHeartRate) setRestingHeartRate(String(data.restingHeartRate));
-          if (data.stress) setStress(String(data.stress));
-          
-        } catch (error: any) {
-          console.error('Error analyzing image:', error);
-          const msg = error.message || '';
-          if (msg.includes('429') || msg.includes('Rate Limit')) {
-            alert('解析截圖失敗：Google Gemini 免費額度暫時達上限 (Too Many Requests)，請等待約 10~15 秒後再試一次！');
-          } else {
-            alert(`解析截圖失敗：${msg || '請稍後再試'}`);
-          }
-        } finally {
-          setIsAnalyzing(false);
-        }
+      const readAsBase64 = (file: File): Promise<{ image: string; mimeType: string }> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            resolve({
+              image: event.target?.result as string,
+              mimeType: file.type || 'image/jpeg'
+            });
+          };
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(file);
+        });
       };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error(error);
+
+      const imagesData = await Promise.all(fileList.map(readAsBase64));
+      const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
+
+      const res = await fetch('/api/analyze-sleep', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${password}`
+        },
+        body: JSON.stringify({ images: imagesData })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      
+      if (data.bedTime) setBedTime(data.bedTime);
+      if (data.wakeTime) setWakeTime(data.wakeTime);
+      if (data.totalSleep) setSleepDuration(String(data.totalSleep));
+      if (data.deepSleep) setDeepSleep(String(data.deepSleep));
+      if (data.remSleep) setRemSleep(String(data.remSleep));
+      if (data.hrv) setHrv(String(data.hrv));
+      if (data.restingHeartRate) setRestingHeartRate(String(data.restingHeartRate));
+      if (data.stress) setStress(String(data.stress));
+      
+    } catch (error: any) {
+      console.error('Error analyzing image(s):', error);
+      const msg = error.message || '';
+      if (msg.includes('429') || msg.includes('Rate Limit')) {
+        alert('解析截圖失敗：Google Gemini 免費額度暫時達上限 (Too Many Requests)，請等待約 10~15 秒後再試一次！');
+      } else {
+        alert(`解析截圖失敗：${msg || '請稍後再試'}`);
+      }
+    } finally {
       setIsAnalyzing(false);
-    }
-    
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -179,11 +181,19 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isAnalyzing}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0ecfc] hover:bg-[#e4dcf9] text-[#7148e5] text-xs font-bold rounded-full transition-colors"
+                  title="選擇一張或多張睡眠/心率/壓力截圖進行 AI 解析"
                 >
                   {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
                   {isAnalyzing ? '解析中...' : 'AI 截圖解析'}
                 </button>
-                <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  multiple 
+                  className="hidden" 
+                  ref={fileInputRef} 
+                  onChange={handleImageUpload} 
+                />
               </>
             )}
             
