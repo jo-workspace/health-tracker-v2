@@ -91,6 +91,7 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
     ? Number((recentAllergyLogs.reduce((sum, l) => sum + Number(l.severity || 0), 0) / allergyFlareCount).toFixed(1))
     : 0;
   const allergySteroidCount = recentAllergyLogs.filter(l => l.medication && l.medication.includes('steroid_cream')).length;
+  const allergySleepImpactCount = recentAllergyLogs.filter(l => l.sleepImpact === 'mild' || l.sleepImpact === 'severe').length;
 
   const getCheckupBadge = (nextCheckupDateStr?: string) => {
     if (!nextCheckupDateStr) return null;
@@ -341,10 +342,11 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                             過敏發作追蹤 (30天)
                           </span>
                         </div>
-                        <div className="flex gap-4 text-[11px] text-stone-500">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-stone-500">
                           <span>發作次數：<strong className="text-[#c084a1]">{allergyFlareCount}</strong> 次</span>
                           <span>平均嚴重度：<strong className="text-stone-700">{allergyAvgSeverity || '-'}</strong></span>
                           <span>類固醇使用：<strong className="text-stone-700">{allergySteroidCount}</strong> 次</span>
+                          <span>影響睡眠：<strong className="text-stone-700">{allergySleepImpactCount}</strong> 次</span>
                         </div>
                         <div className="absolute -top-3 -right-1 flex gap-1 z-10">
                           <button

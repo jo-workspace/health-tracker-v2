@@ -15,6 +15,11 @@ const PRESET_MEDS = [
   { id: "antihistamine", label: "抗組織胺" },
   { id: "steroid_cream", label: "類固醇藥膏" }
 ];
+const SLEEP_IMPACT_OPTIONS: { id: 'none' | 'mild' | 'severe'; label: string }[] = [
+  { id: 'none', label: '無' },
+  { id: 'mild', label: '輕微' },
+  { id: 'severe', label: '嚴重' }
+];
 
 export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
@@ -22,6 +27,7 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
   const [severity, setSeverity] = useState(4);
   const [trigger, setTrigger] = useState('');
   const [meds, setMeds] = useState<string[]>([]);
+  const [sleepImpact, setSleepImpact] = useState<'none' | 'mild' | 'severe'>('none');
   const [notes, setNotes] = useState('');
 
   if (!isOpen) return null;
@@ -59,6 +65,7 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
       severity,
       trigger,
       medication: meds.join(', '),
+      sleepImpact,
       notes,
       status: 'active',
       lastUpdated: Date.now()
@@ -68,6 +75,7 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
     setSeverity(4);
     setTrigger('');
     setMeds([]);
+    setSleepImpact('none');
     setNotes('');
     onClose();
   };
@@ -186,6 +194,26 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
                   }`}
                 >
                   {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <label className="text-sm font-bold text-stone-700">是否影響睡眠</label>
+            <div className="flex flex-wrap gap-2">
+              {SLEEP_IMPACT_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setSleepImpact(opt.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                    sleepImpact === opt.id
+                    ? 'bg-[#6f7f99] text-white border-[#6f7f99]'
+                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                  }`}
+                >
+                  {opt.label}
                 </button>
               ))}
             </div>

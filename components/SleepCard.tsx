@@ -2,16 +2,17 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Moon, Plus } from 'lucide-react';
-import type { SleepLog, SyncPayload } from '@/lib/types';
+import type { SleepLog, AllergyLog, SyncPayload } from '@/lib/types';
 import SleepDetailModal from './SleepDetailModal';
 import SleepFormModal from './forms/SleepFormModal';
 
 interface Props {
   data?: SleepLog[];
+  allergyLogs?: AllergyLog[];
   updateData: (payload: SyncPayload) => void;
   forceSync?: () => Promise<void>;
 }
-export default function SleepCard({ data = [], updateData, forceSync }: Props) {
+export default function SleepCard({ data = [], allergyLogs = [], updateData, forceSync }: Props) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null);
@@ -182,10 +183,11 @@ export default function SleepCard({ data = [], updateData, forceSync }: Props) {
       </div>
 
       {/* 睡眠詳情與趨勢圖表 */}
-      <SleepDetailModal 
-        isOpen={isDetailModalOpen} 
-        onClose={() => setIsDetailModalOpen(false)} 
-        sleepLogs={activeLogs} 
+      <SleepDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => setIsDetailModalOpen(false)}
+        sleepLogs={activeLogs}
+        allergyLogs={allergyLogs}
       />
 
       {/* 自動偵測提醒 */}

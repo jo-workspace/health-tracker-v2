@@ -47,6 +47,8 @@ export default function AllergySummaryModal({ isOpen, onClose, logs }: Props) {
     return '劇烈';
   };
 
+  const SLEEP_IMPACT_LABELS: Record<string, string> = { mild: '輕微', severe: '嚴重' };
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
       <div
@@ -85,6 +87,11 @@ export default function AllergySummaryModal({ isOpen, onClose, logs }: Props) {
                 {log.medication && (
                   <div className="text-sm text-stone-600">
                     <span className="font-medium text-stone-500">用藥：</span>{formatList(log.medication, PRESET_MEDS_MAP)}
+                  </div>
+                )}
+                {log.sleepImpact && log.sleepImpact !== 'none' && (
+                  <div className="text-sm text-stone-600">
+                    <span className="font-medium text-stone-500">😴 影響睡眠：</span>{SLEEP_IMPACT_LABELS[log.sleepImpact]}
                   </div>
                 )}
                 {log.notes && (

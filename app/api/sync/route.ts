@@ -7,7 +7,7 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   longTermLogs: { name: "LongTermLogs", headers: ["id", "date", "itemName", "sizeWidth", "sizeHeight", "sizeDepth", "hospital", "doctor", "nextCheckupDate", "notes", "status", "lastUpdated"] },
   biteSplintLogs: { name: "BiteSplintLogs", headers: ["id", "date", "status", "lastUpdated"] },
   tmySymptomsLogs: { name: "TMJSymptomsLogs", headers: ["id", "date", "symptoms", "medication", "status", "lastUpdated"] },
-  allergyLogs: { name: "AllergyLogs", headers: ["id", "date", "locations", "severity", "trigger", "medication", "notes", "status", "lastUpdated"] },
+  allergyLogs: { name: "AllergyLogs", headers: ["id", "date", "locations", "severity", "trigger", "medication", "notes", "status", "lastUpdated", "sleepImpact"] },
   sleepLogs: { name: "SleepLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "deepSleep", "remSleep", "stress", "feeling", "hrv", "restingHeartRate", "notes", "status", "lastUpdated"] },
   rainbowDietLogs: { name: "RainbowDietLogs", headers: ["id", "date", "plantName", "color", "status", "lastUpdated"] },
   supplementLogs: { name: "SupplementLogs", headers: ["id", "date", "items", "status", "lastUpdated"] },

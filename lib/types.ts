@@ -94,6 +94,7 @@ export interface AllergyLog {
   severity: number; // 1-10
   trigger?: string;
   medication?: string; // comma-separated ids: antihistamine, steroid_cream
+  sleepImpact?: 'none' | 'mild' | 'severe';
   notes?: string;
   status: 'active' | 'deleted';
   lastUpdated: number;

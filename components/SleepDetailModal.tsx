@@ -1,15 +1,20 @@
 import { X, Moon } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import type { SleepLog } from '@/lib/types';
+import type { SleepLog, AllergyLog } from '@/lib/types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   sleepLogs: SleepLog[];
+  allergyLogs?: AllergyLog[];
 }
 
-export default function SleepDetailModal({ isOpen, onClose, sleepLogs }: Props) {
+const SLEEP_IMPACT_RANK: Record<string, number> = { none: 0, mild: 1, severe: 2 };
+
+export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLogs = [] }: Props) {
   if (!isOpen) return null;
+
+  const activeAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted');
 
   // 取得近 7 天的日期字串 (YYYY-MM-DD)
   const last7Days: string[] = [];
@@ -42,13 +47,20 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs }: Props) 
       nightColor = '#6f7f99'; // 預設藍
     }
 
+    const dayAllergyLogs = activeAllergyLogs.filter(l => l.date === dateStr);
+    const worstAllergyImpact = dayAllergyLogs.reduce((worst, l) => {
+      const impact = l.sleepImpact || 'none';
+      return SLEEP_IMPACT_RANK[impact] > SLEEP_IMPACT_RANK[worst] ? impact : worst;
+    }, 'none');
+
     return {
       dateStr,
       nightHours,
       napHours,
       totalHours,
       nightColor,
-      stress: nightLog?.stress ? Number(nightLog.stress) : null
+      stress: nightLog?.stress ? Number(nightLog.stress) : null,
+      allergyImpact: worstAllergyImpact
     };
   });
 
@@ -190,14 +202,23 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs }: Props) 
                     <span className="text-[10px] font-bold text-stone-600">{d.totalHours > 0 ? d.totalHours.toFixed(1) + 'h' : ''}</span>
                     <span className="text-[9px] text-stone-400 mt-1">{d.dateStr.substring(8, 10)}</span>
                     <span className="text-[8px] text-stone-400">({weekdays[dateObj.getDay()]})</span>
+                    {d.allergyImpact !== 'none' && (
+                      <span
+                        className="text-[10px]"
+                        title={`過敏影響睡眠：${d.allergyImpact === 'severe' ? '嚴重' : '輕微'}`}
+                        style={{ opacity: d.allergyImpact === 'severe' ? 1 : 0.55 }}
+                      >
+                        🤧
+                      </span>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Spacer for the labels that overflowed below */}
-          <div className="h-10"></div>
+          {/* Spacer for the labels that overflowed below (extra room for the allergy badge line) */}
+          <div className="h-14"></div>
 
           <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] text-stone-500 justify-center mt-2 mb-2">
             <div className="flex items-center gap-1">
