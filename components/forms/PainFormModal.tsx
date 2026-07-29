@@ -94,7 +94,7 @@ export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initi
             <Flame size={20} className="text-[#ea580c]" />
             {initialData ? '更新疼痛紀錄' : '新增疼痛紀錄'}
           </h2>
-          <button onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
+          <button type="button" onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
             <X size={18} />
           </button>
         </div>

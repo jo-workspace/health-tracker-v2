@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ClipboardList } from 'lucide-react';
+import { X, ClipboardList, Ruler, Minus } from 'lucide-react';
 import type { LongTermLog } from '@/lib/types';
 
 interface Props {
@@ -26,6 +26,7 @@ export default function LongTermFormModal({ isOpen, onClose, onSave, initialData
   const [sizeDepth, setSizeDepth] = useState('');
   const [nextCheckupDate, setNextCheckupDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [showSize, setShowSize] = useState(false);
 
   useEffect(() => {
     const formatForDateInput = (dateStr?: string, defaultToToday = false) => {
@@ -50,6 +51,7 @@ export default function LongTermFormModal({ isOpen, onClose, onSave, initialData
         setSizeDepth(initialData.sizeDepth || '');
         setNextCheckupDate(formatForDateInput(initialData.nextCheckupDate, false));
         setNotes(initialData.notes || '');
+        setShowSize(!!(initialData.sizeWidth || initialData.sizeHeight || initialData.sizeDepth));
       } else {
         setItemName('');
         setDate(new Date().toLocaleDateString('en-CA'));
@@ -60,6 +62,7 @@ export default function LongTermFormModal({ isOpen, onClose, onSave, initialData
         setSizeDepth('');
         setNextCheckupDate('');
         setNotes('');
+        setShowSize(false);
       }
     }
   }, [isOpen, initialData]);
@@ -99,7 +102,7 @@ export default function LongTermFormModal({ isOpen, onClose, onSave, initialData
             <ClipboardList size={20} className="text-stone-600" />
             {initialData ? '更新追蹤項目' : '新增長期健康追蹤'}
           </h2>
-          <button onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
+          <button type="button" onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -167,35 +170,54 @@ export default function LongTermFormModal({ isOpen, onClose, onSave, initialData
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-stone-700">尺寸測量 (選填, mm)</label>
-            <div className="grid grid-cols-3 gap-3">
-              <input 
-                type="number" 
-                step="0.1"
-                value={sizeWidth}
-                onChange={e => setSizeWidth(e.target.value)}
-                placeholder="寬 (W)"
-                className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
-              />
-              <input 
-                type="number" 
-                step="0.1"
-                value={sizeHeight}
-                onChange={e => setSizeHeight(e.target.value)}
-                placeholder="高 (H)"
-                className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
-              />
-              <input 
-                type="number" 
-                step="0.1"
-                value={sizeDepth}
-                onChange={e => setSizeDepth(e.target.value)}
-                placeholder="深 (D)"
-                className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
-              />
+          {showSize ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-bold text-stone-700">尺寸測量 (選填, mm)</label>
+                <button
+                  type="button"
+                  onClick={() => { setShowSize(false); setSizeWidth(''); setSizeHeight(''); setSizeDepth(''); }}
+                  className="text-xs text-stone-400 hover:text-stone-600 font-bold flex items-center gap-1"
+                >
+                  <Minus size={12} /> 移除尺寸測量
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <input
+                  type="number"
+                  step="0.1"
+                  value={sizeWidth}
+                  onChange={e => setSizeWidth(e.target.value)}
+                  placeholder="寬 (W)"
+                  className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  value={sizeHeight}
+                  onChange={e => setSizeHeight(e.target.value)}
+                  placeholder="高 (H)"
+                  className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  value={sizeDepth}
+                  onChange={e => setSizeDepth(e.target.value)}
+                  placeholder="深 (D)"
+                  className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowSize(true)}
+              className="flex items-center gap-1.5 text-xs text-stone-500 hover:text-stone-700 font-bold self-start"
+            >
+              <Ruler size={13} /> + 新增尺寸測量 (選填)
+            </button>
+          )}
 
           <div className="flex flex-col gap-2 mb-4">
             <label className="text-sm font-bold text-stone-700">詳細備註 (選填)</label>

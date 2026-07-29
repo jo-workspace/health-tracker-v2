@@ -74,7 +74,7 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
             <Sparkles size={20} className="text-[#c084a1]" />
             紀錄過敏發作
           </h2>
-          <button onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
+          <button type="button" onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
             <X size={18} />
           </button>
         </div>

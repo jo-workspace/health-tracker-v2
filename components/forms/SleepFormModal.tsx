@@ -197,7 +197,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
               </>
             )}
             
-            <button onClick={onClose} className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors ml-1">
+            <button type="button" onClick={onClose} className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors ml-1">
               <X size={18} />
             </button>
           </div>
