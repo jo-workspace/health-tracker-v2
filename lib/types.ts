@@ -41,6 +41,7 @@ export interface SupplementSetting {
   targetAmount: string;
   status: string;
   lastUpdated: string;
+  category?: string;
 }
 
 export interface PainLog {

@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import { X, History } from 'lucide-react';
 import type { SupplementLog, SupplementSetting } from '@/lib/types';
-import { PREDEFINED_SUPPLEMENTS, isScheduledDay, type Supplement } from '@/lib/supplements';
+import { PREDEFINED_SUPPLEMENTS, isScheduledDay, CATEGORY_ORDER, DEFAULT_CATEGORY, type Supplement } from '@/lib/supplements';
 
 interface Props {
   isOpen: boolean;
@@ -16,6 +16,7 @@ const MAX_WINDOW_DAYS = 90;
 interface ItemStat {
   id: string;
   name: string;
+  category: string;
   expected: number;
   achieved: number;
   increasedDose: number;
@@ -32,9 +33,10 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
         id: s.id,
         name: s.name,
         time: s.time,
-        targetAmount: parseInt(s.targetAmount, 10) || 1
+        targetAmount: parseInt(s.targetAmount, 10) || 1,
+        category: s.category || DEFAULT_CATEGORY
       }))
-    : PREDEFINED_SUPPLEMENTS.map(s => ({ id: s.id, name: s.name, time: s.time, targetAmount: 1 }));
+    : PREDEFINED_SUPPLEMENTS.map(s => ({ id: s.id, name: s.name, time: s.time, targetAmount: 1, category: s.category || DEFAULT_CATEGORY }));
 
   const logsByDate = new Map<string, SupplementLog>();
   activeLogs.forEach(l => logsByDate.set(l.date, l));
@@ -62,7 +64,7 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
   }
 
   const statsMap = new Map<string, ItemStat>();
-  baseItems.forEach(item => statsMap.set(item.id, { id: item.id, name: item.name, expected: 0, achieved: 0, increasedDose: 0 }));
+  baseItems.forEach(item => statsMap.set(item.id, { id: item.id, name: item.name, category: item.category, expected: 0, achieved: 0, increasedDose: 0 }));
 
   const customCounts = new Map<string, number>();
 
@@ -93,10 +95,24 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
     });
   });
 
+  const getRate = (s: ItemStat) => (s.expected > 0 ? s.achieved / s.expected : 1);
+
+  const categoryRank = (category: string) => {
+    const idx = CATEGORY_ORDER.indexOf(category);
+    return idx === -1 ? CATEGORY_ORDER.length : idx;
+  };
+
   const itemStats = Array.from(statsMap.values()).sort((a, b) => {
-    const rateA = a.expected > 0 ? a.achieved / a.expected : 1;
-    const rateB = b.expected > 0 ? b.achieved / b.expected : 1;
-    return rateA - rateB;
+    const catDiff = categoryRank(a.category) - categoryRank(b.category);
+    if (catDiff !== 0) return catDiff;
+    return getRate(a) - getRate(b);
+  });
+
+  const groupedStats: { category: string; items: ItemStat[] }[] = [];
+  itemStats.forEach(stat => {
+    const group = groupedStats.find(g => g.category === stat.category);
+    if (group) group.items.push(stat);
+    else groupedStats.push({ category: stat.category, items: [stat] });
   });
 
   const customList = Array.from(customCounts.entries()).sort((a, b) => b[1] - a[1]);
@@ -125,33 +141,38 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
 
         <div className="p-4 overflow-y-auto flex-1 flex flex-col">
           <p className="text-[11px] text-stone-400 mb-2">
-            依達成率由低到高排序，最容易漏服的品項會排在最上面。沒有開啟 App 紀錄的日子視為未達成。
+            依類別分組，組內依達成率由低到高排序，最容易漏服的品項會排在該類別最上面。沒有開啟 App 紀錄的日子視為未達成。
             {windowDays < MAX_WINDOW_DAYS && `（目前紀錄還未滿 ${MAX_WINDOW_DAYS} 天，統計範圍為您開始使用以來的 ${windowDays} 天）`}
           </p>
 
           <div className="flex flex-col">
-            {itemStats.map((stat, idx) => {
-              const rate = stat.expected > 0 ? Math.round((stat.achieved / stat.expected) * 100) : null;
-              return (
-                <div
-                  key={stat.id}
-                  className={`flex items-center justify-between gap-3 py-2.5 ${idx > 0 ? 'border-t border-stone-100' : ''}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-stone-700 text-sm truncate">{stat.name}</div>
-                    <div className="text-[11px] text-stone-400 mt-0.5">
-                      應服 {stat.expected} 天・達成 {stat.achieved} 天
-                      {stat.increasedDose > 0 && `・加量 ${stat.increasedDose} 天`}
+            {groupedStats.map((group, groupIdx) => (
+              <div key={group.category} className={groupIdx > 0 ? 'mt-3 pt-3 border-t border-stone-200' : ''}>
+                <div className="text-xs font-bold text-stone-500 mb-1">{group.category}</div>
+                {group.items.map((stat, idx) => {
+                  const rate = stat.expected > 0 ? Math.round((stat.achieved / stat.expected) * 100) : null;
+                  return (
+                    <div
+                      key={stat.id}
+                      className={`flex items-center justify-between gap-3 py-2.5 ${idx > 0 ? 'border-t border-stone-100' : ''}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-stone-700 text-sm truncate">{stat.name}</div>
+                        <div className="text-[11px] text-stone-400 mt-0.5">
+                          應服 {stat.expected} 天・達成 {stat.achieved} 天
+                          {stat.increasedDose > 0 && `・加量 ${stat.increasedDose} 天`}
+                        </div>
+                      </div>
+                      {rate !== null && (
+                        <span className={`px-2 py-1 rounded-md font-black text-sm shrink-0 ${getRateColor(rate)}`}>
+                          {rate}%
+                        </span>
+                      )}
                     </div>
-                  </div>
-                  {rate !== null && (
-                    <span className={`px-2 py-1 rounded-md font-black text-sm shrink-0 ${getRateColor(rate)}`}>
-                      {rate}%
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ))}
           </div>
 
           {customList.length > 0 && (

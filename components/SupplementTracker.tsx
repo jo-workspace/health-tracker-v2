@@ -34,7 +34,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         time: s.time,
         targetAmount: '1',
         status: 'active',
-        lastUpdated: Date.now().toString()
+        lastUpdated: Date.now().toString(),
+        category: s.category
       }));
       updateData({ supplementSettings: defaultSettings, clientTimestamp: Date.now() });
     }
