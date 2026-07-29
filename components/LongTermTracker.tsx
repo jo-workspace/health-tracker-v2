@@ -237,10 +237,13 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
             return (
               <div key={log.id} className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden mb-3">
                 <div className="p-4">
-                  <div className="flex justify-between items-start mb-3">
+                  <div className={`flex justify-between items-start ${isSymptomOnlyTracker ? 'mb-0' : 'mb-3'}`}>
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-black text-stone-700 text-base">{log.itemName}</h3>
                       {getCheckupBadge(log.nextCheckupDate)}
+                      {isSymptomOnlyTracker && (
+                        <span className="text-[10px] text-stone-400">更新於 {getRelativeTimeStr(log.lastUpdated)}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-2">
                       <button onClick={() => openEditModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-sm transition-colors" title="編輯項目">✏️</button>
@@ -268,9 +271,11 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                     </div>
                   )}
 
-                  <div className="text-[10px] text-stone-400 text-right mt-1 mb-2">
-                    更新於 {getRelativeTimeStr(log.lastUpdated)}
-                  </div>
+                  {!isSymptomOnlyTracker && (
+                    <div className="text-[10px] text-stone-400 text-right mt-1 mb-2">
+                      更新於 {getRelativeTimeStr(log.lastUpdated)}
+                    </div>
+                  )}
 
                   {/* 顳顎關節特製面板 */}
                   {log.itemName === '顳顎關節' && (
@@ -329,7 +334,7 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
 
                   {/* 過敏特製面板 */}
                   {log.itemName === '過敏' && (
-                    <div className="mt-4 flex flex-col gap-2">
+                    <div className="mt-3 flex flex-col gap-2">
                       <div className="p-3 bg-purple-50/50 border-l-4 border-[#c084a1] rounded-r-lg relative mt-2">
                         <div className="flex justify-between items-center mb-2">
                           <span className="font-bold text-stone-700 text-sm flex items-center gap-1.5">
