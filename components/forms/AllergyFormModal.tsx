@@ -17,6 +17,7 @@ const PRESET_MEDS = [
 ];
 
 export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
+  const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [locations, setLocations] = useState<string[]>([]);
   const [severity, setSeverity] = useState(4);
   const [trigger, setTrigger] = useState('');
@@ -40,13 +41,20 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
     return 'bg-[#fef2f2] text-[#dc2626] border-[#fecaca]';
   };
 
+  const getSeverityDesc = (val: number) => {
+    if (val <= 3) return '輕微（有點癢/紅，不太影響生活）';
+    if (val <= 6) return '中度（明顯不適，需要吃藥緩解）';
+    if (val <= 8) return '嚴重（大範圍發作，影響日常活動）';
+    return '劇烈（難以忍受，可能需要就醫）';
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (locations.length === 0) return;
 
     onSave({
       id: crypto.randomUUID(),
-      date: new Date().toLocaleDateString('en-CA'),
+      date,
       locations: locations.join(', '),
       severity,
       trigger,
@@ -55,6 +63,7 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
       status: 'active',
       lastUpdated: Date.now()
     });
+    setDate(new Date().toLocaleDateString('en-CA'));
     setLocations([]);
     setSeverity(4);
     setTrigger('');
@@ -80,6 +89,17 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 overflow-y-auto flex-1 flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-stone-700">發作日期</label>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
+              required
+            />
+          </div>
+
           <div className="flex flex-col gap-3">
             <label className="text-sm font-bold text-stone-700">部位 (可複選)</label>
             <div className="flex flex-wrap gap-2">
@@ -114,6 +134,9 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
               onChange={e => setSeverity(Number(e.target.value))}
               className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer mt-2"
             />
+            <div className="text-xs font-medium text-stone-500 text-center mt-1">
+              {getSeverityDesc(severity)}
+            </div>
             <div className="flex justify-between text-[10px] text-stone-400 font-bold px-1 mt-1">
               <span>輕微 (1)</span>
               <span>中度 (5)</span>

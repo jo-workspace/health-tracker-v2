@@ -41,10 +41,11 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
 
   const latestItems = Array.from(latestItemsMap.values());
   latestItems.sort((a, b) => {
-    const dateA = a.nextCheckupDate ? new Date(a.nextCheckupDate).getTime() : Infinity;
-    const dateB = b.nextCheckupDate ? new Date(b.nextCheckupDate).getTime() : Infinity;
-    if (dateA !== dateB) return dateA - dateB;
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
+    // 沒有回診日期的項目（如過敏這類持續症狀監測）排在最上面，依最近更新時間排序
+    if (!a.nextCheckupDate && !b.nextCheckupDate) return b.lastUpdated - a.lastUpdated;
+    if (!a.nextCheckupDate) return -1;
+    if (!b.nextCheckupDate) return 1;
+    return new Date(a.nextCheckupDate).getTime() - new Date(b.nextCheckupDate).getTime();
   });
 
   // Calculate TMJ specific stats
@@ -230,6 +231,9 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
               }
             } catch (e) {}
 
+            // 過敏這類純症狀監測項目沒有「檢查/回診」概念，詳情區塊只會顯示空泛的建立日期，故隱藏
+            const isSymptomOnlyTracker = log.itemName === '過敏';
+
             return (
               <div key={log.id} className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden mb-3">
                 <div className="p-4">
@@ -240,18 +244,22 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-2">
                       <button onClick={() => openEditModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-sm transition-colors" title="編輯項目">✏️</button>
-                      <button onClick={() => openNewCheckupModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-sm transition-colors" title="新增回診紀錄">📅</button>
+                      {!isSymptomOnlyTracker && (
+                        <button onClick={() => openNewCheckupModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-sm transition-colors" title="新增回診紀錄">📅</button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex gap-3 text-[13px] mb-2">
-                    <span className="text-stone-400 font-medium shrink-0">詳情</span>
-                    <span className="text-stone-600 leading-snug">
-                      <span className="font-bold">{displayDate}</span> {clinicInfo ? `| ${clinicInfo}` : ''}<br/>
-                      {sizeStr && <span className="text-stone-500">{sizeStr}</span>}
-                      {displayNextCheckup && <span className="text-stone-500">下次回診: {displayNextCheckup}</span>}
-                    </span>
-                  </div>
+                  {!isSymptomOnlyTracker && (
+                    <div className="flex gap-3 text-[13px] mb-2">
+                      <span className="text-stone-400 font-medium shrink-0">詳情</span>
+                      <span className="text-stone-600 leading-snug">
+                        <span className="font-bold">{displayDate}</span> {clinicInfo ? `| ${clinicInfo}` : ''}<br/>
+                        {sizeStr && <span className="text-stone-500">{sizeStr}</span>}
+                        {displayNextCheckup && <span className="text-stone-500">下次回診: {displayNextCheckup}</span>}
+                      </span>
+                    </div>
+                  )}
 
                   {log.notes && (
                     <div className="flex gap-3 text-[13px] mt-2">

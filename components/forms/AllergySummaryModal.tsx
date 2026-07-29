@@ -40,6 +40,13 @@ export default function AllergySummaryModal({ isOpen, onClose, logs }: Props) {
     return 'bg-[#fef2f2] text-[#dc2626]';
   };
 
+  const getSeverityLabel = (val: number) => {
+    if (val <= 3) return '輕微';
+    if (val <= 6) return '中度';
+    if (val <= 8) return '嚴重';
+    return '劇烈';
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
       <div
@@ -64,7 +71,7 @@ export default function AllergySummaryModal({ isOpen, onClose, logs }: Props) {
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-stone-700">{formatDate(log.date)}</span>
                   <span className={`px-2 py-0.5 rounded font-black text-xs ${getSeverityColor(log.severity)}`}>
-                    嚴重度 {log.severity}
+                    嚴重度 {log.severity}（{getSeverityLabel(log.severity)}）
                   </span>
                 </div>
                 <div className="text-sm text-stone-600">
