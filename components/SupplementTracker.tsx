@@ -196,6 +196,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   }, [isModalOpen]);
 
   const activeSupps = relevantSupps.filter(s => !s.ignored);
+  const pendingSupps = activeSupps.filter(s => !(s.taken && isFulfilled(s)));
+  const completedSupps = activeSupps.filter(s => s.taken && isFulfilled(s));
   const ignoredSupps = relevantSupps.filter(s => s.ignored);
 
   const renderSuppCard = (item: Supplement) => {
@@ -302,7 +304,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
 
   return (
     <>
-      <div onClick={() => setIsModalOpen(true)} className="w-full max-w-md mx-auto bg-[#fdfdfc] rounded-lg shadow-sm border border-stone-200 mb-4 transition-all hover:shadow-md cursor-pointer group">
+      <div onClick={() => setIsHistoryModalOpen(true)} className="w-full max-w-md mx-auto bg-[#fdfdfc] rounded-lg shadow-sm border border-stone-200 mb-4 transition-all hover:shadow-md cursor-pointer group">
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-[#6ba388]">
@@ -320,22 +322,25 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
             <div className="bg-stone-300 transition-all duration-700" style={{ width: `${pIgnored}%` }} title="已略過" />
           </div>
 
-          <div className="bg-stone-50 rounded p-3 flex items-center justify-between">
+          <div
+            onClick={(e) => { e.stopPropagation(); setIsModalOpen(true); }}
+            className="bg-stone-50 hover:bg-stone-100 rounded p-3 flex items-center justify-between transition-colors"
+          >
             <div className="flex-1 overflow-hidden">
               <div className="text-xs text-stone-500 font-medium mb-1">
                 {suggestedNow.length > 0 ? '目前時段建議：' : (pending.length === 0 ? '🎉 今日目標已達成！' : `預告 (${pending[0]?.time || '稍後'})：`)}
               </div>
               <div className="text-sm font-semibold text-stone-700 truncate pr-4">
-                {suggestedNow.length > 0 
+                {suggestedNow.length > 0
                   ? suggestedNow.map(s => {
                       const targetStr = (s.targetAmount || 1) > 1 ? ` (x${s.targetAmount})` : '';
                       return s.name + targetStr;
                     }).join('、')
-                  : pending.length > 0 
+                  : pending.length > 0
                     ? pending.filter(s => s.time === pending[0].time).map(s => {
                         const targetStr = (s.targetAmount || 1) > 1 ? ` (x${s.targetAmount})` : '';
                         return s.name + targetStr;
-                      }).join('、') 
+                      }).join('、')
                     : '好好休息吧！'}
               </div>
             </div>
@@ -372,13 +377,26 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
 
             <div className="p-4 pt-0 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
               <div className="grid grid-cols-2 gap-3 pb-4">
-                {activeSupps.map(renderSuppCard)}
-                
+                {pendingSupps.map(renderSuppCard)}
+
                 <button onClick={addCustomSupplement} className="flex flex-col items-center justify-center p-3 rounded-lg border border-dashed border-stone-300 bg-stone-50 text-stone-500 hover:bg-stone-100 transition-colors min-h-[80px]">
                   <Plus size={16} className="mb-1 text-stone-400" />
                   <span className="text-xs font-medium">新增其他</span>
                 </button>
               </div>
+
+              {completedSupps.length > 0 && (
+                <>
+                  <div className="flex items-center gap-3 my-2 mb-4">
+                    <div className="h-px bg-stone-200 flex-1" />
+                    <span className="text-[10px] font-bold text-stone-400 tracking-wider">已完成</span>
+                    <div className="h-px bg-stone-200 flex-1" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pb-4">
+                    {completedSupps.map(renderSuppCard)}
+                  </div>
+                </>
+              )}
 
               {ignoredSupps.length > 0 && (
                 <>
