@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Salad, ChevronRight, X, Plus, Check, Camera, Loader2, Sparkles } from 'lucide-react';
+import { Salad, ChevronRight, X, Plus, Check, Camera, Loader2, Sparkles, RotateCw } from 'lucide-react';
 import type { SyncPayload, RainbowDietLog } from '@/lib/types';
 
 interface Props {
@@ -13,6 +13,11 @@ interface DetectedItem {
   plantName: string;
   color: string;
   selected: boolean;
+}
+
+interface PendingImage {
+  image: string;
+  mimeType: string;
 }
 
 const COLOR_MAPPING: Record<string, string> = {
@@ -52,7 +57,17 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [detectedItems, setDetectedItems] = useState<DetectedItem[]>([]);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+  const [analyzeError, setAnalyzeError] = useState('');
+  const [retrySeconds, setRetrySeconds] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 429 冷卻倒數，倒數歸零後才開放重試
+  useEffect(() => {
+    if (retrySeconds <= 0) return;
+    const timer = setTimeout(() => setRetrySeconds(s => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [retrySeconds]);
 
   // 當真實資料回來時，清除樂觀更新
   useEffect(() => {
@@ -163,68 +178,89 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
     setIsAiModalOpen(false);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const runAnalysis = async (img: PendingImage) => {
     setIsAnalyzing(true);
+    setAnalyzeError('');
+
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64Data = event.target?.result as string;
+      const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
+      const res = await fetch('/api/analyze-diet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${password}`
+        },
+        body: JSON.stringify({
+          image: img.image,
+          mimeType: img.mimeType
+        })
+      });
 
-        try {
-          const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
-          const res = await fetch('/api/analyze-diet', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${password}`
-            },
-            body: JSON.stringify({
-              image: base64Data,
-              mimeType: file.type
-            })
-          });
+      const resData = await res.json().catch(() => ({}));
 
-          const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err: any = new Error(resData.error || `HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
 
-          if (!res.ok) {
-            throw new Error(resData.error || `HTTP ${res.status}`);
-          }
-
-          if (resData.items && Array.isArray(resData.items) && resData.items.length > 0) {
-            const parsedItems: DetectedItem[] = resData.items.map((it: any) => ({
-              plantName: it.plantName,
-              color: COLOR_MAPPING[it.plantName] || historicalColorMap.get(it.plantName) || it.color || 'green',
-              selected: true
-            }));
-            setDetectedItems(parsedItems);
-            setIsAiModalOpen(true);
-          } else {
-            alert('未能辨識出餐點中的植物食材，請更換清晰照片或手動輸入。');
-          }
-        } catch (error: any) {
-          console.error('Diet image analysis error:', error);
-          const msg = error.message || '';
-          if (msg.includes('429') || msg.includes('Rate Limit')) {
-            alert('AI 辨識失敗：Google API 次數達上限，請等待 10 秒後再試。');
-          } else {
-            alert(`AI 辨識失敗：${msg || '請稍後再試'}`);
-          }
-        } finally {
-          setIsAnalyzing(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      console.error(err);
+      if (resData.items && Array.isArray(resData.items) && resData.items.length > 0) {
+        const parsedItems: DetectedItem[] = resData.items.map((it: any) => ({
+          plantName: it.plantName,
+          color: COLOR_MAPPING[it.plantName] || historicalColorMap.get(it.plantName) || it.color || 'green',
+          selected: true
+        }));
+        setDetectedItems(parsedItems);
+        setIsAiModalOpen(true);
+        // 成功後才釋放暫存的照片
+        setPendingImage(null);
+      } else {
+        setAnalyzeError('未能辨識出餐點中的植物食材。可直接重試一次，或更換清晰照片、手動輸入。');
+        setRetrySeconds(0);
+      }
+    } catch (error: any) {
+      console.error('Diet image analysis error:', error);
+      const msg = error.message || '';
+      const isRateLimited = error.status === 429 || msg.includes('429') || msg.includes('Rate Limit');
+      if (isRateLimited) {
+        setAnalyzeError('Google API 次數暫時達上限。照片已保留，倒數結束後直接按「重新辨識」即可，不用重拍。');
+        setRetrySeconds(15);
+      } else {
+        setAnalyzeError(`AI 辨識失敗：${msg || '請稍後再試'}。照片已保留，可直接重試。`);
+        setRetrySeconds(0);
+      }
+    } finally {
       setIsAnalyzing(false);
     }
+  };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    if (!file) return;
+
+    setIsAnalyzing(true);
+    setAnalyzeError('');
+    setRetrySeconds(0);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const img: PendingImage = {
+        image: event.target?.result as string,
+        mimeType: file.type || 'image/jpeg'
+      };
+      setPendingImage(img);
+      await runAnalysis(img);
+    };
+    reader.onerror = (err) => {
+      console.error('Diet image read error:', err);
+      setPendingImage(null);
+      setAnalyzeError('讀取照片失敗，請重新選擇檔案。');
+      setIsAnalyzing(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleFormSubmit = (e?: React.FormEvent) => {
@@ -389,6 +425,35 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {analyzeError && (
+              <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 flex flex-col gap-2">
+                <p className="text-[11px] leading-relaxed text-amber-800">{analyzeError}</p>
+                {pendingImage && (
+                  <div className="flex items-center justify-end gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => { setPendingImage(null); setAnalyzeError(''); setRetrySeconds(0); }}
+                      className="px-2.5 py-1 text-[11px] font-bold text-stone-500 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition-colors"
+                    >
+                      放棄
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => runAnalysis(pendingImage)}
+                      disabled={isAnalyzing || retrySeconds > 0}
+                      className="flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-white bg-[#6ba388] rounded-full hover:bg-[#5b8c74] transition-colors disabled:opacity-50 disabled:hover:bg-[#6ba388]"
+                    >
+                      {isAnalyzing
+                        ? <><Loader2 size={12} className="animate-spin" />辨識中...</>
+                        : retrySeconds > 0
+                          ? <>{retrySeconds} 秒後可重試</>
+                          : <><RotateCw size={12} />重新辨識</>}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

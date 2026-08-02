@@ -1,8 +1,27 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Moon, Wand2, Loader2, Calendar, Check } from 'lucide-react';
+import { X, Moon, Wand2, Loader2, Calendar, Check, RotateCw } from 'lucide-react';
 import type { SleepLog } from '@/lib/types';
+
+interface PendingImage {
+  image: string;
+  mimeType: string;
+}
+
+const readAsBase64 = (file: File): Promise<PendingImage> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      resolve({
+        image: event.target?.result as string,
+        mimeType: file.type || 'image/jpeg'
+      });
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
 
 interface Props {
   isOpen: boolean;
@@ -36,7 +55,17 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
   const [notes, setNotes] = useState('');
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [analyzeError, setAnalyzeError] = useState('');
+  const [retrySeconds, setRetrySeconds] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 429 冷卻倒數，倒數歸零後才開放重試
+  useEffect(() => {
+    if (retrySeconds <= 0) return;
+    const timer = setTimeout(() => setRetrySeconds(s => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [retrySeconds]);
 
   useEffect(() => {
     if (isOpen) {
@@ -67,49 +96,38 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
         setFeeling('normal');
         setNotes('');
       }
+      setPendingImages([]);
+      setAnalyzeError('');
+      setRetrySeconds(0);
     }
   }, [isOpen, initialData, defaultDate]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const runAnalysis = async (images: PendingImage[]) => {
+    if (images.length === 0) return;
 
-    const fileList = Array.from(files);
     setIsAnalyzing(true);
+    setAnalyzeError('');
 
     try {
-      const readAsBase64 = (file: File): Promise<{ image: string; mimeType: string }> => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            resolve({
-              image: event.target?.result as string,
-              mimeType: file.type || 'image/jpeg'
-            });
-          };
-          reader.onerror = (err) => reject(err);
-          reader.readAsDataURL(file);
-        });
-      };
-
-      const imagesData = await Promise.all(fileList.map(readAsBase64));
       const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
 
       const res = await fetch('/api/analyze-sleep', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${password}`
         },
-        body: JSON.stringify({ images: imagesData })
+        body: JSON.stringify({ images })
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
+        const err: any = new Error(data.error || `HTTP ${res.status}`);
+        err.status = res.status;
+        throw err;
       }
-      
+
       if (data.bedTime) setBedTime(data.bedTime);
       if (data.wakeTime) setWakeTime(data.wakeTime);
       if (data.totalSleep) setSleepDuration(String(data.totalSleep));
@@ -118,21 +136,52 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
       if (data.hrv) setHrv(String(data.hrv));
       if (data.restingHeartRate) setRestingHeartRate(String(data.restingHeartRate));
       if (data.stress) setStress(String(data.stress));
-      
+
+      // 成功後才釋放暫存的截圖
+      setPendingImages([]);
+
     } catch (error: any) {
       console.error('Error analyzing image(s):', error);
       const msg = error.message || '';
-      if (msg.includes('429') || msg.includes('Rate Limit')) {
-        alert('解析截圖失敗：Google Gemini 免費額度暫時達上限 (Too Many Requests)，請等待約 10~15 秒後再試一次！');
+      const isRateLimited = error.status === 429 || msg.includes('429') || msg.includes('Rate Limit');
+      if (isRateLimited) {
+        setAnalyzeError('Google Gemini 免費額度暫時達上限 (Too Many Requests)。截圖已保留，倒數結束後直接按「重新解析」即可，不用重新上傳。');
+        setRetrySeconds(15);
       } else {
-        alert(`解析截圖失敗：${msg || '請稍後再試'}`);
+        setAnalyzeError(`解析截圖失敗：${msg || '請稍後再試'}。截圖已保留，可直接重試。`);
+        setRetrySeconds(0);
       }
     } finally {
       setIsAnalyzing(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileList = Array.from(files);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    setIsAnalyzing(true);
+    setAnalyzeError('');
+    setRetrySeconds(0);
+
+    let imagesData: PendingImage[];
+    try {
+      imagesData = await Promise.all(fileList.map(readAsBase64));
+    } catch (err) {
+      console.error('Error reading image(s):', err);
+      setPendingImages([]);
+      setAnalyzeError('讀取圖片失敗，請重新選擇檔案。');
+      setIsAnalyzing(false);
+      return;
+    }
+
+    setPendingImages(imagesData);
+    await runAnalysis(imagesData);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -202,6 +251,40 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
             </button>
           </div>
         </div>
+
+        {analyzeError && (
+          <div className="mx-4 mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-col gap-2 shrink-0">
+            <p className="text-[11px] leading-relaxed text-amber-800">{analyzeError}</p>
+            {pendingImages.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-amber-600">
+                  已保留 {pendingImages.length} 張截圖
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setPendingImages([]); setAnalyzeError(''); setRetrySeconds(0); }}
+                    className="px-2.5 py-1 text-[11px] font-bold text-stone-500 bg-white border border-stone-200 rounded-full hover:bg-stone-50 transition-colors"
+                  >
+                    放棄
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runAnalysis(pendingImages)}
+                    disabled={isAnalyzing || retrySeconds > 0}
+                    className="flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-white bg-[#7148e5] rounded-full hover:bg-[#5b36c2] transition-colors disabled:opacity-50 disabled:hover:bg-[#7148e5]"
+                  >
+                    {isAnalyzing
+                      ? <><Loader2 size={12} className="animate-spin" />解析中...</>
+                      : retrySeconds > 0
+                        ? <>{retrySeconds} 秒後可重試</>
+                        : <><RotateCw size={12} />重新解析</>}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="p-4 overflow-y-auto w-full flex-1 flex flex-col gap-4 overflow-x-hidden">
           {/* 紀錄類型 */}
