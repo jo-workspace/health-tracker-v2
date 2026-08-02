@@ -35,6 +35,10 @@ const COLOR_MAPPING: Record<string, string> = {
   "黑木耳": "black", "木耳": "black", "黑豆": "black", "黑芝麻": "black", "黑米": "black", "海帶": "black", "紫菜": "black", "昆布": "black", "黑棗": "black", "奇亞籽": "black", "黑香菇": "black", "髮菜": "black"
 };
 
+// 模組層級的空陣列常數：避免預設值 `data = []` 每次 render 都產生新的參考，
+// 導致依賴 data 的 useEffect 無限重跑（Maximum update depth exceeded）
+const EMPTY_LOGS: RainbowDietLog[] = [];
+
 const COLOR_INFO = [
   { id: 'red', label: '紅', hex: '#c4998e', textActive: 'text-white' },
   { id: 'orange-yellow', label: '橘黃', hex: '#c1a88b', textActive: 'text-white' },
@@ -44,7 +48,7 @@ const COLOR_INFO = [
   { id: 'black', label: '黑', hex: '#4a4a4a', textActive: 'text-white' }
 ];
 
-export default function RainbowDietCard({ data = [], updateData }: Props) {
+export default function RainbowDietCard({ data = EMPTY_LOGS, updateData }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isSelectingColor, setIsSelectingColor] = useState(false);
@@ -69,10 +73,14 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
     return () => clearTimeout(timer);
   }, [retrySeconds]);
 
+  // 以內容 (id + lastUpdated) 而非陣列參考當作依賴，父層重新 render 但資料沒變時不會誤觸
+  const dataSignature = data.map(log => `${log.id}:${log.lastUpdated}`).join('|');
+
   // 當真實資料回來時，清除樂觀更新
   useEffect(() => {
-    setOptimisticLogs([]);
-  }, [data]);
+    // 已經是空的就回傳原本的 state，讓 React 直接 bail out，不再多觸發一次 render
+    setOptimisticLogs(prev => (prev.length === 0 ? prev : []));
+  }, [dataSignature]);
 
   // 取得本週的起迄日期 (週一 ~ 週日)
   const getWeekDates = () => {

@@ -39,7 +39,9 @@ export function useHealthData() {
     loadData();
   }, [loadData]);
 
-  const updateData = async (payload: SyncPayload) => {
+  // 必須是穩定的參考：子元件 (如 SupplementTracker) 會把它放進 useEffect 依賴陣列，
+  // 每次 render 都換一個新函式會讓那些 effect 無止盡重跑
+  const updateData = useCallback(async (payload: SyncPayload) => {
     setSyncing(true);
     try {
       const res = await syncBatch(payload);
@@ -54,7 +56,7 @@ export function useHealthData() {
     } finally {
       setSyncing(false);
     }
-  };
+  }, []);
 
   return { data, loading, syncing, updateData, forceSync: loadData };
 }
