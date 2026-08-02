@@ -30,6 +30,12 @@ export default function TmySummaryModal({ isOpen, onClose, logs }: Props) {
     "headache": "頭痛/肩頸痛"
   };
 
+  const SIDE_LABEL_MAP: Record<string, string> = {
+    "left": "左側",
+    "right": "右側",
+    "both": "雙側"
+  };
+
   const formatList = (raw: string, map: Record<string, string>) => {
     if (!raw) return '';
     return raw.split(',').map(s => map[s.trim()] || s.trim()).join('、');
@@ -68,6 +74,11 @@ export default function TmySummaryModal({ isOpen, onClose, logs }: Props) {
               <div key={log.id} className="bg-white border border-stone-200 rounded-lg p-3 shadow-sm flex flex-col gap-2">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-stone-700">{formatDate(log.date)}</span>
+                  {log.side && SIDE_LABEL_MAP[log.side] && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#fdf0f1] text-[#c96f76] border border-[#f3d5d8]">
+                      {SIDE_LABEL_MAP[log.side]}
+                    </span>
+                  )}
                 </div>
                 <div className="text-sm text-stone-600">
                   <span className="font-medium text-stone-500">症狀：</span>{formatList(log.symptoms, PRESET_SYMPTOMS_MAP) || '無'}

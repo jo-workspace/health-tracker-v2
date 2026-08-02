@@ -15,10 +15,18 @@ const PRESET_MEDS = [
   { id: "painkiller", label: "止痛藥" },
   { id: "anti_inflammatory", label: "消炎藥" }
 ];
+const SIDE_OPTIONS: { id: TmySide; label: string }[] = [
+  { id: 'left', label: '左側' },
+  { id: 'right', label: '右側' },
+  { id: 'both', label: '雙側' }
+];
+
+type TmySide = 'left' | 'right' | 'both' | '';
 
 export default function TmySymptomFormModal({ isOpen, onClose, onSave }: Props) {
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [meds, setMeds] = useState<string[]>([]);
+  const [side, setSide] = useState<TmySide>('');
 
   if (!isOpen) return null;
 
@@ -36,12 +44,14 @@ export default function TmySymptomFormModal({ isOpen, onClose, onSave }: Props) 
       id: crypto.randomUUID(),
       date: new Date().toLocaleDateString('en-CA'),
       symptoms: symptoms.join(', '),
+      side,
       medication: meds.join(', '),
       status: 'active',
       lastUpdated: Date.now()
     });
     setSymptoms([]);
     setMeds([]);
+    setSide('');
     onClose();
   };
 
@@ -62,6 +72,28 @@ export default function TmySymptomFormModal({ isOpen, onClose, onSave }: Props) 
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 overflow-y-auto flex-1 flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <label className="text-sm font-bold text-stone-700">
+              發作部位 <span className="font-medium text-stone-400">(選填，可再次點選取消)</span>
+            </label>
+            <div className="flex gap-2">
+              {SIDE_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setSide(prev => prev === opt.id ? '' : opt.id)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                    side === opt.id
+                    ? 'bg-[#e28e94] text-white border-[#e28e94]'
+                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-3">
             <label className="text-sm font-bold text-stone-700">主要症狀 (可複選)</label>
             <div className="flex flex-wrap gap-2">

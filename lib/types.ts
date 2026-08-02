@@ -82,6 +82,7 @@ export interface TmySymptomLog {
   date: string;
   symptoms: string;
   intensity: number;
+  side?: 'left' | 'right' | 'both' | ''; // 發作側別：左 / 右 / 雙側（舊紀錄為空）
   medication?: string;
   notes?: string;
   status: 'active' | 'deleted';
