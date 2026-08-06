@@ -1,20 +1,35 @@
 import { X, Moon } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import type { SleepLog, AllergyLog } from '@/lib/types';
+import type { SleepLog, AllergyLog, SupplementLog } from '@/lib/types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   sleepLogs: SleepLog[];
   allergyLogs?: AllergyLog[];
+  supplementLogs?: SupplementLog[];
 }
 
 const SLEEP_IMPACT_RANK: Record<string, number> = { none: 0, mild: 1, severe: 2 };
 
-export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLogs = [] }: Props) {
+export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLogs = [], supplementLogs = [] }: Props) {
   if (!isOpen) return null;
 
   const activeAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted');
+
+  const isMagnesiumTaken = (dateStr: string) => {
+    if (!supplementLogs || supplementLogs.length === 0) return false;
+    const dayLog = supplementLogs.find(log => log.date === dateStr && log.status !== 'deleted');
+    if (!dayLog || !dayLog.items) return false;
+    try {
+      const items = JSON.parse(dayLog.items);
+      return Array.isArray(items) && items.some((item: any) =>
+        (item.name?.includes('鎂') || item.name?.toLowerCase().includes('magnesium')) && item.taken
+      );
+    } catch {
+      return false;
+    }
+  };
 
   // 取得近 7 天的日期字串 (YYYY-MM-DD)
   const last7Days: string[] = [];
@@ -53,6 +68,8 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
       return SLEEP_IMPACT_RANK[impact] > SLEEP_IMPACT_RANK[worst] ? impact : worst;
     }, 'none');
 
+    const hasMagnesium = isMagnesiumTaken(dateStr);
+
     return {
       dateStr,
       nightHours,
@@ -60,7 +77,8 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
       totalHours,
       nightColor,
       stress: nightLog?.stress ? Number(nightLog.stress) : null,
-      allergyImpact: worstAllergyImpact
+      allergyImpact: worstAllergyImpact,
+      hasMagnesium
     };
   });
 
@@ -70,7 +88,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
   const avgNightHours = daysWithNightSleep.length > 0 ? (totalNightHours / daysWithNightSleep.length).toFixed(1) : '-';
 
   const daysWithNap = dailyData.filter(d => d.napHours > 0);
-  const totalNapHours = dailyData.reduce((sum, d) => sum + d.napHours, 0); // 總小睡除以7? 還是除以有小睡的天數? 舊版是所有天數平均嗎? 假設只算有小睡的
+  const totalNapHours = dailyData.reduce((sum, d) => sum + d.napHours, 0);
   const avgNapMins = daysWithNap.length > 0 ? Math.round((totalNapHours / daysWithNap.length) * 60) : 0;
 
   const totalSleepAll = dailyData.reduce((sum, d) => sum + d.totalHours, 0);
@@ -81,12 +99,23 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
   const totalStress = daysWithStress.reduce((sum, d) => sum + (d.stress || 0), 0);
   const avgStress = daysWithStress.length > 0 ? Math.round(totalStress / daysWithStress.length) : '-';
 
+  // 統計所有有效的主睡眠紀錄中，吃鎂日 vs 無吃鎂日的深層睡眠平均
+  const nightLogsWithDeep = activeLogs.filter(log => log.type === 'night' && log.deepSleep && Number(log.deepSleep) > 0);
+  const magLogs = nightLogsWithDeep.filter(log => isMagnesiumTaken(log.date));
+  const noMagLogs = nightLogsWithDeep.filter(log => !isMagnesiumTaken(log.date));
+
+  const totalMagDeep = magLogs.reduce((sum, l) => sum + Number(l.deepSleep), 0);
+  const avgDeepMag = magLogs.length > 0 ? (totalMagDeep / magLogs.length).toFixed(1) : '-';
+
+  const totalNoMagDeep = noMagLogs.reduce((sum, l) => sum + Number(l.deepSleep), 0);
+  const avgDeepNoMag = noMagLogs.length > 0 ? (totalNoMagDeep / noMagLogs.length).toFixed(1) : '-';
+
   // 動態計算 Chart Y 軸最大值 (最高時數 + 1，最少 10)
   const maxDataVal = Math.max(...dailyData.map(d => d.totalHours), 0);
   const maxChartVal = Math.max(10, Math.ceil(maxDataVal + 1)); 
 
   // 目標計算
-  const goalDays = daysWithNightSleep.filter(d => d.nightHours >= 7).length; // 暫時寫死 7h 為達標
+  const goalDays = daysWithNightSleep.filter(d => d.nightHours >= 7).length;
   const stressGoalDays = daysWithStress.filter(d => (d.stress || 0) <= 15).length;
   
   // 計算深眠比例 (深眠 / 總夜間時數)
@@ -121,7 +150,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
 
         <div className="p-4 overflow-y-auto custom-scrollbar flex flex-col gap-4">
           
-          {/* 目標區塊 (移除大標題，更緊湊) */}
+          {/* 目標區塊 (更緊湊) */}
           <div className="bg-[#fffdf7] border border-[#f2ebe1] rounded-xl p-3 shadow-sm">
             <div className="space-y-2 text-sm">
               <div className="flex justify-between items-center pb-2 border-b border-stone-100/60 dashed-border">
@@ -139,7 +168,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
             </div>
           </div>
 
-          {/* 數據快照 (更緊湊) */}
+          {/* 數據快照 (新增第 3 列：吃鎂日深眠 vs 無吃日深眠) */}
           <div className="grid grid-cols-2 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-100">
             <div className="flex flex-col items-center justify-center border-r border-stone-200/60 pr-2">
               <span className="text-xl font-black text-stone-700">{avgNightHours}<span className="text-sm font-medium ml-0.5">小時</span></span>
@@ -164,6 +193,16 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
                   )}
                 </div>
                 <span className="text-xs text-stone-500 font-medium mt-0.5">平均睡眠壓力</span>
+              </div>
+            </div>
+            <div className="col-span-2 border-t border-stone-200/60 pt-3 mt-1 grid grid-cols-2">
+              <div className="flex flex-col items-center justify-center border-r border-stone-200/60 pr-2">
+                <span className="text-xl font-black text-stone-700">{avgDeepMag}{avgDeepMag !== '-' && <span className="text-sm font-medium ml-0.5">小時</span>}</span>
+                <span className="text-xs text-stone-500 font-medium mt-0.5">💊 吃鎂日深眠</span>
+              </div>
+              <div className="flex flex-col items-center justify-center pl-2">
+                <span className="text-xl font-black text-stone-700">{avgDeepNoMag}{avgDeepNoMag !== '-' && <span className="text-sm font-medium ml-0.5">小時</span>}</span>
+                <span className="text-xs text-stone-500 font-medium mt-0.5">無吃日深眠</span>
               </div>
             </div>
           </div>
@@ -202,15 +241,22 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
                     <span className="text-[10px] font-bold text-stone-600">{d.totalHours > 0 ? d.totalHours.toFixed(1) + 'h' : ''}</span>
                     <span className="text-[9px] text-stone-400 mt-1">{d.dateStr.substring(8, 10)}</span>
                     <span className="text-[8px] text-stone-400">({weekdays[dateObj.getDay()]})</span>
-                    {d.allergyImpact !== 'none' && (
-                      <span
-                        className="text-[10px]"
-                        title={`過敏影響睡眠：${d.allergyImpact === 'severe' ? '嚴重' : '輕微'}`}
-                        style={{ opacity: d.allergyImpact === 'severe' ? 1 : 0.55 }}
-                      >
-                        🤧
-                      </span>
-                    )}
+                    <div className="flex items-center gap-0.5 mt-0.5">
+                      {d.allergyImpact !== 'none' && (
+                        <span
+                          className="text-[10px]"
+                          title={`過敏影響睡眠：${d.allergyImpact === 'severe' ? '嚴重' : '輕微'}`}
+                          style={{ opacity: d.allergyImpact === 'severe' ? 1 : 0.55 }}
+                        >
+                          🤧
+                        </span>
+                      )}
+                      {d.hasMagnesium && (
+                        <span className="text-[10px]" title="當天有補充鎂">
+                          💊
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
