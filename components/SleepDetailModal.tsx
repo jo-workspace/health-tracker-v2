@@ -17,12 +17,24 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
 
   const activeAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted');
 
-  const isMagnesiumTaken = (dateStr: string) => {
+  const getPrevDateStr = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString('en-CA');
+  };
+
+  const isMagnesiumTaken = (wakeUpDateStr: string) => {
     if (!supplementLogs || supplementLogs.length === 0) return false;
-    const dayLog = supplementLogs.find(log => log.date === dateStr && log.status !== 'deleted');
-    if (!dayLog || !dayLog.items) return false;
+    // 睡眠紀錄日期為「起床日期」(如 8/6 早上)，對應前一晚睡前(如 8/5 晚上)服用的鎂
+    const prevDateStr = getPrevDateStr(wakeUpDateStr);
+    
+    // 優先匹配前一晚(8/5)，若前一晚無紀錄則嘗試備用匹配當天
+    const targetLog = supplementLogs.find(log => log.date === prevDateStr && log.status !== 'deleted')
+      || supplementLogs.find(log => log.date === wakeUpDateStr && log.status !== 'deleted');
+
+    if (!targetLog || !targetLog.items) return false;
     try {
-      const items = JSON.parse(dayLog.items);
+      const items = JSON.parse(targetLog.items);
       return Array.isArray(items) && items.some((item: any) =>
         (item.name?.includes('鎂') || item.name?.toLowerCase().includes('magnesium')) && item.taken
       );
