@@ -219,9 +219,25 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     .map(([name]) => name);
 
   const getCurrentSlotName = () => {
-    if (suggestedNow.length > 0) return suggestedNow[0].time;
-    if (pending.length > 0) return pending[0].time;
-    return isMorning ? '早上起床' : isEvening ? '晚餐時' : '隨餐';
+    const isPending = (s: Supplement) => !s.ignored && !(s.taken && isFulfilled(s));
+    
+    if (isMorning) {
+      if (supplements.some(s => s.time === '早上起床' && isPending(s))) return '早上起床';
+      if (supplements.some(s => (s.time === '隨餐' || s.time === '平日' || s.time === '每日') && isPending(s))) return '隨餐';
+      return null;
+    }
+
+    if (isEvening) {
+      if (supplements.some(s => (s.time === '隨餐' || s.time === '平日' || s.time === '每日') && isPending(s))) return '隨餐';
+      if (supplements.some(s => s.time === '晚餐時' && isPending(s))) return '晚餐時';
+      return null;
+    }
+
+    // 中午/午後時段 (12:00 ~ 16:59)
+    if (supplements.some(s => (s.time === '隨餐' || s.time === '平日' || s.time === '每日') && isPending(s))) return '隨餐';
+    
+    // 未到 17:00 晚餐時段 -> 不提早解鎖「晚餐時」按鈕
+    return null;
   };
   const currentSlotName = getCurrentSlotName();
 
