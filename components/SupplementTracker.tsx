@@ -5,6 +5,7 @@ import { Pill, Check, Plus, Minus, Clock, ChevronRight, X, Ban, History } from '
 import type { SupplementLog, SupplementSetting, SyncPayload } from '@/lib/types';
 import { type Supplement, isScheduledDay, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
 import SupplementHistoryModal from './forms/SupplementHistoryModal';
+import BatchCheckinModal from './forms/BatchCheckinModal';
 
 interface Props {
   data?: SupplementLog[];
@@ -16,6 +17,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   const [supplements, setSupplements] = useState<Supplement[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [batchSlotName, setBatchSlotName] = useState('');
   const [isCustomPickerOpen, setIsCustomPickerOpen] = useState(false);
   const [customNameInput, setCustomNameInput] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -215,6 +218,33 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     .sort((a, b) => b[1] - a[1])
     .map(([name]) => name);
 
+  const getCurrentSlotName = () => {
+    if (suggestedNow.length > 0) return suggestedNow[0].time;
+    if (pending.length > 0) return pending[0].time;
+    return isMorning ? '早上起床' : isEvening ? '晚餐時' : '隨餐';
+  };
+  const currentSlotName = getCurrentSlotName();
+
+  const handleSaveBatchUpdates = (updates: { id: string; taken: boolean; amount: number }[]) => {
+    setSupplements(prev => {
+      const updateMap = new Map(updates.map(u => [u.id, u]));
+      const newState = prev.map(s => {
+        const u = updateMap.get(s.id);
+        if (u) {
+          return {
+            ...s,
+            taken: u.taken,
+            amount: u.taken ? u.amount : 0,
+            ignored: false
+          };
+        }
+        return s;
+      });
+      saveToCloud(newState);
+      return newState;
+    });
+  };
+
   const activeSupps = relevantSupps.filter(s => !s.ignored);
   const pendingSupps = activeSupps.filter(s => !(s.taken && isFulfilled(s)));
   const completedSupps = activeSupps.filter(s => s.taken && isFulfilled(s));
@@ -364,7 +394,22 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
                     : '好好休息吧！'}
               </div>
             </div>
-            <ChevronRight size={18} className="text-stone-300 group-hover:text-stone-500 transition-colors shrink-0" />
+            <div className="flex items-center gap-2 shrink-0">
+              {currentSlotName && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setBatchSlotName(currentSlotName);
+                    setIsBatchModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 bg-[#6ba388] text-white text-xs font-bold rounded-lg hover:bg-[#5b8c74] transition-colors shadow-2xs flex items-center gap-1"
+                >
+                  ✅ {currentSlotName}
+                </button>
+              )}
+              <ChevronRight size={18} className="text-stone-300 group-hover:text-stone-500 transition-colors shrink-0" />
+            </div>
           </div>
         </div>
       </div>
@@ -387,12 +432,26 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
                 <h2 className="text-xl font-bold text-stone-800">今日紀錄</h2>
                 <p className="text-xs text-stone-500 mt-1">您可以前往 Google Sheets 設定「目標數量」。</p>
               </div>
-              <button
-                onClick={() => setIsHistoryModalOpen(true)}
-                className="flex items-center gap-1 text-xs font-bold text-stone-500 hover:text-stone-700 shrink-0"
-              >
-                <History size={14} /> 90天紀錄
-              </button>
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                {currentSlotName && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBatchSlotName(currentSlotName);
+                      setIsBatchModalOpen(true);
+                    }}
+                    className="px-2.5 py-1 bg-[#6ba388] text-white text-xs font-bold rounded-lg hover:bg-[#5b8c74] transition-colors shadow-2xs flex items-center gap-1"
+                  >
+                    ✅ {currentSlotName}
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsHistoryModalOpen(true)}
+                  className="flex items-center gap-1 text-xs font-bold text-stone-500 hover:text-stone-700 shrink-0"
+                >
+                  <History size={14} /> 90天紀錄
+                </button>
+              </div>
             </div>
 
             <div className="p-4 pt-0 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
@@ -441,6 +500,14 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         onClose={() => setIsHistoryModalOpen(false)}
         data={data}
         settings={settings}
+      />
+
+      <BatchCheckinModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        slotName={batchSlotName}
+        supplements={supplements}
+        onSaveBatch={handleSaveBatchUpdates}
       />
 
       {isCustomPickerOpen && typeof document !== 'undefined' && createPortal(
