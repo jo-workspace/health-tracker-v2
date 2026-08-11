@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Moon, Plus } from 'lucide-react';
-import type { SleepLog, AllergyLog, SupplementLog, SyncPayload } from '@/lib/types';
+import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload } from '@/lib/types';
 import SleepDetailModal from './SleepDetailModal';
 import SleepFormModal from './forms/SleepFormModal';
 
@@ -10,10 +10,11 @@ interface Props {
   data?: SleepLog[];
   allergyLogs?: AllergyLog[];
   supplementLogs?: SupplementLog[];
+  splintLogs?: BiteSplintLog[];
   updateData: (payload: SyncPayload) => void;
   forceSync?: () => Promise<void>;
 }
-export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], updateData, forceSync }: Props) {
+export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], splintLogs = [], updateData, forceSync }: Props) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null);
@@ -99,6 +100,8 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
   const pRem = total > 0 ? (remSleepHours / total) * 100 : 0;
   const pLight = total > 0 ? (lightSleepHours / total) * 100 : 0;
 
+  const hasBiteSplintToday = latestNightSleep && splintLogs.some(l => l.date === latestNightSleep.date && l.status !== 'deleted');
+
   return (
     <>
       <div 
@@ -120,6 +123,11 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
                 {displayTotalHours >= 7 && (
                   <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-[#fcf5f5] text-[#a07d7e] border border-[#f5e6e7]">
                     🔋 滿電
+                  </span>
+                )}
+                {hasBiteSplintToday && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-[#eff6ff] text-[#3b82f6] border border-[#dbeafe]">
+                    🦷 咬合板
                   </span>
                 )}
               </div>
@@ -247,11 +255,27 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         initialData={editingLog}
+        splintLogs={splintLogs}
         defaultDate={defaultDate}
         defaultType={defaultType}
-        onSave={(logData) => {
+        onSave={(logData, hasBiteSplint) => {
           const newLogs = [...activeLogs.filter(l => l.id !== logData.id), logData as SleepLog];
-          updateData({ sleepLogs: newLogs, clientTimestamp: Date.now() });
+          let updatedSplintLogs = [...splintLogs];
+          if (hasBiteSplint !== undefined && logData.date) {
+            const existingIndex = updatedSplintLogs.findIndex(l => l.date === logData.date);
+            if (hasBiteSplint) {
+              if (existingIndex >= 0) {
+                updatedSplintLogs[existingIndex] = { ...updatedSplintLogs[existingIndex], status: 'active', lastUpdated: Date.now() };
+              } else {
+                updatedSplintLogs.push({ id: crypto.randomUUID(), date: logData.date, status: 'active', lastUpdated: Date.now() });
+              }
+            } else {
+              if (existingIndex >= 0) {
+                updatedSplintLogs[existingIndex] = { ...updatedSplintLogs[existingIndex], status: 'deleted', lastUpdated: Date.now() };
+              }
+            }
+          }
+          updateData({ sleepLogs: newLogs, biteSplintLogs: updatedSplintLogs, clientTimestamp: Date.now() });
         }}
       />
     </>

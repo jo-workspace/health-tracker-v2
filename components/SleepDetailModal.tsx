@@ -1,6 +1,6 @@
 import { X, Moon } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import type { SleepLog, AllergyLog, SupplementLog } from '@/lib/types';
+import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog } from '@/lib/types';
 
 interface Props {
   isOpen: boolean;
@@ -8,11 +8,12 @@ interface Props {
   sleepLogs: SleepLog[];
   allergyLogs?: AllergyLog[];
   supplementLogs?: SupplementLog[];
+  splintLogs?: BiteSplintLog[];
 }
 
 const SLEEP_IMPACT_RANK: Record<string, number> = { none: 0, mild: 1, severe: 2 };
 
-export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLogs = [], supplementLogs = [] }: Props) {
+export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLogs = [], supplementLogs = [], splintLogs = [] }: Props) {
   if (!isOpen) return null;
 
   const activeAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted');
@@ -81,6 +82,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
     }, 'none');
 
     const hasMagnesium = isMagnesiumTaken(dateStr);
+    const hasSplint = splintLogs.some(l => l.date === dateStr && l.status !== 'deleted');
 
     return {
       dateStr,
@@ -90,7 +92,8 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
       nightColor,
       stress: nightLog?.stress ? Number(nightLog.stress) : null,
       allergyImpact: worstAllergyImpact,
-      hasMagnesium
+      hasMagnesium,
+      hasSplint
     };
   });
 
@@ -266,6 +269,11 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
                       {d.hasMagnesium && (
                         <span className="text-[10px]" title="當天有補充鎂">
                           💊
+                        </span>
+                      )}
+                      {d.hasSplint && (
+                        <span className="text-[10px]" title="當天有佩戴咬合板">
+                          🦷
                         </span>
                       )}
                     </div>

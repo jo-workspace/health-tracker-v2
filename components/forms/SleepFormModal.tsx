@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Moon, Wand2, Loader2, Calendar, Check, RotateCw } from 'lucide-react';
-import type { SleepLog } from '@/lib/types';
+import type { SleepLog, BiteSplintLog } from '@/lib/types';
 
 interface PendingImage {
   image: string;
@@ -26,8 +26,9 @@ const readAsBase64 = (file: File): Promise<PendingImage> => {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (log: Partial<SleepLog>) => void;
+  onSave: (log: Partial<SleepLog>, hasBiteSplint?: boolean) => void;
   initialData?: SleepLog | null;
+  splintLogs?: BiteSplintLog[];
   defaultDate?: string;
   defaultType?: 'night' | 'nap';
 }
@@ -40,7 +41,7 @@ const FEELINGS = [
   { id: 'poor', emoji: '🤢', label: '疲憊極差' }
 ];
 
-export default function SleepFormModal({ isOpen, onClose, onSave, initialData, defaultDate, defaultType = 'night' }: Props) {
+export default function SleepFormModal({ isOpen, onClose, onSave, initialData, splintLogs = [], defaultDate, defaultType = 'night' }: Props) {
   const [date, setDate] = useState('');
   const [type, setType] = useState<'night' | 'nap'>('night');
   const [bedTime, setBedTime] = useState('');
@@ -52,6 +53,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
   const [remSleep, setRemSleep] = useState('');
   const [stress, setStress] = useState('');
   const [feeling, setFeeling] = useState('normal');
+  const [hasBiteSplint, setHasBiteSplint] = useState(false);
   const [notes, setNotes] = useState('');
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -69,6 +71,9 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
 
   useEffect(() => {
     if (isOpen) {
+      const targetDate = initialData?.date || defaultDate || new Date().toLocaleDateString('en-CA');
+      const isSplintRecorded = splintLogs.some(l => l.date === targetDate && l.status !== 'deleted');
+
       if (initialData) {
         setDate(initialData.date || '');
         setType((initialData.type as 'night' | 'nap') || 'night');
@@ -81,6 +86,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
         setRemSleep(initialData.remSleep || '');
         setStress(initialData.stress || '');
         setFeeling(initialData.feeling || 'normal');
+        setHasBiteSplint(isSplintRecorded);
         setNotes(initialData.notes || '');
       } else {
         setDate(defaultDate || new Date().toLocaleDateString('en-CA'));
@@ -94,13 +100,14 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
         setRemSleep('');
         setStress('');
         setFeeling('normal');
+        setHasBiteSplint(isSplintRecorded);
         setNotes('');
       }
       setPendingImages([]);
       setAnalyzeError('');
       setRetrySeconds(0);
     }
-  }, [isOpen, initialData, defaultDate]);
+  }, [isOpen, initialData, defaultDate, splintLogs]);
 
   const runAnalysis = async (images: PendingImage[]) => {
     if (images.length === 0) return;
@@ -203,7 +210,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
       notes,
       status: 'active',
       lastUpdated: Date.now().toString()
-    });
+    }, isNap ? false : hasBiteSplint);
     onClose();
   };
 
@@ -413,7 +420,20 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, d
 
               {/* 醒來感受 */}
               <div className="flex flex-col gap-1.5 pt-3 border-t border-stone-100">
-                <label className="text-xs font-bold text-stone-500">醒來感受</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-stone-500">醒來感受</label>
+                  <button
+                    type="button"
+                    onClick={() => setHasBiteSplint(!hasBiteSplint)}
+                    className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1 transition-colors ${
+                      hasBiteSplint
+                        ? 'bg-blue-50 border-blue-200 text-blue-700'
+                        : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'
+                    }`}
+                  >
+                    <span>🦷</span> 戴咬合板
+                  </button>
+                </div>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setFeeling('great')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'great' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>很好</button>
                   <button type="button" onClick={() => setFeeling('normal')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'normal' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>普通</button>
