@@ -41,6 +41,14 @@ export function isScheduledDay(timeStr: string, date: Date): boolean {
   return !autoIgnored;
 }
 
+/** 將保健品的服用時間（如「隨餐」「周一~五」「週一三五」）映射歸類為主要時段 (早上起床 / 隨餐 / 晚餐時) */
+export function getSupplementCategorySlot(timeStr: string): string {
+  const t = timeStr || '';
+  if (t.includes('早上') || t.includes('起床')) return '早上起床';
+  if (t.includes('晚餐') || t.includes('睡前')) return '晚餐時';
+  return '隨餐';
+}
+
 export const PREDEFINED_SUPPLEMENTS: Supplement[] = [
   { id: '1', name: 'Avamys', time: '早上起床', taken: false, ignored: false, category: '其他' },
   { id: '2', name: 'D3 (2000 IU)', time: '隨餐', taken: false, ignored: false, category: '維他命' },

@@ -125,11 +125,6 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
                     🔋 滿電
                   </span>
                 )}
-                {hasBiteSplintToday && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-[#eff6ff] text-[#3b82f6] border border-[#dbeafe]">
-                    🦷 咬合板
-                  </span>
-                )}
               </div>
             </div>
 
@@ -181,10 +176,12 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              openForm(new Date().toLocaleDateString('en-CA'), 'night');
+              const todayStr = new Date().toLocaleDateString('en-CA');
+              const existingLog = activeLogs.find(l => l.date === todayStr && l.type === 'night');
+              openForm(todayStr, 'night', existingLog || null);
             }}
             className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:bg-stone-50 hover:text-stone-800 shadow-sm transition-colors"
-            title="新增睡眠紀錄"
+            title={activeLogs.some(l => l.date === new Date().toLocaleDateString('en-CA') && l.type === 'night') ? "編輯今日睡眠紀錄" : "新增睡眠紀錄"}
           >
             <Plus size={16} />
           </button>

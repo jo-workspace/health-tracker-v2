@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, Plus, Minus, Pill } from 'lucide-react';
-import type { Supplement } from '@/lib/supplements';
+import { type Supplement, getSupplementCategorySlot } from '@/lib/supplements';
 
 interface Props {
   isOpen: boolean;
@@ -25,7 +25,7 @@ export default function BatchCheckinModal({ isOpen, onClose, slotName, supplemen
 
   useEffect(() => {
     if (isOpen) {
-      const slotSupps = supplements.filter(s => s.time === slotName && !s.ignored);
+      const slotSupps = supplements.filter(s => getSupplementCategorySlot(s.time) === slotName && !s.ignored);
       setItems(slotSupps.map(s => ({
         id: s.id,
         name: s.name,

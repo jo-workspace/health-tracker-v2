@@ -234,13 +234,26 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
               <>
                 <button 
                   type="button"
+                  onClick={() => setHasBiteSplint(!hasBiteSplint)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-full transition-colors ${
+                    hasBiteSplint 
+                      ? 'bg-[#e6f0fa] hover:bg-[#dbeafe] text-[#4a6b82]' 
+                      : 'bg-stone-100 hover:bg-stone-200 text-stone-500'
+                  }`}
+                  title="紀錄昨晚是否有佩戴咬合板"
+                >
+                  <span>🦷</span>
+                  <span>戴咬合板</span>
+                </button>
+                <button 
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isAnalyzing}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0ecfc] hover:bg-[#e4dcf9] text-[#7148e5] text-xs font-bold rounded-full transition-colors"
                   title="選擇一張或多張睡眠/心率/壓力截圖進行 AI 解析"
                 >
                   {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                  {isAnalyzing ? '解析中...' : 'AI 截圖解析'}
+                  {isAnalyzing ? '解析中...' : 'AI 解析'}
                 </button>
                 <input 
                   type="file" 
@@ -420,20 +433,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
 
               {/* 醒來感受 */}
               <div className="flex flex-col gap-1.5 pt-3 border-t border-stone-100">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-stone-500">醒來感受</label>
-                  <button
-                    type="button"
-                    onClick={() => setHasBiteSplint(!hasBiteSplint)}
-                    className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1 transition-colors ${
-                      hasBiteSplint
-                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                        : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'
-                    }`}
-                  >
-                    <span>🦷</span> 戴咬合板
-                  </button>
-                </div>
+                <label className="text-xs font-bold text-stone-500">醒來感受</label>
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setFeeling('great')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'great' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>很好</button>
                   <button type="button" onClick={() => setFeeling('normal')} className={`flex-1 py-1.5 rounded-lg border text-sm transition-colors ${feeling === 'normal' ? 'bg-[#f0ecfc] border-[#d8ccf5] text-[#7148e5] font-bold' : 'bg-white border-stone-200 text-stone-500 hover:bg-stone-50'}`}>普通</button>

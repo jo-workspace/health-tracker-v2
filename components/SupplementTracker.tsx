@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Pill, Check, Plus, Minus, Clock, ChevronRight, X, Ban, History } from 'lucide-react';
 import type { SupplementLog, SupplementSetting, SyncPayload } from '@/lib/types';
-import { type Supplement, isScheduledDay, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
+import { type Supplement, isScheduledDay, PREDEFINED_SUPPLEMENTS, getSupplementCategorySlot } from '@/lib/supplements';
 import SupplementHistoryModal from './forms/SupplementHistoryModal';
 import BatchCheckinModal from './forms/BatchCheckinModal';
 
@@ -125,8 +125,9 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   const pending = relevantSupps.filter(s => !s.taken && !s.ignored || (s.taken && !isFulfilled(s)));
   
   const suggestedNow = pending.filter(s => {
-    if (s.time === '早上起床') return isMorning;
-    if (s.time === '晚餐時') return isEvening;
+    const slot = getSupplementCategorySlot(s.time);
+    if (slot === '早上起床') return isMorning;
+    if (slot === '晚餐時') return isEvening;
     return true; 
   });
 
@@ -222,19 +223,19 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     const isPending = (s: Supplement) => !s.ignored && !(s.taken && isFulfilled(s));
     
     if (isMorning) {
-      if (supplements.some(s => s.time === '早上起床' && isPending(s))) return '早上起床';
-      if (supplements.some(s => (s.time === '隨餐' || s.time === '平日' || s.time === '每日') && isPending(s))) return '隨餐';
+      if (supplements.some(s => getSupplementCategorySlot(s.time) === '早上起床' && isPending(s))) return '早上起床';
+      if (supplements.some(s => getSupplementCategorySlot(s.time) === '隨餐' && isPending(s))) return '隨餐';
       return null;
     }
 
     if (isEvening) {
-      if (supplements.some(s => (s.time === '隨餐' || s.time === '平日' || s.time === '每日') && isPending(s))) return '隨餐';
-      if (supplements.some(s => s.time === '晚餐時' && isPending(s))) return '晚餐時';
+      if (supplements.some(s => getSupplementCategorySlot(s.time) === '隨餐' && isPending(s))) return '隨餐';
+      if (supplements.some(s => getSupplementCategorySlot(s.time) === '晚餐時' && isPending(s))) return '晚餐時';
       return null;
     }
 
     // 中午/午後時段 (12:00 ~ 16:59)
-    if (supplements.some(s => (s.time === '隨餐' || s.time === '平日' || s.time === '每日') && isPending(s))) return '隨餐';
+    if (supplements.some(s => getSupplementCategorySlot(s.time) === '隨餐' && isPending(s))) return '隨餐';
     
     // 未到 17:00 晚餐時段 -> 不提早解鎖「晚餐時」按鈕
     return null;
