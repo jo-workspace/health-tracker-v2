@@ -6,8 +6,6 @@ const appIconPng = 'c:\\Users\\jo.lo\\Desktop\\appscript\\health-tracker-v2\\app
 const appAppleIconPng = 'c:\\Users\\jo.lo\\Desktop\\appscript\\health-tracker-v2\\app\\apple-icon.png';
 const publicIconPng = 'c:\\Users\\jo.lo\\Desktop\\appscript\\health-tracker-v2\\public\\icon.png';
 const faviconIco = 'c:\\Users\\jo.lo\\Desktop\\appscript\\health-tracker-v2\\public\\favicon.ico';
-const appIconSvg = 'c:\\Users\\jo.lo\\Desktop\\appscript\\health-tracker-v2\\app\\icon.svg';
-const appAppleIconTsx = 'c:\\Users\\jo.lo\\Desktop\\appscript\\health-tracker-v2\\app\\apple-icon.tsx';
 
 async function processFavicon() {
   const { data, info } = await sharp(inputPath)
@@ -43,31 +41,60 @@ async function processFavicon() {
   const boxWidth = maxX - minX;
   const boxHeight = maxY - minY;
 
-  const cropped = await sharp(newBuffer, {
+  // Extract closely cropped heart PNG buffer
+  const croppedPng = await sharp(newBuffer, {
     raw: { width, height, channels }
   })
     .extract({
-      left: Math.max(0, minX - 10),
-      top: Math.max(0, minY - 10),
-      width: Math.min(width - minX, boxWidth + 20),
-      height: Math.min(height - minY, boxHeight + 20)
+      left: minX,
+      top: minY,
+      width: boxWidth,
+      height: boxHeight
     })
-    .resize(512, 512, {
+    .png()
+    .toBuffer();
+
+  // Resize heart PNG buffer to 340x340 with transparent background padding
+  const resizedHeart = await sharp(croppedPng)
+    .resize(340, 340, {
       fit: 'contain',
       background: { r: 0, g: 0, b: 0, alpha: 0 }
     })
     .png()
     .toBuffer();
 
-  fs.writeFileSync(appIconPng, cropped);
-  fs.writeFileSync(appAppleIconPng, cropped);
-  fs.writeFileSync(publicIconPng, cropped);
-  fs.writeFileSync(faviconIco, cropped);
+  // 1. Transparent PNG for browser favicons (512x512) with ~170px centered heart padding
+  const transparentIcon = await sharp({
+    create: {
+      width: 512,
+      height: 512,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }
+  })
+    .composite([{ input: resizedHeart, gravity: 'center' }])
+    .png()
+    .toBuffer();
 
-  if (fs.existsSync(appIconSvg)) fs.unlinkSync(appIconSvg);
-  if (fs.existsSync(appAppleIconTsx)) fs.unlinkSync(appAppleIconTsx);
+  // 2. White background PNG for Apple Touch Icon (iOS home screen icon)
+  const appleIcon = await sharp({
+    create: {
+      width: 512,
+      height: 512,
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 1 }
+    }
+  })
+    .composite([{ input: resizedHeart, gravity: 'center' }])
+    .png()
+    .toBuffer();
 
-  console.log(`Favicon generated & old files cleaned up! Box: [${minX}, ${minY}, ${maxX}, ${maxY}]`);
+  fs.writeFileSync(appIconPng, transparentIcon);
+  fs.writeFileSync(publicIconPng, transparentIcon);
+  fs.writeFileSync(faviconIco, transparentIcon);
+  fs.writeFileSync(appAppleIconPng, appleIcon);
+
+  console.log(`Favicon re-generated with clean white & transparent padding!`);
 }
 
 processFavicon().catch(err => {
