@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Moon, Wand2, Loader2, Calendar, Check, RotateCw } from 'lucide-react';
+import { X, Moon, Wand2, Loader2, Calendar, Check, RotateCw, Smile } from 'lucide-react';
 import type { SleepLog, BiteSplintLog } from '@/lib/types';
 
 interface PendingImage {
@@ -235,14 +235,14 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
                 <button 
                   type="button"
                   onClick={() => setHasBiteSplint(!hasBiteSplint)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-full transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full transition-colors ${
                     hasBiteSplint 
                       ? 'bg-[#e6f0fa] hover:bg-[#dbeafe] text-[#4a6b82]' 
                       : 'bg-stone-100 hover:bg-stone-200 text-stone-500'
                   }`}
                   title="紀錄昨晚是否有佩戴咬合板"
                 >
-                  <span>🦷</span>
+                  <Smile size={14} />
                   <span>戴咬合板</span>
                 </button>
                 <button 
