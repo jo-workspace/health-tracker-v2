@@ -41,6 +41,21 @@ const FEELINGS = [
   { id: 'poor', emoji: '🤢', label: '疲憊極差' }
 ];
 
+const ToothIcon = ({ size = 14 }: { size?: number }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <path d="M7 3C4.23858 3 2 5.23858 2 8C2 10.5 3.5 12.5 5.5 13.5V19C5.5 20.1046 6.39543 21 7.5 21H8.5C9.60457 21 10.5 20.1046 10.5 19V14H13.5V19C13.5 20.1046 14.3954 21 15.5 21H16.5C17.6046 21 18.5 20.1046 18.5 19V13.5C20.5 12.5 22 10.5 22 8C22 5.23858 19.7614 3 17 3H7Z" />
+  </svg>
+);
+
 export default function SleepFormModal({ isOpen, onClose, onSave, initialData, splintLogs = [], defaultDate, defaultType = 'night' }: Props) {
   const [date, setDate] = useState('');
   const [type, setType] = useState<'night' | 'nap'>('night');
@@ -242,7 +257,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
                   }`}
                   title="紀錄昨晚是否有佩戴咬合板"
                 >
-                  <Smile size={14} />
+                  <ToothIcon size={14} />
                   <span>戴咬合板</span>
                 </button>
                 <button 
