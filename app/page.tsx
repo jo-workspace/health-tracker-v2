@@ -18,7 +18,7 @@ export default function Dashboard() {
     <div className="min-h-screen bg-[#f4f5f4] p-4 sm:p-6 flex flex-col items-center font-sans">
       <header className="w-full max-w-md mb-6 flex items-center justify-between">
         <h1 className="text-xl font-bold text-stone-700 flex items-center gap-2">
-          <img src="/icon.svg" alt="logo" className="w-6 h-6 object-contain" />
+          <img src="/icon.png" alt="logo" className="w-6 h-6 object-contain" />
           Health Tracker
         </h1>
         <div className="flex gap-3 items-center">
