@@ -29,6 +29,7 @@ interface Props {
   onSave: (log: Partial<SleepLog>, hasBiteSplint?: boolean) => void;
   initialData?: SleepLog | null;
   splintLogs?: BiteSplintLog[];
+  sleepLogs?: SleepLog[];
   defaultDate?: string;
   defaultType?: 'night' | 'nap';
 }
@@ -56,7 +57,7 @@ const ToothIcon = ({ size = 14 }: { size?: number }) => (
   </svg>
 );
 
-export default function SleepFormModal({ isOpen, onClose, onSave, initialData, splintLogs = [], defaultDate, defaultType = 'night' }: Props) {
+export default function SleepFormModal({ isOpen, onClose, onSave, initialData, splintLogs = [], sleepLogs = [], defaultDate, defaultType = 'night' }: Props) {
   const [date, setDate] = useState('');
   const [type, setType] = useState<'night' | 'nap'>('night');
   const [bedTime, setBedTime] = useState('');
@@ -87,11 +88,13 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
   useEffect(() => {
     if (isOpen) {
       const targetDate = initialData?.date || defaultDate || new Date().toLocaleDateString('en-CA');
+      const targetType = (initialData?.type as 'night' | 'nap') || defaultType;
       const isSplintRecorded = splintLogs.some(l => l.date === targetDate && l.status !== 'deleted');
 
+      setDate(targetDate);
+      setType(targetType);
+
       if (initialData) {
-        setDate(initialData.date || '');
-        setType((initialData.type as 'night' | 'nap') || 'night');
         setBedTime(initialData.bedtime || '');
         setWakeTime(initialData.wakeupTime || '');
         setSleepDuration(initialData.sleepDuration || '');
@@ -104,8 +107,57 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
         setHasBiteSplint(isSplintRecorded);
         setNotes(initialData.notes || '');
       } else {
-        setDate(defaultDate || new Date().toLocaleDateString('en-CA'));
-        setType(defaultType);
+        const existingLog = targetType === 'night' 
+          ? sleepLogs.find(l => l.date === targetDate && l.type === 'night' && l.status !== 'deleted')
+          : null;
+
+        if (existingLog) {
+          setBedTime(existingLog.bedtime || '');
+          setWakeTime(existingLog.wakeupTime || '');
+          setSleepDuration(existingLog.sleepDuration || '');
+          setHrv(existingLog.hrv || '');
+          setRestingHeartRate(existingLog.restingHeartRate || '');
+          setDeepSleep(existingLog.deepSleep || '');
+          setRemSleep(existingLog.remSleep || '');
+          setStress(existingLog.stress || '');
+          setFeeling(existingLog.feeling || 'normal');
+          setNotes(existingLog.notes || '');
+        } else {
+          setBedTime('');
+          setWakeTime('');
+          setSleepDuration('');
+          setHrv('');
+          setRestingHeartRate('');
+          setDeepSleep('');
+          setRemSleep('');
+          setStress('');
+          setFeeling('normal');
+          setNotes('');
+        }
+        setHasBiteSplint(isSplintRecorded);
+      }
+      setPendingImages([]);
+      setAnalyzeError('');
+      setRetrySeconds(0);
+    }
+  }, [isOpen, initialData, defaultDate, defaultType, splintLogs, sleepLogs]);
+
+  const handleDateChange = (newDate: string) => {
+    setDate(newDate);
+    if (type === 'night') {
+      const matchingLog = sleepLogs.find(l => l.date === newDate && l.type === 'night' && l.status !== 'deleted');
+      if (matchingLog) {
+        setBedTime(matchingLog.bedtime || '');
+        setWakeTime(matchingLog.wakeupTime || '');
+        setSleepDuration(matchingLog.sleepDuration || '');
+        setHrv(matchingLog.hrv || '');
+        setRestingHeartRate(matchingLog.restingHeartRate || '');
+        setDeepSleep(matchingLog.deepSleep || '');
+        setRemSleep(matchingLog.remSleep || '');
+        setStress(matchingLog.stress || '');
+        setFeeling(matchingLog.feeling || 'normal');
+        setNotes(matchingLog.notes || '');
+      } else {
         setBedTime('');
         setWakeTime('');
         setSleepDuration('');
@@ -115,14 +167,53 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
         setRemSleep('');
         setStress('');
         setFeeling('normal');
-        setHasBiteSplint(isSplintRecorded);
         setNotes('');
       }
-      setPendingImages([]);
-      setAnalyzeError('');
-      setRetrySeconds(0);
     }
-  }, [isOpen, initialData, defaultDate, splintLogs]);
+    const isSplintRecorded = splintLogs.some(l => l.date === newDate && l.status !== 'deleted');
+    setHasBiteSplint(isSplintRecorded);
+  };
+
+  const handleTypeChange = (newType: 'night' | 'nap') => {
+    setType(newType);
+    if (newType === 'night') {
+      const matchingLog = sleepLogs.find(l => l.date === date && l.type === 'night' && l.status !== 'deleted');
+      if (matchingLog) {
+        setBedTime(matchingLog.bedtime || '');
+        setWakeTime(matchingLog.wakeupTime || '');
+        setSleepDuration(matchingLog.sleepDuration || '');
+        setHrv(matchingLog.hrv || '');
+        setRestingHeartRate(matchingLog.restingHeartRate || '');
+        setDeepSleep(matchingLog.deepSleep || '');
+        setRemSleep(matchingLog.remSleep || '');
+        setStress(matchingLog.stress || '');
+        setFeeling(matchingLog.feeling || 'normal');
+        setNotes(matchingLog.notes || '');
+      } else {
+        setBedTime('');
+        setWakeTime('');
+        setSleepDuration('');
+        setHrv('');
+        setRestingHeartRate('');
+        setDeepSleep('');
+        setRemSleep('');
+        setStress('');
+        setFeeling('normal');
+        setNotes('');
+      }
+      const isSplintRecorded = splintLogs.some(l => l.date === date && l.status !== 'deleted');
+      setHasBiteSplint(isSplintRecorded);
+    } else {
+      setSleepDuration('');
+      setNotes('');
+    }
+  };
+
+  const existingLogForSelection = type === 'night'
+    ? sleepLogs.find(l => l.date === date && l.type === 'night' && l.status !== 'deleted')
+    : (initialData && initialData.date === date && initialData.type === 'nap' ? initialData : null);
+
+  const isEditing = !!existingLogForSelection;
 
   const runAnalysis = async (images: PendingImage[]) => {
     if (images.length === 0) return;
@@ -210,7 +301,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
     e.preventDefault();
     const isNap = type === 'nap';
     onSave({
-      id: initialData?.id || crypto.randomUUID(),
+      id: existingLogForSelection?.id || (isNap && initialData?.id ? initialData.id : crypto.randomUUID()),
       date,
       type,
       bedtime: isNap ? '' : bedTime,
@@ -241,14 +332,14 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0 bg-white sm:rounded-t-2xl rounded-t-2xl">
           <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
             <Moon size={20} className="text-stone-600" />
-            {initialData ? '編輯紀錄' : '新增紀錄'}
+            {isEditing ? '編輯紀錄' : '新增紀錄'}
           </h2>
           
           <div className="flex items-center gap-2">
             {type === 'night' && (
               <>
                 <button 
-                  type="button"
+                  type="button" 
                   onClick={() => setHasBiteSplint(!hasBiteSplint)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full transition-colors ${
                     hasBiteSplint 
@@ -261,7 +352,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
                   <span>戴咬合板</span>
                 </button>
                 <button 
-                  type="button"
+                  type="button" 
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isAnalyzing}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f0ecfc] hover:bg-[#e4dcf9] text-[#7148e5] text-xs font-bold rounded-full transition-colors"
@@ -326,14 +417,14 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
           <div className="flex bg-stone-100 p-1 rounded-lg">
             <button 
               type="button" 
-              onClick={() => setType('night')}
+              onClick={() => handleTypeChange('night')}
               className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${type === 'night' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-500 hover:text-stone-700'}`}
             >
               🌙 主睡眠
             </button>
             <button 
               type="button" 
-              onClick={() => setType('nap')}
+              onClick={() => handleTypeChange('nap')}
               className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-colors ${type === 'nap' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-500 hover:text-stone-700'}`}
             >
               💤 小睡
@@ -350,7 +441,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
                     <input 
                       type="date" 
                       value={date} 
-                      onChange={e => setDate(e.target.value)}
+                      onChange={e => handleDateChange(e.target.value)}
                       className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                       required 
                     />
@@ -463,7 +554,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
                 <input 
                   type="date" 
                   value={date} 
-                  onChange={e => setDate(e.target.value)}
+                  onChange={e => handleDateChange(e.target.value)}
                   className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
                   required 
                 />
@@ -504,7 +595,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
             className="w-full py-2.5 mt-1 bg-[#7148e5] hover:bg-[#5b36c2] text-white font-bold rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2"
           >
             <Check size={18} />
-            {initialData ? '更新紀錄' : '儲存紀錄'}
+            {isEditing ? '更新紀錄' : '儲存紀錄'}
           </button>
         </form>
       </div>

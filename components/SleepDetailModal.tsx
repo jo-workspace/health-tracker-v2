@@ -9,11 +9,12 @@ interface Props {
   allergyLogs?: AllergyLog[];
   supplementLogs?: SupplementLog[];
   splintLogs?: BiteSplintLog[];
+  onEditDay?: (dateStr: string) => void;
 }
 
 const SLEEP_IMPACT_RANK: Record<string, number> = { none: 0, mild: 1, severe: 2 };
 
-export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLogs = [], supplementLogs = [], splintLogs = [] }: Props) {
+export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLogs = [], supplementLogs = [], splintLogs = [], onEditDay }: Props) {
   if (!isOpen) return null;
 
   const activeAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted');
@@ -236,9 +237,14 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
               const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
               
               return (
-                <div key={i} className="flex flex-col items-center w-8 z-10 group relative h-full justify-end">
+                <div 
+                  key={i} 
+                  onClick={() => onEditDay && onEditDay(d.dateStr)}
+                  className={`flex flex-col items-center w-8 z-10 group relative h-full justify-end ${onEditDay ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                  title={onEditDay ? `點擊編輯或補填 ${d.dateStr} 睡眠紀錄` : undefined}
+                >
                   {/* Hover Tooltip (The Bar Background) */}
-                  <div className="w-4 bg-stone-100/50 rounded-t flex flex-col justify-end overflow-hidden relative" style={{ height: '100%' }}>
+                  <div className="w-4 bg-stone-100/50 rounded-t flex flex-col justify-end overflow-hidden relative group-hover:bg-stone-200/50 transition-colors" style={{ height: '100%' }}>
                     <div 
                       className="w-full transition-all duration-500 rounded-t-sm"
                       style={{ height: `${napPct}%`, backgroundColor: '#9ca896' }} 
@@ -252,7 +258,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
                   </div>
                   
                   {/* Labels positioned directly below the flex container's baseline */}
-                  <div className="absolute top-full mt-1.5 flex flex-col items-center leading-none gap-0.5 w-12 text-center">
+                  <div className="absolute top-full mt-1.5 flex flex-col items-center leading-none gap-0.5 w-12 text-center group-hover:scale-105 transition-transform">
                     <span className="text-[10px] font-bold text-stone-600">{d.totalHours > 0 ? d.totalHours.toFixed(1) + 'h' : ''}</span>
                     <span className="text-[9px] text-stone-400 mt-1">{d.dateStr.substring(8, 10)}</span>
                     <span className="text-[8px] text-stone-400">({weekdays[dateObj.getDay()]})</span>
@@ -300,6 +306,10 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
               <span className="w-2 h-2 rounded-full bg-[#9ca896]"></span> 小睡
             </div>
           </div>
+          
+          <p className="text-[10px] text-stone-400 text-center mb-1">
+            💡 點擊上方各日期長條可直接補填或編輯該日睡眠紀錄
+          </p>
           
         </div>
       </div>

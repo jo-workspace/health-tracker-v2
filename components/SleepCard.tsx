@@ -195,6 +195,12 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
         sleepLogs={activeLogs}
         allergyLogs={allergyLogs}
         supplementLogs={supplementLogs}
+        splintLogs={splintLogs}
+        onEditDay={(dateStr) => {
+          setIsDetailModalOpen(false);
+          const existing = activeLogs.find(l => l.date === dateStr && l.type === 'night');
+          openForm(dateStr, 'night', existing || null);
+        }}
       />
 
       {/* 自動偵測提醒 */}
@@ -253,26 +259,86 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
         onClose={() => setIsFormModalOpen(false)}
         initialData={editingLog}
         splintLogs={splintLogs}
+        sleepLogs={activeLogs}
         defaultDate={defaultDate}
         defaultType={defaultType}
         onSave={(logData, hasBiteSplint) => {
-          const newLogs = [...activeLogs.filter(l => l.id !== logData.id), logData as SleepLog];
+          let newLogs = [...data];
+
+          if (logData.type === 'night') {
+            const existingIndex = newLogs.findIndex(
+              l => l.date === logData.date && l.type === 'night' && l.status !== 'deleted'
+            );
+            if (existingIndex >= 0) {
+              newLogs[existingIndex] = {
+                ...newLogs[existingIndex],
+                ...logData,
+                status: 'active',
+                lastUpdated: Date.now().toString()
+              };
+            } else {
+              newLogs.push({
+                ...logData,
+                id: logData.id || crypto.randomUUID(),
+                status: 'active',
+                lastUpdated: Date.now().toString()
+              } as SleepLog);
+            }
+          } else {
+            const existingIndex = logData.id ? newLogs.findIndex(l => l.id === logData.id) : -1;
+            if (existingIndex >= 0) {
+              newLogs[existingIndex] = {
+                ...newLogs[existingIndex],
+                ...logData,
+                status: 'active',
+                lastUpdated: Date.now().toString()
+              };
+            } else {
+              newLogs.push({
+                ...logData,
+                id: logData.id || crypto.randomUUID(),
+                status: 'active',
+                lastUpdated: Date.now().toString()
+              } as SleepLog);
+            }
+          }
+
           let updatedSplintLogs = [...splintLogs];
           if (hasBiteSplint !== undefined && logData.date) {
-            const existingIndex = updatedSplintLogs.findIndex(l => l.date === logData.date);
+            const existingSplintIndex = updatedSplintLogs.findIndex(
+              l => l.date === logData.date && l.status !== 'deleted'
+            );
             if (hasBiteSplint) {
-              if (existingIndex >= 0) {
-                updatedSplintLogs[existingIndex] = { ...updatedSplintLogs[existingIndex], status: 'active', lastUpdated: Date.now() };
+              if (existingSplintIndex >= 0) {
+                updatedSplintLogs[existingSplintIndex] = {
+                  ...updatedSplintLogs[existingSplintIndex],
+                  status: 'active',
+                  lastUpdated: Date.now()
+                };
               } else {
-                updatedSplintLogs.push({ id: crypto.randomUUID(), date: logData.date, status: 'active', lastUpdated: Date.now() });
+                updatedSplintLogs.push({
+                  id: crypto.randomUUID(),
+                  date: logData.date,
+                  status: 'active',
+                  lastUpdated: Date.now()
+                });
               }
             } else {
-              if (existingIndex >= 0) {
-                updatedSplintLogs[existingIndex] = { ...updatedSplintLogs[existingIndex], status: 'deleted', lastUpdated: Date.now() };
+              if (existingSplintIndex >= 0) {
+                updatedSplintLogs[existingSplintIndex] = {
+                  ...updatedSplintLogs[existingSplintIndex],
+                  status: 'deleted',
+                  lastUpdated: Date.now()
+                };
               }
             }
           }
-          updateData({ sleepLogs: newLogs, biteSplintLogs: updatedSplintLogs, clientTimestamp: Date.now() });
+
+          updateData({
+            sleepLogs: newLogs,
+            biteSplintLogs: updatedSplintLogs,
+            clientTimestamp: Date.now()
+          });
         }}
       />
     </>
