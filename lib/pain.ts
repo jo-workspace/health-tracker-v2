@@ -94,23 +94,26 @@ export const PRESET_TRIGGERS = [
 /**
  * 取得疼痛等級物件（若為舊版 1-10 分，進行平滑轉換）
  */
-export function getPainLevel(levelOrIntensity: number | undefined): PainLevelOption {
-  if (levelOrIntensity === undefined || levelOrIntensity === null) {
+export function getPainLevel(levelOrIntensity: number | string | undefined | null): PainLevelOption {
+  if (levelOrIntensity === undefined || levelOrIntensity === null || levelOrIntensity === '') {
     return PAIN_LEVELS[2]; // 預設跑步痛 (Lv.3)
   }
 
+  const num = Number(levelOrIntensity);
+  if (isNaN(num)) return PAIN_LEVELS[2];
+
   // 若值在 0~5 之間，直接對應
-  if (levelOrIntensity >= 0 && levelOrIntensity <= 5) {
-    const found = PAIN_LEVELS.find(p => p.level === Math.round(levelOrIntensity));
+  if (num >= 0 && num <= 5) {
+    const found = PAIN_LEVELS.find(p => p.level === Math.round(num));
     if (found) return found;
   }
 
   // 舊版 1-10 分映射
-  if (levelOrIntensity > 5) {
-    if (levelOrIntensity >= 9) return PAIN_LEVELS[0]; // Lv.5
-    if (levelOrIntensity >= 7) return PAIN_LEVELS[1]; // Lv.4
-    if (levelOrIntensity >= 5) return PAIN_LEVELS[2]; // Lv.3
-    if (levelOrIntensity >= 3) return PAIN_LEVELS[3]; // Lv.2
+  if (num > 5) {
+    if (num >= 9) return PAIN_LEVELS[0]; // Lv.5
+    if (num >= 7) return PAIN_LEVELS[1]; // Lv.4
+    if (num >= 5) return PAIN_LEVELS[2]; // Lv.3
+    if (num >= 3) return PAIN_LEVELS[3]; // Lv.2
     return PAIN_LEVELS[4]; // Lv.1
   }
 

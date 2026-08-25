@@ -3,7 +3,7 @@ import { getGoogleSheet } from '@/lib/google-sheets';
 import { GoogleSpreadsheetWorksheet } from 'google-spreadsheet';
 
 const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
-  painLogs: { name: "PainLogs", headers: ["id", "date", "startDate", "recoveredDate", "location", "intensity", "level", "trigger", "treatments", "notes", "status", "lastUpdated", "history"] },
+  painLogs: { name: "PainLogs", headers: ["id", "date", "location", "intensity", "trigger", "notes", "status", "lastUpdated", "startDate", "recoveredDate", "level", "treatments", "history"] },
   longTermLogs: { name: "LongTermLogs", headers: ["id", "date", "itemName", "sizeWidth", "sizeHeight", "sizeDepth", "hospital", "doctor", "nextCheckupDate", "notes", "status", "lastUpdated"] },
   biteSplintLogs: { name: "BiteSplintLogs", headers: ["id", "date", "status", "lastUpdated"] },
   tmySymptomsLogs: { name: "TMJSymptomsLogs", headers: ["id", "date", "symptoms", "medication", "status", "lastUpdated", "side"] },
