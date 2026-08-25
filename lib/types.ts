@@ -117,6 +117,39 @@ export interface AllergyLog {
   lastUpdated: number;
 }
 
+export type IllnessCategory = 'respiratory' | 'digestive' | 'head_nerve' | 'skin_mucosa' | 'urinary_other' | 'custom';
+
+export interface IllnessHistoryEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  symptoms: string[];
+  severity: number; // 1: 輕微, 2: 中度, 3: 嚴重
+  temperature?: string; // e.g. 38.2
+  medicationsTaken?: string[]; // 今日實際服用的藥物
+  medicationCourseProgress?: string; // e.g. "第 2/3 天" or "第 2 天"
+  notes?: string;
+  timestamp: number;
+}
+
+export interface IllnessLog {
+  id: string;
+  name: string; // e.g. 感冒, 急性腸胃炎, 偏頭痛
+  category: IllnessCategory;
+  startDate: string; // YYYY-MM-DD
+  recoveredDate?: string; // YYYY-MM-DD
+  symptoms: string[]; // 目前/最新症狀
+  severity: number; // 1: 輕微, 2: 中度, 3: 嚴重
+  temperature?: string; // 最新體溫 (°C)
+  medicalCare?: 'home' | 'clinic' | 'hospital' | 'other' | ''; // 就醫狀態: 居家照護/診所就醫/醫院就醫
+  prescribedMedications?: string[]; // 醫生開立或自備的所有藥物清單
+  medicationDaysTotal?: number; // 處方天數 (e.g. 3 天份)
+  medicationsTaken?: string[]; // 今日實際服用之藥物
+  notes?: string;
+  history?: IllnessHistoryEntry[];
+  status: 'active' | 'recovered' | 'deleted';
+  lastUpdated: number;
+}
+
 export interface HealthData {
   sleepLogs?: SleepLog[];
   rainbowDietLogs?: RainbowDietLog[];
@@ -127,6 +160,7 @@ export interface HealthData {
   tmySymptomsLogs?: TmySymptomLog[];
   biteSplintLogs?: BiteSplintLog[];
   allergyLogs?: AllergyLog[];
+  illnessLogs?: IllnessLog[];
 }
 
 export interface SyncPayload {
@@ -139,5 +173,7 @@ export interface SyncPayload {
   tmySymptomsLogs?: TmySymptomLog[];
   biteSplintLogs?: BiteSplintLog[];
   allergyLogs?: AllergyLog[];
+  illnessLogs?: IllnessLog[];
   clientTimestamp: number;
 }
+

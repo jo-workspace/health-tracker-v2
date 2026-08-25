@@ -5,6 +5,7 @@ import SleepCard from '@/components/SleepCard';
 import HRVCard from '@/components/HRVCard';
 import RainbowDietCard from '@/components/RainbowDietCard';
 import ActivePainsCard from '@/components/ActivePainsCard';
+import AcuteIllnessCard from '@/components/AcuteIllnessCard';
 import LongTermTracker from '@/components/LongTermTracker';
 import SettingsModal from '@/components/forms/SettingsModal';
 import { useHealthData } from '@/hooks/useHealthData';
@@ -48,6 +49,7 @@ export default function Dashboard() {
             <HRVCard data={data?.sleepLogs} updateData={updateData} />
             <SupplementTracker data={data?.supplementLogs} settings={data?.supplementSettings} updateData={updateData} />
             <RainbowDietCard data={data?.rainbowDietLogs} updateData={updateData} />
+            <AcuteIllnessCard data={data?.illnessLogs} updateData={updateData} />
             <ActivePainsCard data={data?.painLogs} updateData={updateData} />
             <LongTermTracker
               data={data?.longTermLogs}

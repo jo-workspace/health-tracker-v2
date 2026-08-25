@@ -11,7 +11,8 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   sleepLogs: { name: "SleepLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "deepSleep", "remSleep", "stress", "feeling", "hrv", "restingHeartRate", "notes", "status", "lastUpdated"] },
   rainbowDietLogs: { name: "RainbowDietLogs", headers: ["id", "date", "plantName", "color", "status", "lastUpdated"] },
   supplementLogs: { name: "SupplementLogs", headers: ["id", "date", "items", "status", "lastUpdated"] },
-  supplementSettings: { name: "SupplementSettings", headers: ["id", "name", "time", "targetAmount", "status", "lastUpdated", "category"] }
+  supplementSettings: { name: "SupplementSettings", headers: ["id", "name", "time", "targetAmount", "status", "lastUpdated", "category"] },
+  illnessLogs: { name: "IllnessLogs", headers: ["id", "name", "category", "startDate", "recoveredDate", "severity", "temperature", "medicalCare", "medicationDaysTotal", "symptoms", "prescribedMedications", "medicationsTaken", "notes", "status", "lastUpdated", "history"] }
 };
 
 /** 自動處理 Google Sheets API 429 Rate Limit 之指數退避重試 */
@@ -173,7 +174,7 @@ async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: stri
       const val = row.get(header);
       if (val !== undefined && val !== null) {
         const strVal = String(val);
-        if ((header === 'history' || header === 'treatments') && (strVal.trim().startsWith('[') || strVal.trim().startsWith('{'))) {
+        if ((header === 'history' || header === 'treatments' || header === 'symptoms' || header === 'prescribedMedications' || header === 'medicationsTaken') && (strVal.trim().startsWith('[') || strVal.trim().startsWith('{'))) {
           try {
             obj[header] = JSON.parse(strVal);
           } catch {
