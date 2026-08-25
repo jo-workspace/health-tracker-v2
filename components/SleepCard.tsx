@@ -77,8 +77,10 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
     "bad": "🤢"
   };
 
-  const todayNightSleep = activeLogs.find(log => log.date === todayStr && log.type === 'night');
-  const latestNightSleep = todayNightSleep || [...activeLogs].reverse().find(log => log.type === 'night');
+  const sortedNightLogs = activeLogs
+    .filter(log => log.type === 'night')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const latestNightSleep = sortedNightLogs[0];
 
   const sleepHours = latestNightSleep ? Number(latestNightSleep.sleepDuration) : 0;
   const deepSleepHours = latestNightSleep?.deepSleep ? Number(latestNightSleep.deepSleep) : 0;

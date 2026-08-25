@@ -35,13 +35,32 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
   const [selectedPain, setSelectedPain] = useState<PainLog | null>(null);
   const [showRecovered, setShowRecovered] = useState(false);
 
+  const getLatestEntry = (log: PainLog) => {
+    const hist = ensurePainLogHistory(log);
+    return hist[hist.length - 1]; // ensurePainLogHistory sorts by date ascending
+  };
+
   const activePains = data
     .filter(log => log.status === 'active')
-    .sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
+    .sort((a, b) => {
+      const aLatest = getLatestEntry(a);
+      const bLatest = getLatestEntry(b);
+      const aDate = aLatest?.date || a.startDate || a.date || '';
+      const bDate = bLatest?.date || b.startDate || b.date || '';
+      const dateDiff = new Date(bDate).getTime() - new Date(aDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return (b.lastUpdated || 0) - (a.lastUpdated || 0);
+    });
 
   const recoveredPains = data
     .filter(log => log.status === 'recovered')
-    .sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
+    .sort((a, b) => {
+      const aDate = a.recoveredDate || a.date || '';
+      const bDate = b.recoveredDate || b.date || '';
+      const dateDiff = new Date(bDate).getTime() - new Date(aDate).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return (b.lastUpdated || 0) - (a.lastUpdated || 0);
+    });
 
   // 標記康復
   const handleMarkRecovered = (pain: PainLog) => {
@@ -57,6 +76,10 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
       timestamp: Date.now()
     };
 
+    const newHistory = [...existingHistory, recoveredEntry].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
     const updatedLogs = data.map(log => {
       if (log.id === pain.id) {
         return {
@@ -65,7 +88,7 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
           level: 0,
           intensity: 0,
           recoveredDate: today,
-          history: [...existingHistory, recoveredEntry],
+          history: newHistory,
           lastUpdated: Date.now()
         };
       }
@@ -90,24 +113,28 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
     updateData({ painLogs: updatedLogs, clientTimestamp: Date.now() });
   };
 
-  // 每日打卡更新
+  // 每日打卡更新 (確保卡片狀態一律取最新日期之節點)
   const handleSaveCheckin = (
     painId: string,
     entry: PainHistoryEntry,
-    currentLevel: number,
-    treatments: string[],
-    notes: string
+    _currentLevel: number,
+    _treatments: string[],
+    _notes: string
   ) => {
     const updatedLogs = data.map(log => {
       if (log.id === painId) {
         const existingHistory = ensurePainLogHistory(log);
+        const mergedHistory = [...existingHistory.filter(h => h.id !== entry.id), entry].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        const latestEntry = mergedHistory[mergedHistory.length - 1];
         return {
           ...log,
-          level: currentLevel,
-          intensity: currentLevel,
-          treatments,
-          notes: notes || log.notes,
-          history: [...existingHistory, entry],
+          level: latestEntry.level,
+          intensity: latestEntry.level,
+          treatments: latestEntry.treatments || [],
+          notes: latestEntry.notes || '',
+          history: mergedHistory,
           lastUpdated: Date.now()
         };
       }
@@ -139,6 +166,7 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
           level: lastEntry ? lastEntry.level : log.level,
           intensity: lastEntry ? lastEntry.level : log.intensity,
           treatments: lastEntry?.treatments || log.treatments,
+          notes: lastEntry?.notes || log.notes,
           history: newHist,
           lastUpdated: Date.now()
         };
@@ -182,9 +210,14 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
           </div>
         ) : (
           activePains.map(pain => {
-            const startDate = pain.startDate || pain.date || '';
+            const history = ensurePainLogHistory(pain);
+            const latestEntry = history[history.length - 1];
+            const startDate = pain.startDate || pain.date || history[0]?.date || '';
             const durationDays = getDurationDays(startDate);
-            const lvlObj = getPainLevel(pain.level ?? pain.intensity);
+            const currentLevel = latestEntry?.level ?? pain.level ?? pain.intensity;
+            const currentTreatments = latestEntry?.treatments ?? pain.treatments;
+            const currentNotes = latestEntry?.notes ?? pain.notes;
+            const lvlObj = getPainLevel(currentLevel);
 
             return (
               <div
@@ -219,11 +252,11 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
                 </div>
 
                 {/* Middle: Treatments & Notes */}
-                {(pain.treatments?.length || pain.notes) && (
+                {(currentTreatments?.length || currentNotes) && (
                   <div className="bg-stone-50/70 rounded-lg p-2.5 my-2 flex flex-col gap-1.5">
-                    {pain.treatments && pain.treatments.length > 0 && (
+                    {currentTreatments && currentTreatments.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {pain.treatments.map((t, idx) => (
+                        {currentTreatments.map((t, idx) => (
                           <span
                             key={idx}
                             className="text-[10px] font-medium text-stone-600 bg-white border border-stone-200 px-1.5 py-0.5 rounded"
@@ -233,9 +266,9 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
                         ))}
                       </div>
                     )}
-                    {pain.notes && (
+                    {currentNotes && (
                       <p className="text-[11px] text-stone-600 leading-snug whitespace-pre-wrap">
-                        {pain.notes}
+                        {currentNotes}
                       </p>
                     )}
                   </div>
