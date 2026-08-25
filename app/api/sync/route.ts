@@ -3,7 +3,7 @@ import { getGoogleSheet } from '@/lib/google-sheets';
 import { GoogleSpreadsheetWorksheet } from 'google-spreadsheet';
 
 const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
-  painLogs: { name: "PainLogs", headers: ["id", "date", "location", "intensity", "trigger", "notes", "status", "lastUpdated"] },
+  painLogs: { name: "PainLogs", headers: ["id", "date", "startDate", "recoveredDate", "location", "intensity", "level", "trigger", "treatments", "notes", "status", "lastUpdated", "history"] },
   longTermLogs: { name: "LongTermLogs", headers: ["id", "date", "itemName", "sizeWidth", "sizeHeight", "sizeDepth", "hospital", "doctor", "nextCheckupDate", "notes", "status", "lastUpdated"] },
   biteSplintLogs: { name: "BiteSplintLogs", headers: ["id", "date", "status", "lastUpdated"] },
   tmySymptomsLogs: { name: "TMJSymptomsLogs", headers: ["id", "date", "symptoms", "medication", "status", "lastUpdated", "side"] },
@@ -171,7 +171,20 @@ async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: stri
     const obj: any = {};
     headers.forEach(header => {
       const val = row.get(header);
-      obj[header] = val !== undefined && val !== null ? String(val) : "";
+      if (val !== undefined && val !== null) {
+        const strVal = String(val);
+        if ((header === 'history' || header === 'treatments') && (strVal.trim().startsWith('[') || strVal.trim().startsWith('{'))) {
+          try {
+            obj[header] = JSON.parse(strVal);
+          } catch {
+            obj[header] = strVal;
+          }
+        } else {
+          obj[header] = strVal;
+        }
+      } else {
+        obj[header] = "";
+      }
     });
     return obj;
   });
@@ -182,7 +195,12 @@ async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], h
   const allRows = logs.map(log => {
     const rowObj: any = {};
     headers.forEach(header => {
-      rowObj[header] = log[header] !== undefined && log[header] !== null ? String(log[header]) : "";
+      const val = log[header];
+      if (val !== undefined && val !== null) {
+        rowObj[header] = typeof val === 'object' ? JSON.stringify(val) : String(val);
+      } else {
+        rowObj[header] = "";
+      }
     });
     return rowObj;
   });

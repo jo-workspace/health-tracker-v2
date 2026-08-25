@@ -44,13 +44,28 @@ export interface SupplementSetting {
   category?: string;
 }
 
+export interface PainHistoryEntry {
+  id: string;
+  date: string;
+  level: number;
+  levelLabel?: string;
+  treatments?: string[];
+  notes?: string;
+  timestamp: number;
+}
+
 export interface PainLog {
   id: string;
   date: string;
+  startDate?: string;
+  recoveredDate?: string;
   location: string;
   trigger: string;
   intensity: number;
+  level?: number;
+  treatments?: string[];
   notes?: string;
+  history?: PainHistoryEntry[];
   status: 'active' | 'recovered' | 'discontinued' | 'deleted';
   lastUpdated: number;
 }

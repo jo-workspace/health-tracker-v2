@@ -18,3 +18,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Always Commit & Push**: After making code changes and verifying them, always stage, commit with a descriptive message, and push to GitHub (`origin/main`).
 - **Rationale**: Vercel automatically deploys updates upon push to GitHub.
 
+## 3. UI/UX & Design Principles
+- **Concise Copy (文字精簡)**: UI copy, labels, and status tags must be ultra-concise, crisp, and to the point. Avoid verbose sentences and clutter.
+- **Icon Styling (SVG 圖示規範)**:
+  - **NO Full-Color Emojis**: Never use full-color emojis (e.g. 📅, 🧊, 🧘, 🦷, ✏️) in UI components.
+  - **Blended SVG Icons**: Use Lucide SVG icons styled with subtle, harmonious monochromatic or theme-matched palette colors (e.g. `text-stone-500`, `text-emerald-700`, `bg-stone-100`) that integrate seamlessly with the background.
+

@@ -1,57 +1,36 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Flame, Trash2, Check, Plus } from 'lucide-react';
+import { X, Activity, Plus, Check } from 'lucide-react';
 import type { PainLog, PainHistoryEntry } from '@/lib/types';
-import {
-  PAIN_LEVELS,
-  COMMON_LOCATIONS,
-  PRESET_TRIGGERS,
-  PRESET_TREATMENTS,
-  getPainLevel,
-  ensurePainLogHistory
-} from '@/lib/pain';
+import { PAIN_LEVELS, PRESET_TREATMENTS, getPainLevel } from '@/lib/pain';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (log: Partial<PainLog>) => void;
-  onDelete?: (id: string) => void;
-  initialData?: PainLog | null;
+  painLog: PainLog | null;
+  onSaveCheckin: (painId: string, entry: PainHistoryEntry, currentLevel: number, treatments: string[], notes: string) => void;
 }
 
-export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initialData }: Props) {
-  const [location, setLocation] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [trigger, setTrigger] = useState('');
+export default function PainCheckinModal({ isOpen, onClose, painLog, onSaveCheckin }: Props) {
+  const [date, setDate] = useState('');
   const [selectedLevel, setSelectedLevel] = useState(3);
   const [selectedTreatments, setSelectedTreatments] = useState<string[]>([]);
   const [customTreatment, setCustomTreatment] = useState('');
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    if (isOpen) {
-      if (initialData) {
-        setLocation(initialData.location || '');
-        setStartDate(initialData.startDate || initialData.date || new Date().toLocaleDateString('en-CA'));
-        setTrigger(initialData.trigger || '');
-        const initialLvl = initialData.level ?? initialData.intensity ?? 3;
-        setSelectedLevel(getPainLevel(initialLvl).level);
-        setSelectedTreatments(initialData.treatments || []);
-        setNotes(initialData.notes || '');
-      } else {
-        setLocation('');
-        setStartDate(new Date().toLocaleDateString('en-CA'));
-        setTrigger('');
-        setSelectedLevel(3); // 預設跑步痛
-        setSelectedTreatments([]);
-        setNotes('');
-      }
+    if (isOpen && painLog) {
+      setDate(new Date().toLocaleDateString('en-CA'));
+      const initialLvl = painLog.level ?? painLog.intensity ?? 3;
+      setSelectedLevel(getPainLevel(initialLvl).level);
+      setSelectedTreatments(painLog.treatments || []);
       setCustomTreatment('');
+      setNotes('');
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, painLog]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !painLog) return null;
 
   const toggleTreatment = (item: string) => {
     setSelectedTreatments(prev =>
@@ -69,52 +48,18 @@ export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!location.trim()) return;
-
     const lvlObj = getPainLevel(selectedLevel);
-    const existingHistory = initialData ? ensurePainLogHistory(initialData) : [];
-
-    let history: PainHistoryEntry[];
-    if (initialData && existingHistory.length > 0) {
-      // 編輯基本資料時更新或保持現有歷程
-      history = existingHistory;
-    } else {
-      // 全新記錄，建立初始歷程節點
-      history = [
-        {
-          id: crypto.randomUUID(),
-          date: startDate,
-          level: selectedLevel,
-          levelLabel: lvlObj.label,
-          treatments: selectedTreatments,
-          notes: notes.trim(),
-          timestamp: Date.now()
-        }
-      ];
-    }
-
-    onSave({
-      id: initialData?.id || crypto.randomUUID(),
-      date: startDate,
-      startDate,
-      recoveredDate: initialData?.recoveredDate,
-      location: location.trim(),
-      trigger: trigger.trim(),
-      intensity: selectedLevel,
+    const newEntry: PainHistoryEntry = {
+      id: crypto.randomUUID(),
+      date,
       level: selectedLevel,
+      levelLabel: lvlObj.label,
       treatments: selectedTreatments,
       notes: notes.trim(),
-      history,
-      status: initialData?.status || 'active',
-      lastUpdated: Date.now()
-    });
-    onClose();
-  };
+      timestamp: Date.now()
+    };
 
-  const handleDelete = () => {
-    if (!initialData?.id || !onDelete) return;
-    if (!window.confirm('確定要刪除這筆疼痛紀錄嗎？此操作無法復原。')) return;
-    onDelete(initialData.id);
+    onSaveCheckin(painLog.id, newEntry, selectedLevel, selectedTreatments, notes.trim());
     onClose();
   };
 
@@ -128,10 +73,11 @@ export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initi
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
           <div className="flex items-center gap-2">
-            <Flame size={18} className="text-stone-600" />
-            <h2 className="text-base font-bold text-stone-800">
-              {initialData ? '編輯疼痛項目' : '記錄新痛點'}
-            </h2>
+            <Activity size={18} className="text-stone-600" />
+            <div>
+              <h2 className="text-base font-bold text-stone-800">更新狀況</h2>
+              <span className="text-xs text-stone-500 font-medium">{painLog.location}</span>
+            </div>
           </div>
           <button
             type="button"
@@ -142,76 +88,24 @@ export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initi
           </button>
         </div>
 
-        {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-4 overflow-y-auto flex-1 flex flex-col gap-4">
-          {/* Location */}
+          {/* Date */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-stone-700">部位</label>
-            <input
-              type="text"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-              list="pain-common-locations"
-              placeholder="例如：右膝外側、足底筋膜"
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
-              required
-            />
-            <datalist id="pain-common-locations">
-              {COMMON_LOCATIONS.map(loc => (
-                <option key={loc} value={loc} />
-              ))}
-            </datalist>
-          </div>
-
-          {/* Start Date */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-stone-700">發生日期</label>
+            <label className="text-xs font-bold text-stone-700">記錄日期</label>
             <input
               type="date"
-              value={startDate}
-              onChange={e => setStartDate(e.target.value)}
+              value={date}
+              onChange={e => setDate(e.target.value)}
               className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
               required
             />
           </div>
 
-          {/* Trigger */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-stone-700">誘發活動</label>
-            <div className="flex flex-wrap gap-1.5 mb-1">
-              {PRESET_TRIGGERS.map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTrigger(t)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    trigger === t
-                      ? 'bg-stone-800 text-white border-stone-800'
-                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <input
-              type="text"
-              value={trigger}
-              onChange={e => setTrigger(e.target.value)}
-              placeholder="或輸入其他原因..."
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-xs text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
-            />
-          </div>
-
-          {/* Initial Pain Level */}
+          {/* Functional Level Selection */}
           <div className="flex flex-col gap-2">
             <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-stone-700">疼痛程度</label>
-              <span
-                className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${
-                  getPainLevel(selectedLevel).badgeClass
-                }`}
-              >
+              <label className="text-xs font-bold text-stone-700">功能疼痛程度</label>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${getPainLevel(selectedLevel).badgeClass}`}>
                 {getPainLevel(selectedLevel).label}
               </span>
             </div>
@@ -240,9 +134,9 @@ export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initi
             </div>
           </div>
 
-          {/* Treatments */}
+          {/* Treatments Selection */}
           <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold text-stone-700">採取的處置</label>
+            <label className="text-xs font-bold text-stone-700">今日處置</label>
             <div className="flex flex-wrap gap-1.5">
               {PRESET_TREATMENTS.map(item => {
                 const active = selectedTreatments.includes(item);
@@ -262,6 +156,8 @@ export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initi
                 );
               })}
             </div>
+
+            {/* Custom treatment input */}
             <div className="flex gap-1.5 mt-1">
               <input
                 type="text"
@@ -288,31 +184,29 @@ export default function PainFormModal({ isOpen, onClose, onSave, onDelete, initi
 
           {/* Notes */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-stone-700">備註</label>
+            <label className="text-xs font-bold text-stone-700">今日筆記</label>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="疼痛感受、特定受限動作..."
+              placeholder="症狀感受、活動後反應..."
               className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-xs text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none h-20"
             />
           </div>
 
-          {/* Buttons */}
+          {/* Submit */}
           <div className="mt-2 pt-3 border-t border-stone-100 flex gap-2">
-            {initialData && onDelete && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="py-2.5 px-3 bg-white border border-stone-200 hover:border-red-200 hover:bg-red-50 text-stone-500 hover:text-red-600 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1"
-              >
-                <Trash2 size={14} /> 刪除
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl text-xs font-bold transition-colors"
+            >
+              取消
+            </button>
             <button
               type="submit"
               className="flex-1 py-2.5 bg-stone-800 hover:bg-stone-900 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
             >
-              {initialData ? '儲存變更' : '建立痛點紀錄'}
+              儲存打卡
             </button>
           </div>
         </form>
