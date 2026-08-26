@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Moon, Plus } from 'lucide-react';
+import { Moon, Plus, PenLine } from 'lucide-react';
 import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload } from '@/lib/types';
 import SleepDetailModal from './SleepDetailModal';
 import SleepFormModal from './forms/SleepFormModal';
@@ -13,8 +13,9 @@ interface Props {
   splintLogs?: BiteSplintLog[];
   updateData: (payload: SyncPayload) => void;
   forceSync?: () => Promise<void>;
+  initialSynced?: boolean;
 }
-export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], splintLogs = [], updateData, forceSync }: Props) {
+export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], splintLogs = [], updateData, forceSync, initialSynced = false }: Props) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null);
@@ -22,7 +23,9 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
   const [defaultType, setDefaultType] = useState<'night' | 'nap'>('night');
   
   const [isAutoPromptOpen, setIsAutoPromptOpen] = useState(false);
-  const [hasCheckedAutoPrompt, setHasCheckedAutoPrompt] = useState(false);
+  const [hasTimeoutFired, setHasTimeoutFired] = useState(false);
+  const [todayStr, setTodayStr] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const hasCheckedAutoPromptRef = useState<{ date: string }>({ date: '' })[0];
 
   const openForm = (dateStr: string, typeVal: 'night' | 'nap', logToEdit?: SleepLog | null) => {
     setEditingLog(logToEdit || null);
@@ -33,11 +36,19 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
 
   const activeLogs = data.filter(log => log.status !== 'deleted');
 
-  // 取得今天與昨天的日期字串
-  const todayStr = new Date().toLocaleDateString('en-CA');
-  const yesterdayDate = new Date();
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterdayStr = yesterdayDate.toLocaleDateString('en-CA');
+  // 監聽喚醒與跨日，自動更新 todayStr
+  useEffect(() => {
+    const checkDate = () => {
+      const current = new Date().toLocaleDateString('en-CA');
+      setTodayStr(prev => (prev !== current ? current : prev));
+    };
+    window.addEventListener('focus', checkDate);
+    document.addEventListener('visibilitychange', checkDate);
+    return () => {
+      window.removeEventListener('focus', checkDate);
+      document.removeEventListener('visibilitychange', checkDate);
+    };
+  }, []);
 
   const dismissPrompt = () => {
     if (typeof window !== 'undefined') {
@@ -46,22 +57,42 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
     setIsAutoPromptOpen(false);
   };
 
-  // 自動偵測今天是否有主睡眠紀錄
+  // 雲端同步感知之睡眠提醒判斷
   useEffect(() => {
-    if (activeLogs.length > 0 && !hasCheckedAutoPrompt) {
-      const isDismissed = typeof window !== 'undefined' && sessionStorage.getItem(`dismissed_sleep_prompt_${todayStr}`);
-      if (!isDismissed) {
-        // 檢查「今天」是否有主睡眠紀錄
-        const hasTodayNightSleep = activeLogs.some(
-          log => log.date === todayStr && log.type === 'night'
-        );
-        if (!hasTodayNightSleep) {
-          setIsAutoPromptOpen(true);
-        }
-      }
-      setHasCheckedAutoPrompt(true);
+    // 檢查今天是否有主睡眠紀錄
+    const hasTodayNightSleep = activeLogs.some(
+      log => log.date === todayStr && log.type === 'night'
+    );
+
+    // 若已存在今天紀錄，立即關閉提醒
+    if (hasTodayNightSleep) {
+      setIsAutoPromptOpen(false);
+      return;
     }
-  }, [activeLogs, todayStr, hasCheckedAutoPrompt]);
+
+    // 尚未完成首次雲端同步時不急著彈窗（避免 B 裝置拿舊快取誤跳）
+    // 但設定 2.5 秒超時保護以防離線
+    if (!initialSynced && !hasTimeoutFired) {
+      const timer = setTimeout(() => {
+        setHasTimeoutFired(true);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+
+    // 當日若已檢查過則不重複觸發
+    if (hasCheckedAutoPromptRef.date === todayStr) {
+      return;
+    }
+
+    const isDismissed =
+      typeof window !== 'undefined' &&
+      sessionStorage.getItem(`dismissed_sleep_prompt_${todayStr}`);
+
+    if (!isDismissed && !hasTodayNightSleep) {
+      setIsAutoPromptOpen(true);
+    }
+    hasCheckedAutoPromptRef.date = todayStr;
+  }, [activeLogs, todayStr, initialSynced, hasTimeoutFired, hasCheckedAutoPromptRef]);
 
   // 找出今天最近的一筆主睡眠 (通常記在今天，但代表昨晚) 
   // 或是最後一筆有效的主睡眠來顯示
@@ -209,13 +240,13 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
       {isAutoPromptOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={dismissPrompt} />
-          <div className="relative bg-[#fdfdfc] w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Moon size={24} />
+          <div className="relative bg-[#fdfdfc] w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 border border-stone-200">
+            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-200">
+              <Moon size={22} />
             </div>
-            <h3 className="text-lg font-bold text-stone-800 mb-2">🔔 睡眠紀錄提醒</h3>
-            <p className="text-sm text-stone-500 mb-6 leading-relaxed">
-              偵測到您今天（{todayStr}）尚未填寫昨晚的主睡眠紀錄。健康的睡眠是活力的基石，建議立即花費 30 秒登錄昨晚狀況！
+            <h3 className="text-base font-bold text-stone-800 mb-1.5">睡眠紀錄提醒</h3>
+            <p className="text-xs text-stone-500 mb-5 leading-relaxed">
+              尚未登錄 {todayStr} 昨晚的主睡眠紀錄。
             </p>
             <div className="flex flex-col gap-2">
               <button 
@@ -223,9 +254,9 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
                   dismissPrompt();
                   openForm(todayStr, 'night');
                 }}
-                className="w-full py-2.5 bg-[#6ba388] text-white font-bold rounded-xl hover:bg-[#5b8c74] transition-colors"
+                className="w-full py-2.5 bg-[#6ba388] text-white text-xs font-bold rounded-xl hover:bg-[#5b8c74] transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
               >
-                📝 立即填寫
+                <PenLine size={14} /> 立即填寫
               </button>
               <button 
                 onClick={() => {
@@ -239,13 +270,13 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
                   } as SleepLog;
                   updateData({ sleepLogs: [emptyLog], clientTimestamp: Date.now() });
                 }}
-                className="w-full py-2.5 bg-stone-100 text-stone-600 font-bold rounded-xl hover:bg-stone-200 transition-colors"
+                className="w-full py-2.5 bg-stone-100 text-stone-600 text-xs font-bold rounded-xl hover:bg-stone-200 transition-colors"
               >
                 當日無紀錄
               </button>
               <button 
                 onClick={dismissPrompt}
-                className="w-full py-2.5 text-stone-400 text-sm font-medium hover:text-stone-600 transition-colors"
+                className="w-full py-2 text-stone-400 text-xs font-medium hover:text-stone-600 transition-colors"
               >
                 稍後再說
               </button>
