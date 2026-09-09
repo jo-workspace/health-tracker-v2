@@ -30,7 +30,6 @@ function ModalContent({
   const [targetUsers, setTargetUsers] = useState(
     itemToEdit?.targetUsers === '僅自己' ? '僅自己' : '兩人共用'
   );
-  const [location, setLocation] = useState(itemToEdit?.location || '');
   const [notes, setNotes] = useState(itemToEdit?.notes || '');
 
   // 找出還沒在庫存清單中的日常打卡品項，供快速匯入
@@ -53,7 +52,6 @@ function ModalContent({
       openedCount: Math.max(0, Number(openedCount) || 0),
       unopenedCount: Math.max(0, Number(unopenedCount) || 0),
       targetUsers,
-      location: location.trim(),
       notes: notes.trim(),
     });
     onClose();
@@ -149,9 +147,8 @@ function ModalContent({
           </div>
         </div>
 
-        {/* 罐數管理區塊 */}
-        <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200/80 space-y-3">
-          <div className="text-xs font-bold text-stone-700">罐數盤點</div>
+        {/* 罐數管理區塊 (無標題) */}
+        <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200/80">
           <div className="grid grid-cols-2 gap-4">
             {/* 已開啟 */}
             <div>
@@ -219,28 +216,16 @@ function ModalContent({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-stone-600 mb-1">服用對象</label>
-            <select
-              value={targetUsers}
-              onChange={e => setTargetUsers(e.target.value)}
-              className="w-full text-sm px-3 py-2 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#52806b]/20 focus:border-[#52806b] bg-white"
-            >
-              <option value="兩人共用">兩人共用</option>
-              <option value="僅自己">僅自己</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-stone-600 mb-1">存放地點 (選填)</label>
-            <input
-              type="text"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-              placeholder="例：客廳餐桌、儲藏櫃"
-              className="w-full text-sm px-3 py-2 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#52806b]/20 focus:border-[#52806b]"
-            />
-          </div>
+        <div>
+          <label className="block text-xs font-semibold text-stone-600 mb-1">服用對象</label>
+          <select
+            value={targetUsers}
+            onChange={e => setTargetUsers(e.target.value)}
+            className="w-full text-sm px-3 py-2 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#52806b]/20 focus:border-[#52806b] bg-white"
+          >
+            <option value="兩人共用">兩人共用</option>
+            <option value="僅自己">僅自己</option>
+          </select>
         </div>
 
         <div>
@@ -295,16 +280,21 @@ export default function InventoryEditModal(props: Props) {
   if (!props.isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
-      <ModalContent
-        key={props.itemToEdit ? props.itemToEdit.id : 'new'}
-        onClose={props.onClose}
-        itemToEdit={props.itemToEdit}
-        onSave={props.onSave}
-        onDelete={props.onDelete}
-        existingSettings={props.existingSettings}
-        existingInventory={props.existingInventory}
-      />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+      onClick={props.onClose}
+    >
+      <div onClick={e => e.stopPropagation()} className="w-full max-w-md">
+        <ModalContent
+          key={props.itemToEdit ? props.itemToEdit.id : 'new'}
+          onClose={props.onClose}
+          itemToEdit={props.itemToEdit}
+          onSave={props.onSave}
+          onDelete={props.onDelete}
+          existingSettings={props.existingSettings}
+          existingInventory={props.existingInventory}
+        />
+      </div>
     </div>
   );
 }

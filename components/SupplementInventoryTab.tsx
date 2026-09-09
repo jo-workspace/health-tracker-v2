@@ -80,7 +80,6 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       const matchSearch =
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.brand && item.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item.location && item.location.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.notes && item.notes.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const matchUser = userFilter === 'all' || item.targetUsers === userFilter;
@@ -118,7 +117,6 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
         openedCount: Number(itemData.openedCount) || 1,
         unopenedCount: Number(itemData.unopenedCount) || 0,
         targetUsers: itemData.targetUsers || '兩人共用',
-        location: itemData.location || '',
         notes: itemData.notes || '',
         status: 'active',
         lastUpdated: nowStr,
@@ -224,7 +222,6 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       openedCount: 1,
       unopenedCount: 0,
       targetUsers: '兩人共用',
-      location: '',
       notes: '',
       status: 'active',
       lastUpdated: nowStr,
@@ -295,7 +292,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
             type="text"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="搜尋保健品、品牌、存放位置..."
+            placeholder="搜尋保健品、品牌、備註..."
             className="w-full text-xs pl-9 pr-3 py-2 bg-white rounded-xl border border-stone-200/80 text-stone-700 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#52806b]/20 focus:border-[#52806b]"
           />
           {searchTerm && (
@@ -383,13 +380,13 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
                     )}
                   </div>
 
-                  {/* 次要資訊（品牌、分類、存放地點） */}
-                  {(item.brand || item.location || item.category) && (
+                  {/* 次要資訊（品牌、分類） */}
+                  {(item.brand || item.category || item.notes) && (
                     <div className="flex items-center gap-1 mt-0.5 text-[11px] text-stone-400 truncate">
                       {item.brand && <span>{item.brand}</span>}
-                      {item.brand && (item.location || item.category) && <span>·</span>}
+                      {item.brand && item.category && <span>·</span>}
                       {item.category && <span>{item.category}</span>}
-                      {item.location && <span>· {item.location}</span>}
+                      {item.notes && <span>· {item.notes}</span>}
                     </div>
                   )}
                 </div>
