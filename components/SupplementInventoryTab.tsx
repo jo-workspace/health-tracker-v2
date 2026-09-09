@@ -3,11 +3,8 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Package,
   Plus,
-  Minus,
   Search,
   Sparkles,
-  Edit2,
-  Trash2,
   AlertCircle,
   MapPin
 } from 'lucide-react';
@@ -23,7 +20,7 @@ interface Props {
 export default function SupplementInventoryTab({ inventory = [], settings = [], updateData }: Props) {
   const [localInventory, setLocalInventory] = useState<SupplementInventoryItem[]>(inventory);
   const [searchTerm, setSearchTerm] = useState('');
-  const [userFilter, setUserFilter] = useState<'all' | '兩人共用' | '僅自己' | '僅先生'>('all');
+  const [userFilter, setUserFilter] = useState<'all' | '兩人共用' | '僅自己'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<SupplementInventoryItem | null>(null);
 
@@ -37,7 +34,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
     }
   }, [inventory]);
 
-  // 防抖同步：避免快速點擊 + / - 時頻繁打 API 觸發 Google 60 次/分限流
+  // 防抖同步：避免快速點擊時頻繁打 API 觸發 Google 限流
   const debouncedSync = useCallback((newItems: SupplementInventoryItem[]) => {
     isDebouncingRef.current = true;
     if (debounceTimerRef.current) {
@@ -54,16 +51,18 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
     return localInventory.filter(item => item.status !== 'deleted');
   }, [localInventory]);
 
-  // 統計數據
+  // 統計數據：強制以 Number() 轉型，防止字串相加變 011111111
   const stats = useMemo(() => {
     let totalOpened = 0;
     let totalUnopened = 0;
     let zeroUnopenedCount = 0;
 
     activeItems.forEach(item => {
-      totalOpened += item.openedCount || 0;
-      totalUnopened += item.unopenedCount || 0;
-      if ((item.unopenedCount || 0) === 0) {
+      const opened = Number(item.openedCount) || 0;
+      const unopened = Number(item.unopenedCount) || 0;
+      totalOpened += opened;
+      totalUnopened += unopened;
+      if (unopened === 0) {
         zeroUnopenedCount++;
       }
     });
@@ -101,7 +100,13 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       // 編輯
       updated = localInventory.map(item =>
         item.id === itemData.id
-          ? ({ ...item, ...itemData, lastUpdated: nowStr } as SupplementInventoryItem)
+          ? ({
+              ...item,
+              ...itemData,
+              openedCount: Number(itemData.openedCount) || 0,
+              unopenedCount: Number(itemData.unopenedCount) || 0,
+              lastUpdated: nowStr,
+            } as SupplementInventoryItem)
           : item
       );
     } else {
@@ -111,8 +116,8 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
         name: itemData.name || '',
         brand: itemData.brand || '',
         category: itemData.category || '其他',
-        openedCount: itemData.openedCount ?? 1,
-        unopenedCount: itemData.unopenedCount ?? 0,
+        openedCount: Number(itemData.openedCount) || 1,
+        unopenedCount: Number(itemData.unopenedCount) || 0,
         targetUsers: itemData.targetUsers || '兩人共用',
         location: itemData.location || '',
         notes: itemData.notes || '',
@@ -131,11 +136,13 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
     const updated = localInventory.map(item => {
-      if (item.id === itemId && (item.unopenedCount || 0) > 0) {
+      const unopened = Number(item.unopenedCount) || 0;
+      const opened = Number(item.openedCount) || 0;
+      if (item.id === itemId && unopened > 0) {
         return {
           ...item,
-          unopenedCount: (item.unopenedCount || 0) - 1,
-          openedCount: (item.openedCount || 0) + 1,
+          unopenedCount: Math.max(0, unopened - 1),
+          openedCount: opened + 1,
           lastUpdated: nowStr,
         };
       }
@@ -150,10 +157,11 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
     const updated = localInventory.map(item => {
-      if (item.id === itemId && (item.openedCount || 0) > 0) {
+      const opened = Number(item.openedCount) || 0;
+      if (item.id === itemId && opened > 0) {
         return {
           ...item,
-          openedCount: (item.openedCount || 0) - 1,
+          openedCount: Math.max(0, opened - 1),
           lastUpdated: nowStr,
         };
       }
@@ -163,17 +171,16 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
     debouncedSync(updated);
   }, [localInventory, debouncedSync]);
 
-  // 微調罐數
-  const handleAdjustCount = useCallback((itemId: string, field: 'openedCount' | 'unopenedCount', delta: number) => {
+  // 微調未開啟備用罐 (+1)
+  const handleAddUnopenedBottle = useCallback((itemId: string) => {
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
     const updated = localInventory.map(item => {
       if (item.id === itemId) {
-        const current = item[field] || 0;
-        const nextVal = Math.max(0, current + delta);
+        const current = Number(item.unopenedCount) || 0;
         return {
           ...item,
-          [field]: nextVal,
+          unopenedCount: current + 1,
           lastUpdated: nowStr,
         };
       }
@@ -184,8 +191,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
   }, [localInventory, debouncedSync]);
 
   // 刪除品項
-  const handleDeleteItem = useCallback((itemId: string, itemName: string) => {
-    if (!confirm(`確定要將「${itemName}」從庫存清單移除嗎？`)) return;
+  const handleDeleteItem = useCallback((itemId: string) => {
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
     const updated = localInventory.map(item =>
@@ -282,7 +288,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
         )}
       </div>
 
-      {/* 搜尋與對象篩選 */}
+      {/* 搜尋與對象篩選 (排除僅先生) */}
       <div className="space-y-2">
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -305,7 +311,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
 
         {/* 對象標籤篩選 */}
         <div className="flex gap-1.5 text-xs overflow-x-auto pb-1 scrollbar-none">
-          {(['all', '兩人共用', '僅自己', '僅先生'] as const).map(userKey => (
+          {(['all', '兩人共用', '僅自己'] as const).map(userKey => (
             <button
               key={userKey}
               onClick={() => setUserFilter(userKey)}
@@ -349,20 +355,25 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       ) : (
         <div className="space-y-3">
           {filteredItems.map(item => {
-            const opened = item.openedCount || 0;
-            const unopened = item.unopenedCount || 0;
-            const total = opened + unopened;
+            const opened = Number(item.openedCount) || 0;
+            const unopened = Number(item.unopenedCount) || 0;
 
             return (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl p-4 border border-stone-200/80 shadow-2xs hover:shadow-xs transition-shadow"
+                onClick={() => {
+                  setItemToEdit(item);
+                  setIsModalOpen(true);
+                }}
+                className="bg-white rounded-2xl p-4 border border-stone-200/80 shadow-2xs hover:shadow-xs hover:border-[#52806b]/40 transition-all cursor-pointer group"
               >
-                {/* 頂部資訊列 */}
+                {/* 頂部資訊列 (無右上角編輯/刪除圖示，點整張卡片即編輯) */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-sm font-bold text-stone-800">{item.name}</span>
+                      <span className="text-sm font-bold text-stone-800 group-hover:text-[#446e5b] transition-colors">
+                        {item.name}
+                      </span>
                       {item.brand && (
                         <span className="text-xs text-stone-500 font-normal bg-stone-100 px-1.5 py-0.5 rounded">
                           {item.brand}
@@ -385,127 +396,74 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
                       {item.notes && <span className="text-stone-400">· {item.notes}</span>}
                     </div>
                   </div>
-
-                  {/* 編輯 / 刪除 */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        setItemToEdit(item);
-                        setIsModalOpen(true);
-                      }}
-                      className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 transition-colors"
-                      title="編輯"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteItem(item.id, item.name)}
-                      className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
-                      title="刪除"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
                 </div>
 
-                {/* 罐數管理區塊 */}
-                <div className="mt-3.5 pt-3 border-t border-stone-100 grid grid-cols-2 gap-2.5">
-                  {/* 已開啟 (食用中) */}
-                  <div className="bg-emerald-50/50 rounded-xl p-2.5 border border-emerald-100/80 flex flex-col justify-between">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold text-emerald-800 flex items-center gap-1">
+                {/* 罐數管理區塊：簡化重複動作 */}
+                <div className="mt-3 pt-3 border-t border-stone-100 grid grid-cols-2 gap-2.5">
+                  {/* 已開啟 */}
+                  <div className="bg-emerald-50/50 rounded-xl p-3 border border-emerald-100/80 flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] font-semibold text-emerald-800 flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-emerald-500" />
                         已開啟
                       </span>
-                      <span className="text-xs font-bold text-emerald-700">{opened} 罐</span>
+                      <div className="text-base font-bold text-emerald-800 mt-0.5">
+                        {opened} <span className="text-xs font-normal text-emerald-600">罐</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between gap-1">
-                      <button
-                        onClick={() => handleAdjustCount(item.id, 'openedCount', -1)}
-                        disabled={opened <= 0}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-100 active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
-                        title="已開啟 -1"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => handleFinishOpenedBottle(item.id)}
-                        disabled={opened <= 0}
-                        className="text-[10px] font-medium px-1.5 py-1 rounded bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-100 active:scale-95 disabled:opacity-40"
-                      >
-                        吃完1罐
-                      </button>
-                      <button
-                        onClick={() => handleAdjustCount(item.id, 'openedCount', 1)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-100 active:scale-95"
-                        title="已開啟 +1"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFinishOpenedBottle(item.id);
+                      }}
+                      disabled={opened <= 0}
+                      className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-100 active:scale-95 disabled:opacity-30 disabled:pointer-events-none shadow-2xs transition-colors"
+                    >
+                      吃完 1 罐
+                    </button>
                   </div>
 
-                  {/* 未開啟 (備用庫存) */}
-                  <div className={`rounded-xl p-2.5 border flex flex-col justify-between ${
+                  {/* 備用 */}
+                  <div className={`rounded-xl p-3 border flex items-center justify-between ${
                     unopened === 0
                       ? 'bg-amber-50/40 border-amber-200/70'
                       : 'bg-sky-50/50 border-sky-100/80'
                   }`}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className={`text-xs font-semibold flex items-center gap-1 ${
+                    <div>
+                      <span className={`text-[11px] font-semibold flex items-center gap-1 ${
                         unopened === 0 ? 'text-amber-800' : 'text-sky-800'
                       }`}>
                         <span className={`w-2 h-2 rounded-full ${unopened === 0 ? 'bg-amber-400' : 'bg-sky-500'}`} />
-                        未開啟
+                        備用
                       </span>
-                      <span className={`text-xs font-bold ${unopened === 0 ? 'text-amber-700' : 'text-sky-700'}`}>
-                        {unopened} 罐
-                      </span>
+                      <div className={`text-base font-bold mt-0.5 ${unopened === 0 ? 'text-amber-700' : 'text-sky-800'}`}>
+                        {unopened} <span className="text-xs font-normal text-stone-400">罐</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => handleAdjustCount(item.id, 'unopenedCount', -1)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenNewBottle(item.id);
+                        }}
                         disabled={unopened <= 0}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-100 active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
-                        title="未開啟 -1"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      
-                      {/* 開新的一罐快捷按鈕 */}
-                      <button
-                        onClick={() => handleOpenNewBottle(item.id)}
-                        disabled={unopened <= 0}
-                        className="text-[10px] font-semibold px-2 py-1 rounded bg-[#52806b] text-white hover:bg-[#446e5b] active:scale-95 disabled:bg-stone-200 disabled:text-stone-400 shadow-2xs transition-colors"
-                        title="未開啟 -1，已開啟 +1"
+                        className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-[#52806b] text-white hover:bg-[#446e5b] active:scale-95 disabled:bg-stone-200 disabled:text-stone-400 shadow-2xs transition-colors"
+                        title="未拆備用 -1，已開啟 +1"
                       >
                         開新罐
                       </button>
-
                       <button
-                        onClick={() => handleAdjustCount(item.id, 'unopenedCount', 1)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-100 active:scale-95"
-                        title="未開啟 +1 (新買入庫)"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddUnopenedBottle(item.id);
+                        }}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-900 active:scale-95 shadow-2xs transition-colors font-bold"
+                        title="新買備用罐入庫 (+1)"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
-                </div>
-
-                {/* 底部總計與提示 */}
-                <div className="mt-2.5 flex items-center justify-between text-[11px] text-stone-500 px-1">
-                  <span>總計：<strong>{total}</strong> 罐</span>
-                  {unopened === 0 ? (
-                    <span className="text-amber-600 font-medium flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      無備用庫存
-                    </span>
-                  ) : (
-                    <span className="text-stone-400">
-                      備用庫存充足 ({unopened} 罐)
-                    </span>
-                  )}
                 </div>
               </div>
             );
@@ -519,8 +477,9 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
         onClose={() => setIsModalOpen(false)}
         itemToEdit={itemToEdit}
         onSave={handleSaveItem}
+        onDelete={handleDeleteItem}
         existingSettings={settings}
-        existingInventory={inventory}
+        existingInventory={localInventory}
       />
     </div>
   );

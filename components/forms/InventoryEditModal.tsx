@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { X, Check, Plus, Minus, Sparkles } from 'lucide-react';
+import { X, Check, Plus, Minus, Sparkles, Trash2 } from 'lucide-react';
 import type { SupplementInventoryItem, SupplementSetting } from '@/lib/types';
 import { CATEGORY_ORDER, DEFAULT_CATEGORY } from '@/lib/supplements';
 
@@ -9,6 +9,7 @@ interface Props {
   onClose: () => void;
   itemToEdit?: SupplementInventoryItem | null;
   onSave: (item: Partial<SupplementInventoryItem>) => void;
+  onDelete?: (id: string) => void;
   existingSettings?: SupplementSetting[];
   existingInventory?: SupplementInventoryItem[];
 }
@@ -17,15 +18,18 @@ function ModalContent({
   onClose,
   itemToEdit,
   onSave,
+  onDelete,
   existingSettings = [],
   existingInventory = [],
 }: Omit<Props, 'isOpen'>) {
   const [name, setName] = useState(itemToEdit?.name || '');
   const [brand, setBrand] = useState(itemToEdit?.brand || '');
   const [category, setCategory] = useState(itemToEdit?.category || DEFAULT_CATEGORY);
-  const [openedCount, setOpenedCount] = useState(itemToEdit?.openedCount ?? 1);
-  const [unopenedCount, setUnopenedCount] = useState(itemToEdit?.unopenedCount ?? 1);
-  const [targetUsers, setTargetUsers] = useState(itemToEdit?.targetUsers || '兩人共用');
+  const [openedCount, setOpenedCount] = useState(Number(itemToEdit?.openedCount) || 1);
+  const [unopenedCount, setUnopenedCount] = useState(Number(itemToEdit?.unopenedCount) || 0);
+  const [targetUsers, setTargetUsers] = useState(
+    itemToEdit?.targetUsers === '僅自己' ? '僅自己' : '兩人共用'
+  );
   const [location, setLocation] = useState(itemToEdit?.location || '');
   const [notes, setNotes] = useState(itemToEdit?.notes || '');
 
@@ -46,13 +50,21 @@ function ModalContent({
       name: name.trim(),
       brand: brand.trim(),
       category: category || DEFAULT_CATEGORY,
-      openedCount: Math.max(0, openedCount),
-      unopenedCount: Math.max(0, unopenedCount),
+      openedCount: Math.max(0, Number(openedCount) || 0),
+      unopenedCount: Math.max(0, Number(unopenedCount) || 0),
       targetUsers,
       location: location.trim(),
       notes: notes.trim(),
     });
     onClose();
+  };
+
+  const handleDelete = () => {
+    if (!itemToEdit?.id) return;
+    if (confirm(`確定要將「${name || itemToEdit.name}」從庫存移除嗎？`)) {
+      onDelete?.(itemToEdit.id);
+      onClose();
+    }
   };
 
   const handleQuickImport = (setting: SupplementSetting) => {
@@ -173,7 +185,7 @@ function ModalContent({
               </div>
             </div>
 
-            {/* 未開啟 */}
+            {/* 備用 */}
             <div>
               <span className="text-[11px] font-medium text-sky-700 block mb-1.5 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />
@@ -217,7 +229,6 @@ function ModalContent({
             >
               <option value="兩人共用">兩人共用</option>
               <option value="僅自己">僅自己</option>
-              <option value="僅先生">僅先生</option>
             </select>
           </div>
           <div>
@@ -243,21 +254,37 @@ function ModalContent({
           />
         </div>
 
-        <div className="pt-2 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
-          >
-            取消
-          </button>
-          <button
-            type="submit"
-            className="px-5 py-2 text-sm font-semibold text-white bg-[#52806b] hover:bg-[#446e5b] rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
-          >
-            <Check className="w-4 h-4" />
-            儲存
-          </button>
+        {/* 底部動作列：刪除與儲存並排 */}
+        <div className="pt-3 flex items-center justify-between border-t border-stone-100">
+          {itemToEdit ? (
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="px-3.5 py-2 text-sm font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition-colors flex items-center gap-1.5 active:scale-95"
+            >
+              <Trash2 className="w-4 h-4" />
+              刪除
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-sm font-semibold text-white bg-[#52806b] hover:bg-[#446e5b] rounded-xl shadow-xs transition-colors flex items-center gap-1.5 active:scale-95"
+            >
+              <Check className="w-4 h-4" />
+              儲存
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -274,6 +301,7 @@ export default function InventoryEditModal(props: Props) {
         onClose={props.onClose}
         itemToEdit={props.itemToEdit}
         onSave={props.onSave}
+        onDelete={props.onDelete}
         existingSettings={props.existingSettings}
         existingInventory={props.existingInventory}
       />
