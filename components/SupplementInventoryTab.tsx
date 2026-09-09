@@ -239,7 +239,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
   }, [activeItems, settings, localInventory, updateData]);
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-4 pt-2">
+    <div className="w-full max-w-md mx-auto space-y-4 pt-2 pb-8">
       {/* 統計概覽 Bar */}
       <div className="bg-white rounded-2xl p-4 shadow-xs border border-stone-200/80">
         <div className="flex items-center justify-between mb-3">

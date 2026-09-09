@@ -67,7 +67,7 @@ export default function Dashboard() {
         syncing={syncing}
       />
 
-      <main className="w-full max-w-md space-y-0">
+      <main className="w-full max-w-md space-y-0 pb-32">
         {loading ? (
           <div className="text-center text-stone-400 mt-20 animate-pulse text-sm font-medium">資料連線中...</div>
         ) : (
