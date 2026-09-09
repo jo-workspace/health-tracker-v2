@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Package,
   Plus,
@@ -21,15 +21,38 @@ interface Props {
 }
 
 export default function SupplementInventoryTab({ inventory = [], settings = [], updateData }: Props) {
+  const [localInventory, setLocalInventory] = useState<SupplementInventoryItem[]>(inventory);
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState<'all' | '兩人共用' | '僅自己' | '僅先生'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<SupplementInventoryItem | null>(null);
 
+  const isDebouncingRef = useRef(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 當外部資料更新且非當前防抖微調中時，同步至 localInventory
+  useEffect(() => {
+    if (!isDebouncingRef.current) {
+      setLocalInventory(inventory);
+    }
+  }, [inventory]);
+
+  // 防抖同步：避免快速點擊 + / - 時頻繁打 API 觸發 Google 60 次/分限流
+  const debouncedSync = useCallback((newItems: SupplementInventoryItem[]) => {
+    isDebouncingRef.current = true;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      isDebouncingRef.current = false;
+      updateData({ supplementInventory: newItems, clientTimestamp: Date.now() });
+    }, 600);
+  }, [updateData]);
+
   // 有效品項（排除 status === 'deleted'）
   const activeItems = useMemo(() => {
-    return inventory.filter(item => item.status !== 'deleted');
-  }, [inventory]);
+    return localInventory.filter(item => item.status !== 'deleted');
+  }, [localInventory]);
 
   // 統計數據
   const stats = useMemo(() => {
@@ -76,7 +99,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
 
     if (itemData.id) {
       // 編輯
-      updated = inventory.map(item =>
+      updated = localInventory.map(item =>
         item.id === itemData.id
           ? ({ ...item, ...itemData, lastUpdated: nowStr } as SupplementInventoryItem)
           : item
@@ -96,17 +119,18 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
         status: 'active',
         lastUpdated: nowStr,
       };
-      updated = [...inventory, newItem];
+      updated = [...localInventory, newItem];
     }
 
+    setLocalInventory(updated);
     updateData({ supplementInventory: updated, clientTimestamp: timestamp });
-  }, [inventory, updateData]);
+  }, [localInventory, updateData]);
 
   // 快捷操作：開新的一罐 (未開啟 -1, 已開啟 +1)
   const handleOpenNewBottle = useCallback((itemId: string) => {
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
-    const updated = inventory.map(item => {
+    const updated = localInventory.map(item => {
       if (item.id === itemId && (item.unopenedCount || 0) > 0) {
         return {
           ...item,
@@ -117,14 +141,15 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       }
       return item;
     });
-    updateData({ supplementInventory: updated, clientTimestamp: timestamp });
-  }, [inventory, updateData]);
+    setLocalInventory(updated);
+    debouncedSync(updated);
+  }, [localInventory, debouncedSync]);
 
   // 快捷操作：吃完一罐 (已開啟 -1)
   const handleFinishOpenedBottle = useCallback((itemId: string) => {
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
-    const updated = inventory.map(item => {
+    const updated = localInventory.map(item => {
       if (item.id === itemId && (item.openedCount || 0) > 0) {
         return {
           ...item,
@@ -134,14 +159,15 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       }
       return item;
     });
-    updateData({ supplementInventory: updated, clientTimestamp: timestamp });
-  }, [inventory, updateData]);
+    setLocalInventory(updated);
+    debouncedSync(updated);
+  }, [localInventory, debouncedSync]);
 
   // 微調罐數
   const handleAdjustCount = useCallback((itemId: string, field: 'openedCount' | 'unopenedCount', delta: number) => {
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
-    const updated = inventory.map(item => {
+    const updated = localInventory.map(item => {
       if (item.id === itemId) {
         const current = item[field] || 0;
         const nextVal = Math.max(0, current + delta);
@@ -153,19 +179,21 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       }
       return item;
     });
-    updateData({ supplementInventory: updated, clientTimestamp: timestamp });
-  }, [inventory, updateData]);
+    setLocalInventory(updated);
+    debouncedSync(updated);
+  }, [localInventory, debouncedSync]);
 
   // 刪除品項
   const handleDeleteItem = useCallback((itemId: string, itemName: string) => {
     if (!confirm(`確定要將「${itemName}」從庫存清單移除嗎？`)) return;
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
-    const updated = inventory.map(item =>
+    const updated = localInventory.map(item =>
       item.id === itemId ? { ...item, status: 'deleted' as const, lastUpdated: nowStr } : item
     );
+    setLocalInventory(updated);
     updateData({ supplementInventory: updated, clientTimestamp: timestamp });
-  }, [inventory, updateData]);
+  }, [localInventory, updateData]);
 
   // 一鍵匯入所有日常打卡名單
   const handleImportAllSettings = useCallback(() => {
@@ -197,11 +225,13 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       lastUpdated: nowStr,
     }));
 
+    const updated = [...localInventory, ...newItems];
+    setLocalInventory(updated);
     updateData({
-      supplementInventory: [...inventory, ...newItems],
+      supplementInventory: updated,
       clientTimestamp: timestamp,
     });
-  }, [activeItems, settings, inventory, updateData]);
+  }, [activeItems, settings, localInventory, updateData]);
 
   return (
     <div className="w-full max-w-md mx-auto space-y-4 pt-2">

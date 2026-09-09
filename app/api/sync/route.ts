@@ -26,27 +26,13 @@ async function withApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T>
       attempt++;
       const is429 = err.message?.includes('429') || err.message?.includes('Quota exceeded');
       if (is429 && attempt < maxRetries) {
-        console.warn(`[Google Sheets API 429] 觸發 60/min 限流，等待 ${1.5 * attempt} 秒後進行第 ${attempt}/${maxRetries} 次重試...`);
-        await new Promise(res => setTimeout(res, 1500 * attempt));
+        const delay = attempt * 3000 + Math.floor(Math.random() * 1000);
+        console.warn(`[Google Sheets API 429] 觸發 60/min 限流，等待 ${delay}ms 後進行第 ${attempt}/${maxRetries} 次重試...`);
+        await new Promise(res => setTimeout(res, delay));
       } else {
         throw err;
       }
     }
-  }
-}
-
-/** 確保工作表第 1 列的標題欄位完整性，若遭毀損自動修正 */
-async function ensureCorrectHeaders(sheet: GoogleSpreadsheetWorksheet, expectedHeaders: string[]) {
-  try {
-    await withApiRetry(() => sheet.loadHeaderRow());
-    const currentHeaders = sheet.headerValues;
-    const isMatching = expectedHeaders.every((h, i) => currentHeaders[i] === h);
-    if (!isMatching) {
-      console.warn(`[Header Mismatch] 工作表 ${sheet.title} 標題列毀損或不合，正在自動恢復預設標題列...`);
-      await withApiRetry(() => sheet.setHeaderRow(expectedHeaders));
-    }
-  } catch (e) {
-    await withApiRetry(() => sheet.setHeaderRow(expectedHeaders));
   }
 }
 
@@ -85,7 +71,6 @@ const DELETED_IDS_HEADERS = ['sheetKey', 'id', 'deletedAt'];
  */
 async function getDeletedIdsMap(doc: any): Promise<{ sheet: GoogleSpreadsheetWorksheet; map: Record<string, Set<string>> }> {
   const sheet = await getOrCreateSheet(doc, DELETED_IDS_SHEET_NAME, DELETED_IDS_HEADERS);
-  await ensureCorrectHeaders(sheet, DELETED_IDS_HEADERS);
 
   const rows = await withApiRetry<any[]>(() => sheet.getRows());
   const map: Record<string, Set<string>> = {};
@@ -124,9 +109,6 @@ export async function POST(request: NextRequest) {
     for (const key of keysToSync) {
       const config = sheetsConfig[key];
       const sheet = await getOrCreateSheet(doc, config.name, config.headers);
-
-      // 檢查並保護工作表標題列
-      await ensureCorrectHeaders(sheet, config.headers);
 
       const deletedSet = deletedIdsByKey[key] || (deletedIdsByKey[key] = new Set());
 
