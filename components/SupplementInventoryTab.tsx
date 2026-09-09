@@ -5,8 +5,7 @@ import {
   Plus,
   Search,
   Sparkles,
-  AlertCircle,
-  MapPin
+  AlertCircle
 } from 'lucide-react';
 import type { SupplementInventoryItem, SupplementSetting, SyncPayload } from '@/lib/types';
 import InventoryEditModal from './forms/InventoryEditModal';
@@ -327,7 +326,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
         </div>
       </div>
 
-      {/* 庫存列表 */}
+      {/* 庫存列表 (精簡一覽清單) */}
       {filteredItems.length === 0 ? (
         <div className="bg-white rounded-2xl p-8 text-center border border-stone-200/80 space-y-3">
           <div className="w-12 h-12 mx-auto bg-stone-100 rounded-full flex items-center justify-center text-stone-400">
@@ -353,7 +352,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filteredItems.map(item => {
             const opened = Number(item.openedCount) || 0;
             const unopened = Number(item.unopenedCount) || 0;
@@ -365,104 +364,92 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
                   setItemToEdit(item);
                   setIsModalOpen(true);
                 }}
-                className="bg-white rounded-2xl p-4 border border-stone-200/80 shadow-2xs hover:shadow-xs hover:border-[#52806b]/40 transition-all cursor-pointer group"
+                className="bg-white rounded-xl px-3 py-2.5 border border-stone-200/80 shadow-2xs hover:shadow-xs hover:border-[#52806b]/40 transition-all cursor-pointer flex items-center justify-between gap-2.5 group"
               >
-                {/* 頂部資訊列 (無右上角編輯/刪除圖示，點整張卡片即編輯) */}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-sm font-bold text-stone-800 group-hover:text-[#446e5b] transition-colors">
-                        {item.name}
+                {/* 左側：品名與詳細資訊 */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-bold text-stone-800 group-hover:text-[#446e5b] transition-colors truncate">
+                      {item.name}
+                    </span>
+                    {item.targetUsers === '僅自己' ? (
+                      <span className="text-[10px] font-medium px-1.5 py-0.2 rounded-full bg-stone-100 text-stone-600 border border-stone-200/60 shrink-0">
+                        僅自己
                       </span>
-                      {item.brand && (
-                        <span className="text-xs text-stone-500 font-normal bg-stone-100 px-1.5 py-0.5 rounded">
-                          {item.brand}
-                        </span>
-                      )}
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        {item.targetUsers || '兩人共用'}
+                    ) : (
+                      <span className="text-[10px] font-medium px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0">
+                        兩人
                       </span>
-                    </div>
-
-                    {/* 輔助標籤：分類、位置、備註 */}
-                    <div className="flex items-center gap-2 mt-1 text-[11px] text-stone-400 flex-wrap">
-                      {item.category && <span>{item.category}</span>}
-                      {item.location && (
-                        <span className="flex items-center gap-0.5 text-stone-500">
-                          <MapPin className="w-3 h-3" />
-                          {item.location}
-                        </span>
-                      )}
-                      {item.notes && <span className="text-stone-400">· {item.notes}</span>}
-                    </div>
+                    )}
                   </div>
+
+                  {/* 次要資訊（品牌、分類、存放地點） */}
+                  {(item.brand || item.location || item.category) && (
+                    <div className="flex items-center gap-1 mt-0.5 text-[11px] text-stone-400 truncate">
+                      {item.brand && <span>{item.brand}</span>}
+                      {item.brand && (item.location || item.category) && <span>·</span>}
+                      {item.category && <span>{item.category}</span>}
+                      {item.location && <span>· {item.location}</span>}
+                    </div>
+                  )}
                 </div>
 
-                {/* 罐數管理區塊：簡化重複動作 */}
-                <div className="mt-3 pt-3 border-t border-stone-100 grid grid-cols-2 gap-2.5">
+                {/* 右側：數量狀態與快捷動作 */}
+                <div className="flex items-center gap-1.5 shrink-0">
                   {/* 已開啟 */}
-                  <div className="bg-emerald-50/50 rounded-xl p-3 border border-emerald-100/80 flex items-center justify-between">
-                    <div>
-                      <span className="text-[11px] font-semibold text-emerald-800 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        已開啟
-                      </span>
-                      <div className="text-base font-bold text-emerald-800 mt-0.5">
-                        {opened} <span className="text-xs font-normal text-emerald-600">罐</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFinishOpenedBottle(item.id);
-                      }}
-                      disabled={opened <= 0}
-                      className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-100 active:scale-95 disabled:opacity-30 disabled:pointer-events-none shadow-2xs transition-colors"
-                    >
-                      吃完 1 罐
-                    </button>
+                  <div className="flex items-center bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-lg p-0.5">
+                    <span className="text-[11px] font-bold px-1.5 py-0.5">
+                      開 {opened}
+                    </span>
+                    {opened > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFinishOpenedBottle(item.id);
+                        }}
+                        className="text-[10px] font-medium text-emerald-700 hover:text-emerald-900 bg-white hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200/80 active:scale-95 transition-all shadow-2xs"
+                        title="吃完 1 罐"
+                      >
+                        吃完
+                      </button>
+                    )}
                   </div>
 
                   {/* 備用 */}
-                  <div className={`rounded-xl p-3 border flex items-center justify-between ${
+                  <div className={`text-[11px] font-bold px-2 py-1 rounded-lg border ${
                     unopened === 0
-                      ? 'bg-amber-50/40 border-amber-200/70'
-                      : 'bg-sky-50/50 border-sky-100/80'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-sky-50 text-sky-800 border-sky-100'
                   }`}>
-                    <div>
-                      <span className={`text-[11px] font-semibold flex items-center gap-1 ${
-                        unopened === 0 ? 'text-amber-800' : 'text-sky-800'
-                      }`}>
-                        <span className={`w-2 h-2 rounded-full ${unopened === 0 ? 'bg-amber-400' : 'bg-sky-500'}`} />
-                        備用
-                      </span>
-                      <div className={`text-base font-bold mt-0.5 ${unopened === 0 ? 'text-amber-700' : 'text-sky-800'}`}>
-                        {unopened} <span className="text-xs font-normal text-stone-400">罐</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenNewBottle(item.id);
-                        }}
-                        disabled={unopened <= 0}
-                        className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-[#52806b] text-white hover:bg-[#446e5b] active:scale-95 disabled:bg-stone-200 disabled:text-stone-400 shadow-2xs transition-colors"
-                        title="未拆備用 -1，已開啟 +1"
-                      >
-                        開新罐
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddUnopenedBottle(item.id);
-                        }}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-900 active:scale-95 shadow-2xs transition-colors font-bold"
-                        title="新買備用罐入庫 (+1)"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    備 {unopened}
+                  </div>
+
+                  {/* 動作群 */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenNewBottle(item.id);
+                      }}
+                      disabled={unopened <= 0}
+                      className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-[#52806b] text-white hover:bg-[#446e5b] active:scale-95 disabled:bg-stone-100 disabled:text-stone-300 disabled:pointer-events-none shadow-2xs transition-colors whitespace-nowrap"
+                      title="開新罐（備用 -1，已開 +1）"
+                    >
+                      開新罐
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddUnopenedBottle(item.id);
+                      }}
+                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 hover:text-stone-900 active:scale-95 transition-colors shadow-2xs font-bold"
+                      title="新買備用入庫 (+1)"
+                    >
+                      <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </button>
                   </div>
                 </div>
               </div>
