@@ -12,6 +12,7 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   rainbowDietLogs: { name: "RainbowDietLogs", headers: ["id", "date", "plantName", "color", "status", "lastUpdated"] },
   supplementLogs: { name: "SupplementLogs", headers: ["id", "date", "items", "status", "lastUpdated"] },
   supplementSettings: { name: "SupplementSettings", headers: ["id", "name", "time", "targetAmount", "status", "lastUpdated", "category"] },
+  supplementInventory: { name: "SupplementInventory", headers: ["id", "name", "brand", "category", "openedCount", "unopenedCount", "targetUsers", "location", "notes", "status", "lastUpdated"] },
   illnessLogs: { name: "IllnessLogs", headers: ["id", "name", "category", "startDate", "recoveredDate", "severity", "temperature", "medicalCare", "medicationDaysTotal", "symptoms", "prescribedMedications", "medicationsTaken", "notes", "status", "lastUpdated", "history"] }
 };
 

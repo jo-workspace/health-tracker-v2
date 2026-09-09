@@ -150,11 +150,26 @@ export interface IllnessLog {
   lastUpdated: number;
 }
 
+export interface SupplementInventoryItem {
+  id: string;
+  name: string;             // 品名 (e.g. 魚油、D3、葉黃素)
+  brand?: string;            // 品牌 (e.g. NOW, 威德, 大研生醫)
+  category?: string;         // 分類 (維他命、礦物質、護眼健康、其他...)
+  openedCount: number;       // 已開啟罐數 (e.g. 1)
+  unopenedCount: number;     // 未開啟罐數 (e.g. 2)
+  targetUsers?: string;      // 服用對象 (兩人共用 / 僅自己 / 僅先生)
+  location?: string;         // 存放地點 (客廳餐桌 / 儲藏櫃 / 抽屜)
+  notes?: string;            // 備註
+  status: 'active' | 'deleted';
+  lastUpdated: string;
+}
+
 export interface HealthData {
   sleepLogs?: SleepLog[];
   rainbowDietLogs?: RainbowDietLog[];
   supplementLogs?: SupplementLog[];
   supplementSettings?: SupplementSetting[];
+  supplementInventory?: SupplementInventoryItem[];
   painLogs?: PainLog[];
   longTermLogs?: LongTermLog[];
   tmySymptomsLogs?: TmySymptomLog[];
@@ -168,6 +183,7 @@ export interface SyncPayload {
   rainbowDietLogs?: RainbowDietLog[];
   supplementLogs?: SupplementLog[];
   supplementSettings?: SupplementSetting[];
+  supplementInventory?: SupplementInventoryItem[];
   painLogs?: PainLog[];
   longTermLogs?: LongTermLog[];
   tmySymptomsLogs?: TmySymptomLog[];
@@ -176,4 +192,5 @@ export interface SyncPayload {
   illnessLogs?: IllnessLog[];
   clientTimestamp: number;
 }
+
 
