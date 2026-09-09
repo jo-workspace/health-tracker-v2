@@ -50,6 +50,31 @@ async function ensureCorrectHeaders(sheet: GoogleSpreadsheetWorksheet, expectedH
   }
 }
 
+/** 安全取得或建立工作表，防止並行請求或重試時觸發 Google API 400 "already exists" 錯誤 */
+async function getOrCreateSheet(doc: any, title: string, headers: string[]): Promise<GoogleSpreadsheetWorksheet> {
+  const findSheet = () => {
+    if (doc.sheetsByTitle[title]) return doc.sheetsByTitle[title];
+    const normalized = title.trim().toLowerCase();
+    return Object.values(doc.sheetsByTitle).find(
+      (s: any) => s.title && s.title.trim().toLowerCase() === normalized
+    ) as GoogleSpreadsheetWorksheet | undefined;
+  };
+
+  let sheet = findSheet();
+  if (!sheet) {
+    try {
+      sheet = await withApiRetry(() => doc.addSheet({ title, headerValues: headers }));
+    } catch (err: any) {
+      if (err.message?.includes('already exists') || err.message?.includes('Invalid requests[0].addSheet')) {
+        await withApiRetry(() => doc.loadInfo());
+        sheet = findSheet();
+      }
+      if (!sheet) throw err;
+    }
+  }
+  return sheet;
+}
+
 const DELETED_IDS_SHEET_NAME = 'DeletedIds';
 const DELETED_IDS_HEADERS = ['sheetKey', 'id', 'deletedAt'];
 
@@ -59,10 +84,7 @@ const DELETED_IDS_HEADERS = ['sheetKey', 'id', 'deletedAt'];
  * 因此只有透過 App 內建刪除（status: 'deleted'）才能真正阻止資料復活。
  */
 async function getDeletedIdsMap(doc: any): Promise<{ sheet: GoogleSpreadsheetWorksheet; map: Record<string, Set<string>> }> {
-  let sheet = doc.sheetsByTitle[DELETED_IDS_SHEET_NAME];
-  if (!sheet) {
-    sheet = await withApiRetry(() => doc.addSheet({ title: DELETED_IDS_SHEET_NAME, headerValues: DELETED_IDS_HEADERS }));
-  }
+  const sheet = await getOrCreateSheet(doc, DELETED_IDS_SHEET_NAME, DELETED_IDS_HEADERS);
   await ensureCorrectHeaders(sheet, DELETED_IDS_HEADERS);
 
   const rows = await withApiRetry<any[]>(() => sheet.getRows());
@@ -101,11 +123,7 @@ export async function POST(request: NextRequest) {
 
     for (const key of keysToSync) {
       const config = sheetsConfig[key];
-      let sheet = doc.sheetsByTitle[config.name];
-
-      if (!sheet) {
-        sheet = await withApiRetry(() => doc.addSheet({ title: config.name, headerValues: config.headers }));
-      }
+      const sheet = await getOrCreateSheet(doc, config.name, config.headers);
 
       // 檢查並保護工作表標題列
       await ensureCorrectHeaders(sheet, config.headers);
