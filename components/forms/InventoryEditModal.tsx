@@ -145,7 +145,7 @@ function ModalContent({
             <div>
               <span className="text-[11px] font-medium text-emerald-700 block mb-1.5 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                已開啟 (食用中)
+                已開啟
               </span>
               <div className="flex items-center gap-1.5">
                 <button
@@ -177,7 +177,7 @@ function ModalContent({
             <div>
               <span className="text-[11px] font-medium text-sky-700 block mb-1.5 flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />
-                未開啟 (庫存備用)
+                備用
               </span>
               <div className="flex items-center gap-1.5">
                 <button

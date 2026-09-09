@@ -214,7 +214,6 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
             </div>
             <div>
               <h2 className="text-base font-bold text-stone-800">保健品庫存</h2>
-              <p className="text-xs text-stone-400">一罐一罐記錄已開啟與未開啟備用</p>
             </div>
           </div>
           <button
@@ -236,11 +235,11 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
             <div className="text-lg font-bold text-stone-700">{stats.totalKinds} <span className="text-xs font-normal text-stone-400">種</span></div>
           </div>
           <div className="bg-emerald-50/60 py-2 rounded-xl">
-            <div className="text-[11px] text-emerald-700 font-medium">食用中 (已開啟)</div>
+            <div className="text-[11px] text-emerald-700 font-medium">已開啟</div>
             <div className="text-lg font-bold text-emerald-800">{stats.totalOpened} <span className="text-xs font-normal text-emerald-600">罐</span></div>
           </div>
           <div className="bg-sky-50/60 py-2 rounded-xl">
-            <div className="text-[11px] text-sky-700 font-medium">備用 (未開啟)</div>
+            <div className="text-[11px] text-sky-700 font-medium">備用</div>
             <div className="text-lg font-bold text-sky-800">{stats.totalUnopened} <span className="text-xs font-normal text-sky-600">罐</span></div>
           </div>
         </div>
