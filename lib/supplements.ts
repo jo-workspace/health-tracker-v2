@@ -12,7 +12,7 @@ export interface Supplement {
 
 export const DEFAULT_CATEGORY = '其他';
 /** 分類顯示順序，未列在此清單中的分類會排在最後 */
-export const CATEGORY_ORDER = ['維他命', '礦物質', '護眼健康', DEFAULT_CATEGORY];
+export const CATEGORY_ORDER = ['維他命', 'Mineral', '礦物質', '護眼健康', DEFAULT_CATEGORY];
 
 /** 依保健品的服用頻率文字（如「平日」「周一~五」「每天」）判斷指定日期是否為應服用日 */
 export function isScheduledDay(timeStr: string, date: Date): boolean {
@@ -60,13 +60,13 @@ export function isBedtimeSupplement(timeStr: string, name?: string): boolean {
 export const PREDEFINED_SUPPLEMENTS: Supplement[] = [
   { id: '1', name: 'Avamys', time: '早上起床', taken: false, ignored: false, category: '其他' },
   { id: '2', name: 'D3 (2000 IU)', time: '隨餐', taken: false, ignored: false, category: '維他命' },
-  { id: '3', name: '鋅', time: '隨餐', taken: false, ignored: false, category: '礦物質' },
-  { id: '4', name: '鐵', time: '隨餐', taken: false, ignored: false, category: '礦物質' },
+  { id: '3', name: '鋅', time: '隨餐', taken: false, ignored: false, category: 'Mineral' },
+  { id: '4', name: '鐵', time: '隨餐', taken: false, ignored: false, category: 'Mineral' },
   { id: '5', name: 'Q10', time: '隨餐', taken: false, ignored: false, category: '其他' },
   { id: '6', name: 'PQQ', time: '隨餐', taken: false, ignored: false, category: '其他' },
   { id: '7', name: '魚油', time: '周一~五', taken: false, ignored: false, category: '其他' },
   { id: '8', name: '葉黃素', time: '周一~五', taken: false, ignored: false, category: '護眼健康' },
-  { id: '9', name: '甘胺酸鎂', time: '睡前', taken: false, ignored: false, category: '礦物質' },
+  { id: '9', name: '甘胺酸鎂', time: '睡前', taken: false, ignored: false, category: 'Mineral' },
   { id: '10', name: '維他命 C', time: '晚餐時', taken: false, ignored: false, category: '維他命' },
-  { id: '11', name: '蘇糖酸鎂', time: '睡前', taken: false, ignored: false, category: '礦物質' },
+  { id: '11', name: '蘇糖酸鎂', time: '睡前', taken: false, ignored: false, category: 'Mineral' },
 ];

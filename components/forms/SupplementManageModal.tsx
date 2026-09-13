@@ -42,7 +42,7 @@ export default function SupplementManageModal({ isOpen, onClose, settings = [], 
         targetAmount: '1',
         status: 'active',
         lastUpdated: Date.now().toString(),
-        category: '礦物質'
+        category: 'Mineral'
       });
     }
 
@@ -54,7 +54,7 @@ export default function SupplementManageModal({ isOpen, onClose, settings = [], 
         targetAmount: '1',
         status: 'paused',
         lastUpdated: Date.now().toString(),
-        category: '礦物質'
+        category: 'Mineral'
       });
     }
 

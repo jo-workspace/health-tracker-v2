@@ -20,12 +20,19 @@ interface ItemStat {
   expected: number;
   achieved: number;
   increasedDose: number;
+  breakdownText?: string;
 }
 
 export default function SupplementHistoryModal({ isOpen, onClose, data = [], settings = [] }: Props) {
   if (!isOpen) return null;
 
   const activeLogs = data.filter(l => l.status !== 'deleted');
+
+  const normalizeCategory = (cat?: string) => {
+    if (!cat) return DEFAULT_CATEGORY;
+    if (cat === '礦物質' || cat.toLowerCase() === 'mineral') return 'Mineral';
+    return cat;
+  };
 
   // 基底品項清單：確保包含所有正式常態品項（包含蘇糖酸鎂、甘胺酸鎂）
   let rawList = settings && settings.length > 0
@@ -52,7 +59,7 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
       targetAmount: '1',
       status: 'active',
       lastUpdated: Date.now().toString(),
-      category: '礦物質'
+      category: 'Mineral'
     });
   }
 
@@ -61,7 +68,7 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
     name: s.name,
     time: s.time,
     targetAmount: parseInt(s.targetAmount, 10) || 1,
-    category: s.category || DEFAULT_CATEGORY
+    category: normalizeCategory(s.category)
   }));
 
   const logsByDate = new Map<string, SupplementLog>();
@@ -89,8 +96,35 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
     windowDates.push(d);
   }
 
+  // 判斷是否有甘胺酸鎂 / 蘇糖酸鎂需要合併計算
+  const isMagnesiumItem = (name: string) => name.includes('甘胺酸鎂') || name.includes('蘇糖酸鎂') || name === '鎂';
+  const hasMagnesiumInBase = baseItems.some(item => isMagnesiumItem(item.name));
+
+  // 排除掉單獨的甘胺酸鎂和蘇糖酸鎂，在統計時統合成一個品項
+  const regularBaseItems = baseItems.filter(item => !isMagnesiumItem(item.name));
+  
+  // 找出鎂的參考 time 設定（預設為「睡前」）
+  const magRefTime = baseItems.find(item => isMagnesiumItem(item.name))?.time || '睡前';
+  const magCategory = 'Mineral';
+
   const statsMap = new Map<string, ItemStat>();
-  baseItems.forEach(item => statsMap.set(item.id, { id: item.id, name: item.name, category: item.category, expected: 0, achieved: 0, increasedDose: 0 }));
+  regularBaseItems.forEach(item => {
+    statsMap.set(item.id, {
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      expected: 0,
+      achieved: 0,
+      increasedDose: 0
+    });
+  });
+
+  // 鎂的合併統計變數
+  let magExpected = 0;
+  let magAchieved = 0;
+  let magIncreasedDose = 0;
+  let glycinateDays = 0;
+  let threonateDays = 0;
 
   const customCounts = new Map<string, number>();
   const regularNames = new Set(baseItems.map(b => b.name));
@@ -106,16 +140,13 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
       try { parsedItems = JSON.parse(log.items); } catch (e) { parsedItems = []; }
     }
 
-    baseItems.forEach(item => {
+    // 一般品項統計
+    regularBaseItems.forEach(item => {
       if (!isScheduledDay(item.time, dateObj)) return;
       const stat = statsMap.get(item.id);
       if (!stat) return;
       stat.expected += 1;
-      const entry = parsedItems.find(p => 
-        p.id === item.id || 
-        p.name === item.name || 
-        (item.name === '甘胺酸鎂' && p.name === '鎂')
-      );
+      const entry = parsedItems.find(p => p.id === item.id || p.name === item.name);
       if (entry && entry.taken) {
         const amt = entry.amount || 1;
         const target = entry.targetAmount || item.targetAmount || 1;
@@ -124,10 +155,70 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
       }
     });
 
+    // 鎂的合併統計：因兩者互相取代，應服天數每日算 1 次，當天只要吃了甘胺酸鎂或蘇糖酸鎂任一即算達成
+    if (hasMagnesiumInBase && isScheduledDay(magRefTime, dateObj)) {
+      magExpected += 1;
+      const glycinateEntry = parsedItems.find(p => p.name.includes('甘胺酸鎂') || p.name === '鎂');
+      const threonateEntry = parsedItems.find(p => p.name.includes('蘇糖酸鎂'));
+
+      let tookGlycinate = false;
+      let tookThreonate = false;
+      let dayIncreased = false;
+
+      if (glycinateEntry && glycinateEntry.taken) {
+        tookGlycinate = true;
+        glycinateDays += 1;
+        if ((glycinateEntry.amount || 1) > (glycinateEntry.targetAmount || 1)) {
+          dayIncreased = true;
+        }
+      }
+
+      if (threonateEntry && threonateEntry.taken) {
+        tookThreonate = true;
+        threonateDays += 1;
+        if ((threonateEntry.amount || 1) > (threonateEntry.targetAmount || 1)) {
+          dayIncreased = true;
+        }
+      }
+
+      if (tookGlycinate || tookThreonate) {
+        magAchieved += 1;
+      }
+      if (dayIncreased) {
+        magIncreasedDose += 1;
+      }
+    }
+
     parsedItems.filter(p => p.isCustom && !regularNames.has(p.name)).forEach(p => {
       customCounts.set(p.name, (customCounts.get(p.name) || 0) + 1);
     });
   });
+
+  // 若有鎂，將合併統計項加入清單
+  if (hasMagnesiumInBase) {
+    let magDisplayName = '甘胺酸鎂 / 蘇糖酸鎂';
+    if (threonateDays === 0) magDisplayName = '甘胺酸鎂';
+    else if (glycinateDays === 0) magDisplayName = '蘇糖酸鎂';
+
+    let breakdownText = '';
+    if (threonateDays > 0 && glycinateDays > 0) {
+      breakdownText = `（甘胺酸 ${glycinateDays} 天・蘇糖酸 ${threonateDays} 天）`;
+    } else if (threonateDays > 0) {
+      breakdownText = `（全為蘇糖酸 ${threonateDays} 天）`;
+    } else if (glycinateDays > 0) {
+      breakdownText = `（全為甘胺酸 ${glycinateDays} 天）`;
+    }
+
+    statsMap.set('supp-magnesium-merged', {
+      id: 'supp-magnesium-merged',
+      name: magDisplayName,
+      category: magCategory,
+      expected: magExpected,
+      achieved: magAchieved,
+      increasedDose: magIncreasedDose,
+      breakdownText
+    });
+  }
 
   const getRate = (s: ItemStat) => (s.expected > 0 ? s.achieved / s.expected : 1);
 
@@ -194,6 +285,7 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
                         <div className="font-bold text-stone-700 text-sm truncate">{stat.name}</div>
                         <div className="text-[11px] text-stone-400 mt-0.5">
                           應服 {stat.expected} 天・達成 {stat.achieved} 天
+                          {stat.breakdownText && <span className="text-stone-500 font-medium"> {stat.breakdownText}</span>}
                           {stat.increasedDose > 0 && `・加量 ${stat.increasedDose} 天`}
                         </div>
                       </div>
