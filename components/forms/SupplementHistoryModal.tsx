@@ -27,16 +27,42 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
 
   const activeLogs = data.filter(l => l.status !== 'deleted');
 
-  // 基底品項清單：邏輯與 SupplementTracker 一致，優先用雲端設定，否則用預設清單
-  const baseItems = settings && settings.length > 0
-    ? settings.filter(s => s.status !== 'deleted').map(s => ({
+  // 基底品項清單：確保包含所有正式常態品項（包含蘇糖酸鎂、甘胺酸鎂）
+  let rawList = settings && settings.length > 0
+    ? settings.filter(s => s.status !== 'deleted')
+    : PREDEFINED_SUPPLEMENTS.map(s => ({
         id: s.id,
         name: s.name,
         time: s.time,
-        targetAmount: parseInt(s.targetAmount, 10) || 1,
-        category: s.category || DEFAULT_CATEGORY
-      }))
-    : PREDEFINED_SUPPLEMENTS.map(s => ({ id: s.id, name: s.name, time: s.time, targetAmount: 1, category: s.category || DEFAULT_CATEGORY }));
+        targetAmount: '1',
+        status: 'active',
+        lastUpdated: Date.now().toString(),
+        category: s.category
+      }));
+
+  // 將舊的「鎂」映射正名為「甘胺酸鎂」
+  rawList = rawList.map(s => s.name === '鎂' ? { ...s, name: '甘胺酸鎂' } : s);
+
+  // 若清單內尚無「蘇糖酸鎂」，補入以納入正式常態統計
+  if (!rawList.some(s => s.name.includes('蘇糖酸鎂'))) {
+    rawList.push({
+      id: 'supp-threonate',
+      name: '蘇糖酸鎂',
+      time: '睡前',
+      targetAmount: '1',
+      status: 'active',
+      lastUpdated: Date.now().toString(),
+      category: '礦物質'
+    });
+  }
+
+  const baseItems = rawList.map(s => ({
+    id: s.id,
+    name: s.name,
+    time: s.time,
+    targetAmount: parseInt(s.targetAmount, 10) || 1,
+    category: s.category || DEFAULT_CATEGORY
+  }));
 
   const logsByDate = new Map<string, SupplementLog>();
   activeLogs.forEach(l => logsByDate.set(l.date, l));
@@ -67,6 +93,10 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
   baseItems.forEach(item => statsMap.set(item.id, { id: item.id, name: item.name, category: item.category, expected: 0, achieved: 0, increasedDose: 0 }));
 
   const customCounts = new Map<string, number>();
+  const regularNames = new Set(baseItems.map(b => b.name));
+  regularNames.add('鎂');
+  regularNames.add('甘胺酸鎂');
+  regularNames.add('蘇糖酸鎂');
 
   windowDates.forEach(dateObj => {
     const dateStr = dateObj.toLocaleDateString('en-CA');
@@ -81,7 +111,11 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
       const stat = statsMap.get(item.id);
       if (!stat) return;
       stat.expected += 1;
-      const entry = parsedItems.find(p => p.id === item.id);
+      const entry = parsedItems.find(p => 
+        p.id === item.id || 
+        p.name === item.name || 
+        (item.name === '甘胺酸鎂' && p.name === '鎂')
+      );
       if (entry && entry.taken) {
         const amt = entry.amount || 1;
         const target = entry.targetAmount || item.targetAmount || 1;
@@ -90,7 +124,7 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
       }
     });
 
-    parsedItems.filter(p => p.isCustom).forEach(p => {
+    parsedItems.filter(p => p.isCustom && !regularNames.has(p.name)).forEach(p => {
       customCounts.set(p.name, (customCounts.get(p.name) || 0) + 1);
     });
   });

@@ -90,7 +90,9 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
           }
           return applyAutoIgnore(base);
         });
-        const customLogs = parsed.filter(p => p.isCustom);
+        const customLogs = parsed.filter(
+          p => p.isCustom && !baseSupplements.some(b => b.name === p.name || (b.name === '甘胺酸鎂' && p.name === '鎂') || b.name === '蘇糖酸鎂') && p.name !== '蘇糖酸鎂'
+        );
         setSupplements([...merged, ...customLogs]);
       } catch (e) {
         setSupplements(baseSupplements.map(applyAutoIgnore));
@@ -281,8 +283,15 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
       });
     } catch (e) { /* ignore malformed rows */ }
   });
+  const regularItemNames = new Set(
+    (settings || PREDEFINED_SUPPLEMENTS).map(s => s.name === '鎂' ? '甘胺酸鎂' : s.name)
+  );
+  regularItemNames.add('鎂');
+  regularItemNames.add('甘胺酸鎂');
+  regularItemNames.add('蘇糖酸鎂');
+
   const pastCustomNames = Array.from(customNameCounts.entries())
-    .filter(([name]) => !todayCustomNames.has(name))
+    .filter(([name]) => !todayCustomNames.has(name) && !regularItemNames.has(name))
     .sort((a, b) => b[1] - a[1])
     .map(([name]) => name);
 
