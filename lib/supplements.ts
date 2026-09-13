@@ -49,6 +49,14 @@ export function getSupplementCategorySlot(timeStr: string): string {
   return '隨餐';
 }
 
+export function isBedtimeSupplement(timeStr: string, name?: string): boolean {
+  const t = timeStr || '';
+  const n = name || '';
+  if (t.includes('睡前')) return true;
+  if (t.includes('晚餐') && (n.includes('鎂') || n.includes('C') || n.toLowerCase().includes('magnesium'))) return true;
+  return false;
+}
+
 export const PREDEFINED_SUPPLEMENTS: Supplement[] = [
   { id: '1', name: 'Avamys', time: '早上起床', taken: false, ignored: false, category: '其他' },
   { id: '2', name: 'D3 (2000 IU)', time: '隨餐', taken: false, ignored: false, category: '維他命' },
@@ -58,6 +66,7 @@ export const PREDEFINED_SUPPLEMENTS: Supplement[] = [
   { id: '6', name: 'PQQ', time: '隨餐', taken: false, ignored: false, category: '其他' },
   { id: '7', name: '魚油', time: '周一~五', taken: false, ignored: false, category: '其他' },
   { id: '8', name: '葉黃素', time: '周一~五', taken: false, ignored: false, category: '護眼健康' },
-  { id: '9', name: '鎂', time: '晚餐時', taken: false, ignored: false, category: '礦物質' },
+  { id: '9', name: '甘胺酸鎂', time: '睡前', taken: false, ignored: false, category: '礦物質' },
   { id: '10', name: '維他命 C', time: '晚餐時', taken: false, ignored: false, category: '維他命' },
+  { id: '11', name: '蘇糖酸鎂', time: '睡前', taken: false, ignored: false, category: '礦物質' },
 ];

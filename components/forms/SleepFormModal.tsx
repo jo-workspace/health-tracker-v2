@@ -1,8 +1,8 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Moon, Wand2, Loader2, Calendar, Check, RotateCw, Smile } from 'lucide-react';
-import type { SleepLog, BiteSplintLog } from '@/lib/types';
+import { X, Moon, Wand2, Loader2, Calendar, Check, RotateCw, Smile, Pill } from 'lucide-react';
+import type { SleepLog, BiteSplintLog, SupplementLog } from '@/lib/types';
 
 interface PendingImage {
   image: string;
@@ -23,12 +23,20 @@ const readAsBase64 = (file: File): Promise<PendingImage> => {
   });
 };
 
+const getPrevDateStr = (dateStr: string) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() - 1);
+  return date.toLocaleDateString('en-CA');
+};
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (log: Partial<SleepLog>, hasBiteSplint?: boolean) => void;
+  onSave: (log: Partial<SleepLog>, hasBiteSplint?: boolean, hasBedtimeSupplements?: boolean) => void;
   initialData?: SleepLog | null;
   splintLogs?: BiteSplintLog[];
+  supplementLogs?: SupplementLog[];
   sleepLogs?: SleepLog[];
   defaultDate?: string;
   defaultType?: 'night' | 'nap';
@@ -57,7 +65,7 @@ const ToothIcon = ({ size = 14 }: { size?: number }) => (
   </svg>
 );
 
-export default function SleepFormModal({ isOpen, onClose, onSave, initialData, splintLogs = [], sleepLogs = [], defaultDate, defaultType = 'night' }: Props) {
+export default function SleepFormModal({ isOpen, onClose, onSave, initialData, splintLogs = [], supplementLogs = [], sleepLogs = [], defaultDate, defaultType = 'night' }: Props) {
   const [date, setDate] = useState('');
   const [type, setType] = useState<'night' | 'nap'>('night');
   const [bedTime, setBedTime] = useState('');
@@ -70,6 +78,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
   const [stress, setStress] = useState('');
   const [feeling, setFeeling] = useState('normal');
   const [hasBiteSplint, setHasBiteSplint] = useState(false);
+  const [hasBedtimeSupplements, setHasBedtimeSupplements] = useState(false);
   const [notes, setNotes] = useState('');
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -91,8 +100,25 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
       const targetType = (initialData?.type as 'night' | 'nap') || defaultType;
       const isSplintRecorded = splintLogs.some(l => l.date === targetDate && l.status !== 'deleted');
 
+      // 檢查昨晚是否有服用睡前保健品 (以起床前一晚的日期為準)
+      const prevDate = getPrevDateStr(targetDate);
+      const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted');
+      let isBedtimeRecorded = false;
+      if (prevSuppLog && prevSuppLog.items) {
+        try {
+          const parsed = JSON.parse(prevSuppLog.items);
+          if (Array.isArray(parsed)) {
+            isBedtimeRecorded = parsed.some((p: any) => 
+              p.taken && (p.name?.includes('鎂') || p.name?.toLowerCase().includes('magnesium') || p.time?.includes('睡前'))
+            );
+          }
+        } catch {}
+      }
+
       setDate(targetDate);
       setType(targetType);
+      setHasBiteSplint(isSplintRecorded);
+      setHasBedtimeSupplements(isBedtimeRecorded);
 
       if (initialData) {
         setBedTime(initialData.bedtime || '');
@@ -316,7 +342,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
       notes,
       status: 'active',
       lastUpdated: Date.now().toString()
-    }, isNap ? false : hasBiteSplint);
+    }, isNap ? false : hasBiteSplint, isNap ? false : hasBedtimeSupplements);
     onClose();
   };
 
@@ -338,6 +364,19 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
           <div className="flex items-center gap-2">
             {type === 'night' && (
               <>
+                <button 
+                  type="button" 
+                  onClick={() => setHasBedtimeSupplements(!hasBedtimeSupplements)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full transition-colors ${
+                    hasBedtimeSupplements 
+                      ? 'bg-[#eaf5ef] hover:bg-[#d8ece1] text-[#3e7256]' 
+                      : 'bg-stone-100 hover:bg-stone-200 text-stone-500'
+                  }`}
+                  title="紀錄昨晚是否有吃睡前保健品（如蘇糖酸鎂/甘胺酸鎂+C）"
+                >
+                  <Pill size={14} />
+                  <span>睡前保健品</span>
+                </button>
                 <button 
                   type="button" 
                   onClick={() => setHasBiteSplint(!hasBiteSplint)}

@@ -1,11 +1,12 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Pill, Check, Plus, Minus, Clock, ChevronRight, X, Ban, History } from 'lucide-react';
+import { Pill, Check, Plus, Minus, Clock, ChevronRight, ChevronLeft, X, Ban, History, Settings, Calendar } from 'lucide-react';
 import type { SupplementLog, SupplementSetting, SyncPayload } from '@/lib/types';
 import { type Supplement, isScheduledDay, PREDEFINED_SUPPLEMENTS, getSupplementCategorySlot } from '@/lib/supplements';
 import SupplementHistoryModal from './forms/SupplementHistoryModal';
 import BatchCheckinModal from './forms/BatchCheckinModal';
+import SupplementManageModal from './forms/SupplementManageModal';
 
 interface Props {
   data?: SupplementLog[];
@@ -17,17 +18,22 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   const [supplements, setSupplements] = useState<Supplement[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [batchSlotName, setBatchSlotName] = useState('');
   const [isCustomPickerOpen, setIsCustomPickerOpen] = useState(false);
   const [customNameInput, setCustomNameInput] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const [selectedDate, setSelectedDate] = useState(() => todayStr);
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isDebouncingRef = useRef(false);
   const hasInitializedSettings = useRef(false);
   
-  const todayStr = new Date().toLocaleDateString('en-CA');
-  const todayLog = data?.find(log => log.date === todayStr);
+  const selectedLog = data?.find(log => log.date === selectedDate && log.status !== 'deleted');
+  const todayLog = data?.find(log => log.date === todayStr && log.status !== 'deleted');
 
   // 初始化 SupplementSettings (如果雲端是空的)
   useEffect(() => {
@@ -38,7 +44,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         name: s.name,
         time: s.time,
         targetAmount: '1',
-        status: 'active',
+        status: s.name === '蘇糖酸鎂' ? 'paused' : 'active',
         lastUpdated: Date.now().toString(),
         category: s.category
       }));
@@ -46,27 +52,39 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     }
   }, [settings, updateData]);
 
-  // 基底名單：優先使用 Google Sheets 的設定，若無則用預設
-  const baseSupplements: Supplement[] = settings && settings.length > 0
-    ? settings.filter(s => s.status !== 'deleted').map(s => ({
-        id: s.id,
-        name: s.name,
-        time: s.time,
-        taken: false,
-        amount: 0,
-        ignored: false,
-        targetAmount: parseInt(s.targetAmount, 10) || 1
-      }))
-    : PREDEFINED_SUPPLEMENTS.map(s => ({ ...s, targetAmount: 1 }));
+  // 基底名單：優先使用 Google Sheets 的設定，排除已暫停 (paused) 與已刪除
+  const baseSupplements: Supplement[] = useMemo(() => {
+    if (settings && settings.length > 0) {
+      return settings
+        .filter(s => s.status !== 'deleted' && s.status !== 'paused')
+        .map(s => {
+          let name = s.name;
+          if (name === '鎂') name = '甘胺酸鎂';
+          return {
+            id: s.id,
+            name,
+            time: s.time,
+            taken: false,
+            amount: 0,
+            ignored: false,
+            targetAmount: parseInt(s.targetAmount, 10) || 1
+          };
+        });
+    }
+    return PREDEFINED_SUPPLEMENTS.filter(s => s.id !== '11').map(s => ({ ...s, targetAmount: 1 }));
+  }, [settings]);
 
   useEffect(() => {
-    const applyAutoIgnore = (s: Supplement) => ({ ...s, ignored: !isScheduledDay(s.time, new Date()) });
+    if (isDebouncingRef.current) return;
 
-    if (todayLog && todayLog.items) {
+    const dateObj = new Date(selectedDate);
+    const applyAutoIgnore = (s: Supplement) => ({ ...s, ignored: !isScheduledDay(s.time, dateObj) });
+
+    if (selectedLog && selectedLog.items) {
       try {
-        const parsed: Supplement[] = JSON.parse(todayLog.items);
+        const parsed: Supplement[] = JSON.parse(selectedLog.items);
         const merged = baseSupplements.map(base => {
-          const logged = parsed.find(p => p.id === base.id);
+          const logged = parsed.find(p => p.id === base.id || (base.name === '甘胺酸鎂' && p.name === '鎂') || (p.name === base.name));
           if (logged) {
             return { ...base, taken: logged.taken, amount: logged.amount, ignored: logged.ignored };
           }
@@ -80,28 +98,62 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     } else {
       setSupplements(baseSupplements.map(applyAutoIgnore));
     }
-  }, [todayLog, settings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedLog, settings, selectedDate, baseSupplements]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  const saveToCloud = (newState: Supplement[]) => {
+  const saveToCloud = (newState: Supplement[], targetDate: string = selectedDate) => {
+    isDebouncingRef.current = true;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     
-    saveTimeoutRef.current = setTimeout(() => {
-      updateData({
-        supplementLogs: [{
-          id: todayLog?.id || `supp-${todayStr}`,
-          date: todayStr,
-          items: JSON.stringify(newState),
-          status: 'active',
-          lastUpdated: Date.now().toString()
-        }],
-        clientTimestamp: Date.now()
-      });
-    }, 1000);
+    saveTimeoutRef.current = setTimeout(async () => {
+      const existingLog = data?.find(l => l.date === targetDate && l.status !== 'deleted');
+      try {
+        await updateData({
+          supplementLogs: [{
+            id: existingLog?.id || `supp-${targetDate}`,
+            date: targetDate,
+            items: JSON.stringify(newState),
+            status: 'active',
+            lastUpdated: Date.now().toString()
+          }],
+          clientTimestamp: Date.now()
+        });
+      } finally {
+        setTimeout(() => {
+          isDebouncingRef.current = false;
+        }, 400);
+      }
+    }, 400);
+  };
+
+  const goToPrevDay = () => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const prev = new Date(y, m - 1, d - 1);
+    setSelectedDate(prev.toLocaleDateString('en-CA'));
+  };
+
+  const goToNextDay = () => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const next = new Date(y, m - 1, d + 1);
+    const nextStr = next.toLocaleDateString('en-CA');
+    if (nextStr <= todayStr) {
+      setSelectedDate(nextStr);
+    }
+  };
+
+  const formatDisplayDate = (dStr: string) => {
+    if (dStr === todayStr) return '今天';
+    const [y, m, d] = dStr.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const [ty, tm, td] = todayStr.split('-').map(Number);
+    const todayObj = new Date(ty, tm - 1, td);
+    const diffDays = Math.round((todayObj.getTime() - dateObj.getTime()) / (1000 * 3600 * 24));
+    if (diffDays === 1) return '昨天';
+    return `${m}/${d}`;
   };
 
   const hour = currentTime.getHours();
@@ -110,19 +162,32 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   const isMorning = hour >= 4 && hour < 12;
   const isEvening = hour >= 17 || hour < 4;
 
-  const relevantSupps = supplements;
-
   const isFulfilled = (s: Supplement) => (s.amount || (s.taken ? 1 : 0)) >= (s.targetAmount || 1);
 
-  const totalCount = relevantSupps.length;
-  const takenCount = relevantSupps.filter(s => s.taken && isFulfilled(s)).length;
-  const ignoredCount = relevantSupps.filter(s => s.ignored).length;
+  // 今日進度統計 (供外層卡片固定顯示當日)
+  const todayParsedSupps = useMemo(() => {
+    if (selectedDate === todayStr) return supplements;
+    if (!todayLog || !todayLog.items) return baseSupplements;
+    try {
+      const parsed: Supplement[] = JSON.parse(todayLog.items);
+      return baseSupplements.map(base => {
+        const logged = parsed.find(p => p.id === base.id || (base.name === '甘胺酸鎂' && p.name === '鎂') || (p.name === base.name));
+        return logged ? { ...base, taken: logged.taken, amount: logged.amount, ignored: logged.ignored } : base;
+      });
+    } catch {
+      return baseSupplements;
+    }
+  }, [selectedDate, todayStr, supplements, todayLog, baseSupplements]);
+
+  const totalCount = todayParsedSupps.length;
+  const takenCount = todayParsedSupps.filter(s => s.taken && isFulfilled(s)).length;
+  const ignoredCount = todayParsedSupps.filter(s => s.ignored).length;
   
   const pTaken = totalCount === 0 ? 100 : (takenCount / totalCount) * 100;
   const pIgnored = totalCount === 0 ? 0 : (ignoredCount / totalCount) * 100;
   const progressText = totalCount === 0 ? 100 : Math.round(pTaken);
   
-  const pending = relevantSupps.filter(s => !s.taken && !s.ignored || (s.taken && !isFulfilled(s)));
+  const pending = todayParsedSupps.filter(s => !s.taken && !s.ignored || (s.taken && !isFulfilled(s)));
   
   const suggestedNow = pending.filter(s => {
     const slot = getSupplementCategorySlot(s.time);
@@ -130,6 +195,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     if (slot === '晚餐時') return isEvening;
     return true; 
   });
+
+  const relevantSupps = supplements;
 
   const toggleTaken = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -146,7 +213,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         }
         return s;
       });
-      saveToCloud(newState);
+      saveToCloud(newState, selectedDate);
       return newState;
     });
   };
@@ -162,7 +229,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         }
         return s;
       });
-      saveToCloud(newState);
+      saveToCloud(newState, selectedDate);
       return newState;
     });
   };
@@ -171,7 +238,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     e?.stopPropagation();
     setSupplements(prev => {
       const newState = prev.map(s => s.id === id ? { ...s, ignored: !s.ignored, taken: false, amount: 0 } : s);
-      saveToCloud(newState);
+      saveToCloud(newState, selectedDate);
       return newState;
     });
   };
@@ -190,7 +257,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         isCustom: true
       };
       const newState = [...prev, newSupp];
-      saveToCloud(newState);
+      saveToCloud(newState, selectedDate);
       return newState;
     });
     setIsCustomPickerOpen(false);
@@ -257,7 +324,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         }
         return s;
       });
-      saveToCloud(newState);
+      saveToCloud(newState, selectedDate);
       return newState;
     });
   };
@@ -444,13 +511,77 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
               </button>
             </div>
 
-            <div className="p-4 shrink-0 flex justify-between items-end">
-              <div>
-                <h2 className="text-xl font-bold text-stone-800">今日紀錄</h2>
-                <p className="text-xs text-stone-500 mt-1">您可以前往 Google Sheets 設定「目標數量」。</p>
+            <div className="p-4 shrink-0 flex flex-col gap-2.5">
+              {/* Date Navigation & Management Bar */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={goToPrevDay}
+                    className="p-1 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-white transition-colors"
+                    title="前一天"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <label className="relative flex items-center gap-1.5 px-2 py-0.5 text-xs font-bold text-stone-700 cursor-pointer hover:bg-white rounded-lg transition-colors">
+                    <Calendar size={13} className="text-[#6ba388]" />
+                    <span>{formatDisplayDate(selectedDate)}</span>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      max={todayStr}
+                      onChange={e => e.target.value && setSelectedDate(e.target.value)}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={goToNextDay}
+                    disabled={selectedDate >= todayStr}
+                    className="p-1 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-white transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+                    title="後一天"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {selectedDate !== todayStr && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(todayStr)}
+                    className="text-[11px] font-bold text-[#5b8c74] bg-[#eef5f1] hover:bg-[#e2ebe6] px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    回到今天
+                  </button>
+                )}
+
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsManageModalOpen(true)}
+                    className="flex items-center gap-1 text-xs font-bold text-stone-600 hover:text-stone-800 px-2.5 py-1 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors"
+                    title="管理保健品清單、啟用/暫停輪替與目標顆數"
+                  >
+                    <Settings size={13} className="text-stone-500" />
+                    <span>清單管理</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryModalOpen(true)}
+                    className="flex items-center gap-1 text-xs font-bold text-stone-500 hover:text-stone-700 px-2 py-1 rounded-lg transition-colors"
+                  >
+                    <History size={13} />
+                    <span>90天</span>
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-col items-end gap-1.5 shrink-0">
-                {currentSlotName && (
+
+              {/* Sub-bar for batch or status info */}
+              <div className="flex justify-between items-center text-xs text-stone-500">
+                <span className="text-[11px]">
+                  {selectedDate === todayStr ? '今日紀錄（點擊卡片打卡或微調顆數）' : `補記或修改 ${selectedDate} 服用紀錄`}
+                </span>
+                {selectedDate === todayStr && currentSlotName && (
                   <button
                     type="button"
                     onClick={() => {
@@ -462,12 +593,6 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
                     ✅ {currentSlotName}
                   </button>
                 )}
-                <button
-                  onClick={() => setIsHistoryModalOpen(true)}
-                  className="flex items-center gap-1 text-xs font-bold text-stone-500 hover:text-stone-700 shrink-0"
-                >
-                  <History size={14} /> 90天紀錄
-                </button>
               </div>
             </div>
 
@@ -517,6 +642,18 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         onClose={() => setIsHistoryModalOpen(false)}
         data={data}
         settings={settings}
+      />
+
+      <SupplementManageModal
+        isOpen={isManageModalOpen}
+        onClose={() => setIsManageModalOpen(false)}
+        settings={settings || []}
+        onSaveSettings={(newSettings) => {
+          updateData({
+            supplementSettings: newSettings,
+            clientTimestamp: Date.now()
+          });
+        }}
       />
 
       <BatchCheckinModal

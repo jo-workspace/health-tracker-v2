@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Moon, Plus, PenLine } from 'lucide-react';
-import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload } from '@/lib/types';
+import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload, SupplementSetting } from '@/lib/types';
+import { isBedtimeSupplement, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
 import SleepDetailModal from './SleepDetailModal';
 import SleepFormModal from './forms/SleepFormModal';
 
@@ -10,12 +11,13 @@ interface Props {
   data?: SleepLog[];
   allergyLogs?: AllergyLog[];
   supplementLogs?: SupplementLog[];
+  supplementSettings?: SupplementSetting[];
   splintLogs?: BiteSplintLog[];
   updateData: (payload: SyncPayload) => void;
   forceSync?: () => Promise<void>;
   initialSynced?: boolean;
 }
-export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], splintLogs = [], updateData, forceSync, initialSynced = false }: Props) {
+export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], supplementSettings = [], splintLogs = [], updateData, forceSync, initialSynced = false }: Props) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null);
@@ -292,10 +294,11 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
         onClose={() => setIsFormModalOpen(false)}
         initialData={editingLog}
         splintLogs={splintLogs}
+        supplementLogs={supplementLogs}
         sleepLogs={activeLogs}
         defaultDate={defaultDate}
         defaultType={defaultType}
-        onSave={(logData, hasBiteSplint) => {
+        onSave={(logData, hasBiteSplint, hasBedtimeSupplements) => {
           let newLogs = [...data];
 
           if (logData.type === 'night') {
@@ -367,9 +370,95 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
             }
           }
 
+          let updatedSuppLogs = [...supplementLogs];
+          if (hasBedtimeSupplements !== undefined && logData.date && logData.type === 'night') {
+            const [y, m, d] = logData.date.split('-').map(Number);
+            const prevDateObj = new Date(y, m - 1, d - 1);
+            const prevDate = prevDateObj.toLocaleDateString('en-CA');
+
+            const activeSettings = supplementSettings && supplementSettings.length > 0
+              ? supplementSettings.filter(s => s.status !== 'deleted' && s.status !== 'paused')
+              : PREDEFINED_SUPPLEMENTS.filter(s => s.id !== '11').map(s => ({ ...s, targetAmount: '1', status: 'active' }));
+
+            const bedtimeSettings = activeSettings.filter(s => isBedtimeSupplement(s.time, s.name));
+
+            const existingSuppIndex = updatedSuppLogs.findIndex(
+              l => l.date === prevDate && l.status !== 'deleted'
+            );
+
+            let currentItems: any[] = [];
+            if (existingSuppIndex >= 0 && updatedSuppLogs[existingSuppIndex].items) {
+              try {
+                currentItems = JSON.parse(updatedSuppLogs[existingSuppIndex].items);
+              } catch {
+                currentItems = [];
+              }
+            } else {
+              currentItems = activeSettings.map(s => ({
+                id: s.id,
+                name: s.name === '鎂' ? '甘胺酸鎂' : s.name,
+                time: s.time,
+                taken: false,
+                amount: 0,
+                targetAmount: parseInt(s.targetAmount, 10) || 1,
+                ignored: false
+              }));
+            }
+
+            // 更新或標記睡前項目
+            const updatedItems = currentItems.map(item => {
+              if (isBedtimeSupplement(item.time, item.name)) {
+                const target = item.targetAmount || 1;
+                return {
+                  ...item,
+                  taken: hasBedtimeSupplements,
+                  amount: hasBedtimeSupplements ? target : 0,
+                  ignored: false
+                };
+              }
+              return item;
+            });
+
+            // 若原本缺少設定中啟用的睡前品項，補上
+            bedtimeSettings.forEach(b => {
+              const bName = b.name === '鎂' ? '甘胺酸鎂' : b.name;
+              const exists = updatedItems.some(item => item.id === b.id || item.name === bName);
+              if (!exists && hasBedtimeSupplements) {
+                const targetAmt = parseInt(b.targetAmount, 10) || 1;
+                updatedItems.push({
+                  id: b.id,
+                  name: bName,
+                  time: b.time,
+                  taken: true,
+                  amount: targetAmt,
+                  targetAmount: targetAmt,
+                  ignored: false
+                });
+              }
+            });
+
+            if (existingSuppIndex >= 0) {
+              updatedSuppLogs[existingSuppIndex] = {
+                ...updatedSuppLogs[existingSuppIndex],
+                items: JSON.stringify(updatedItems),
+                status: 'active',
+                lastUpdated: Date.now().toString()
+              };
+            } else {
+              updatedSuppLogs.push({
+                id: `supp-${prevDate}`,
+                date: prevDate,
+                items: JSON.stringify(updatedItems),
+                status: 'active',
+                lastUpdated: Date.now().toString()
+              });
+            }
+          }
+
           updateData({
             sleepLogs: newLogs,
             biteSplintLogs: updatedSplintLogs,
+            supplementLogs: updatedSuppLogs,
             clientTimestamp: Date.now()
           });
         }}

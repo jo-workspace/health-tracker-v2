@@ -86,6 +86,37 @@ export function useHealthData() {
 
   const updateData = async (payload: SyncPayload) => {
     setSyncing(true);
+    // Optimistic UI update
+    setData(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      if (payload.supplementLogs) {
+        const existing = [...(prev.supplementLogs || [])];
+        payload.supplementLogs.forEach(newLog => {
+          const idx = existing.findIndex(l => l.id === newLog.id || (l.date === newLog.date && l.status !== 'deleted'));
+          if (idx >= 0) existing[idx] = { ...existing[idx], ...newLog };
+          else existing.push(newLog as any);
+        });
+        updated.supplementLogs = existing;
+      }
+      if (payload.supplementSettings) {
+        updated.supplementSettings = payload.supplementSettings as any;
+      }
+      if (payload.sleepLogs) {
+        const existing = [...(prev.sleepLogs || [])];
+        payload.sleepLogs.forEach(newLog => {
+          const idx = existing.findIndex(l => l.id === newLog.id);
+          if (idx >= 0) existing[idx] = { ...existing[idx], ...newLog };
+          else existing.push(newLog as any);
+        });
+        updated.sleepLogs = existing;
+      }
+      if (payload.biteSplintLogs) {
+        updated.biteSplintLogs = payload.biteSplintLogs as any;
+      }
+      return updated;
+    });
+
     try {
       const res = await syncBatch(payload);
       setData(prev => {

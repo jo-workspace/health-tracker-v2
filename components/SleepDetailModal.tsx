@@ -25,8 +25,8 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
     return d.toLocaleDateString('en-CA');
   };
 
-  const isMagnesiumTaken = (wakeUpDateStr: string) => {
-    if (!supplementLogs || supplementLogs.length === 0) return false;
+  const getMagnesiumInfo = (wakeUpDateStr: string) => {
+    if (!supplementLogs || supplementLogs.length === 0) return { taken: false, name: '' };
     // 睡眠紀錄日期為「起床日期」(如 8/6 早上)，對應前一晚睡前(如 8/5 晚上)服用的鎂
     const prevDateStr = getPrevDateStr(wakeUpDateStr);
     
@@ -34,16 +34,24 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
     const targetLog = supplementLogs.find(log => log.date === prevDateStr && log.status !== 'deleted')
       || supplementLogs.find(log => log.date === wakeUpDateStr && log.status !== 'deleted');
 
-    if (!targetLog || !targetLog.items) return false;
+    if (!targetLog || !targetLog.items) return { taken: false, name: '' };
     try {
       const items = JSON.parse(targetLog.items);
-      return Array.isArray(items) && items.some((item: any) =>
-        (item.name?.includes('鎂') || item.name?.toLowerCase().includes('magnesium')) && item.taken
-      );
+      if (Array.isArray(items)) {
+        const magItem = items.find((item: any) =>
+          (item.name?.includes('鎂') || item.name?.toLowerCase().includes('magnesium')) && item.taken
+        );
+        if (magItem) {
+          return { taken: true, name: magItem.name || '鎂' };
+        }
+      }
+      return { taken: false, name: '' };
     } catch {
-      return false;
+      return { taken: false, name: '' };
     }
   };
+
+  const isMagnesiumTaken = (wakeUpDateStr: string) => getMagnesiumInfo(wakeUpDateStr).taken;
 
   // 取得近 7 天的日期字串 (YYYY-MM-DD)
   const last7Days: string[] = [];
@@ -82,7 +90,9 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
       return SLEEP_IMPACT_RANK[impact] > SLEEP_IMPACT_RANK[worst] ? impact : worst;
     }, 'none');
 
-    const hasMagnesium = isMagnesiumTaken(dateStr);
+    const magInfo = getMagnesiumInfo(dateStr);
+    const hasMagnesium = magInfo.taken;
+    const magnesiumName = magInfo.name;
     const hasSplint = splintLogs.some(l => l.date === dateStr && l.status !== 'deleted');
 
     return {
@@ -94,6 +104,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
       stress: nightLog?.stress ? Number(nightLog.stress) : null,
       allergyImpact: worstAllergyImpact,
       hasMagnesium,
+      magnesiumName,
       hasSplint
     };
   });
@@ -273,7 +284,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
                         </span>
                       )}
                       {d.hasMagnesium && (
-                        <span className="text-[10px]" title="當天有補充鎂">
+                        <span className="text-[10px]" title={`當天有補充 ${d.magnesiumName || '鎂'}`}>
                           💊
                         </span>
                       )}
