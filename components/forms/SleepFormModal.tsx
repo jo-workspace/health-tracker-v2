@@ -87,6 +87,8 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
   const [retrySeconds, setRetrySeconds] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const isInitializedRef = useRef(false);
+
   // 429 冷卻倒數，倒數歸零後才開放重試
   useEffect(() => {
     if (retrySeconds <= 0) return;
@@ -95,78 +97,86 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
   }, [retrySeconds]);
 
   useEffect(() => {
-    if (isOpen) {
-      const targetDate = initialData?.date || defaultDate || new Date().toLocaleDateString('en-CA');
-      const targetType = (initialData?.type as 'night' | 'nap') || defaultType;
-      const isSplintRecorded = splintLogs.some(l => l.date === targetDate && l.status !== 'deleted');
-
-      // 檢查昨晚是否有服用睡前保健品 (以起床前一晚的日期為準)
-      const prevDate = getPrevDateStr(targetDate);
-      const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted');
-      let isBedtimeRecorded = false;
-      if (prevSuppLog && prevSuppLog.items) {
-        try {
-          const parsed = JSON.parse(prevSuppLog.items);
-          if (Array.isArray(parsed)) {
-            isBedtimeRecorded = parsed.some((p: any) => 
-              p.taken && (p.name?.includes('鎂') || p.name?.toLowerCase().includes('magnesium') || p.time?.includes('睡前'))
-            );
-          }
-        } catch {}
-      }
-
-      setDate(targetDate);
-      setType(targetType);
-      setHasBiteSplint(isSplintRecorded);
-      setHasBedtimeSupplements(isBedtimeRecorded);
-
-      if (initialData) {
-        setBedTime(initialData.bedtime || '');
-        setWakeTime(initialData.wakeupTime || '');
-        setSleepDuration(initialData.sleepDuration || '');
-        setHrv(initialData.hrv || '');
-        setRestingHeartRate(initialData.restingHeartRate || '');
-        setDeepSleep(initialData.deepSleep || '');
-        setRemSleep(initialData.remSleep || '');
-        setStress(initialData.stress || '');
-        setFeeling(initialData.feeling || 'normal');
-        setHasBiteSplint(isSplintRecorded);
-        setNotes(initialData.notes || '');
-      } else {
-        const existingLog = targetType === 'night' 
-          ? sleepLogs.find(l => l.date === targetDate && l.type === 'night' && l.status !== 'deleted')
-          : null;
-
-        if (existingLog) {
-          setBedTime(existingLog.bedtime || '');
-          setWakeTime(existingLog.wakeupTime || '');
-          setSleepDuration(existingLog.sleepDuration || '');
-          setHrv(existingLog.hrv || '');
-          setRestingHeartRate(existingLog.restingHeartRate || '');
-          setDeepSleep(existingLog.deepSleep || '');
-          setRemSleep(existingLog.remSleep || '');
-          setStress(existingLog.stress || '');
-          setFeeling(existingLog.feeling || 'normal');
-          setNotes(existingLog.notes || '');
-        } else {
-          setBedTime('');
-          setWakeTime('');
-          setSleepDuration('');
-          setHrv('');
-          setRestingHeartRate('');
-          setDeepSleep('');
-          setRemSleep('');
-          setStress('');
-          setFeeling('normal');
-          setNotes('');
-        }
-        setHasBiteSplint(isSplintRecorded);
-      }
-      setPendingImages([]);
-      setAnalyzeError('');
-      setRetrySeconds(0);
+    if (!isOpen) {
+      isInitializedRef.current = false;
+      return;
     }
-  }, [isOpen, initialData, defaultDate, defaultType, splintLogs, sleepLogs]);
+
+    if (isInitializedRef.current) {
+      return;
+    }
+
+    isInitializedRef.current = true;
+    const targetDate = initialData?.date || defaultDate || new Date().toLocaleDateString('en-CA');
+    const targetType = (initialData?.type as 'night' | 'nap') || defaultType;
+    const isSplintRecorded = splintLogs.some(l => l.date === targetDate && l.status !== 'deleted');
+
+    // 檢查昨晚是否有服用睡前保健品 (以起床前一晚的日期為準)
+    const prevDate = getPrevDateStr(targetDate);
+    const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted');
+    let isBedtimeRecorded = false;
+    if (prevSuppLog && prevSuppLog.items) {
+      try {
+        const parsed = JSON.parse(prevSuppLog.items);
+        if (Array.isArray(parsed)) {
+          isBedtimeRecorded = parsed.some((p: any) => 
+            p.taken && (p.name?.includes('鎂') || p.name?.toLowerCase().includes('magnesium') || p.time?.includes('睡前'))
+          );
+        }
+      } catch {}
+    }
+
+    setDate(targetDate);
+    setType(targetType);
+    setHasBiteSplint(isSplintRecorded);
+    setHasBedtimeSupplements(isBedtimeRecorded);
+
+    if (initialData) {
+      setBedTime(initialData.bedtime || '');
+      setWakeTime(initialData.wakeupTime || '');
+      setSleepDuration(initialData.sleepDuration || '');
+      setHrv(initialData.hrv || '');
+      setRestingHeartRate(initialData.restingHeartRate || '');
+      setDeepSleep(initialData.deepSleep || '');
+      setRemSleep(initialData.remSleep || '');
+      setStress(initialData.stress || '');
+      setFeeling(initialData.feeling || 'normal');
+      setHasBiteSplint(isSplintRecorded);
+      setNotes(initialData.notes || '');
+    } else {
+      const existingLog = targetType === 'night' 
+        ? sleepLogs.find(l => l.date === targetDate && l.type === 'night' && l.status !== 'deleted')
+        : null;
+
+      if (existingLog) {
+        setBedTime(existingLog.bedtime || '');
+        setWakeTime(existingLog.wakeupTime || '');
+        setSleepDuration(existingLog.sleepDuration || '');
+        setHrv(existingLog.hrv || '');
+        setRestingHeartRate(existingLog.restingHeartRate || '');
+        setDeepSleep(existingLog.deepSleep || '');
+        setRemSleep(existingLog.remSleep || '');
+        setStress(existingLog.stress || '');
+        setFeeling(existingLog.feeling || 'normal');
+        setNotes(existingLog.notes || '');
+      } else {
+        setBedTime('');
+        setWakeTime('');
+        setSleepDuration('');
+        setHrv('');
+        setRestingHeartRate('');
+        setDeepSleep('');
+        setRemSleep('');
+        setStress('');
+        setFeeling('normal');
+        setNotes('');
+      }
+      setHasBiteSplint(isSplintRecorded);
+    }
+    setPendingImages([]);
+    setAnalyzeError('');
+    setRetrySeconds(0);
+  }, [isOpen, initialData, defaultDate, defaultType, splintLogs, sleepLogs, supplementLogs]);
 
   const handleDateChange = (newDate: string) => {
     setDate(newDate);
@@ -198,6 +208,21 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
     }
     const isSplintRecorded = splintLogs.some(l => l.date === newDate && l.status !== 'deleted');
     setHasBiteSplint(isSplintRecorded);
+
+    const prevDate = getPrevDateStr(newDate);
+    const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted');
+    let isBedtimeRecorded = false;
+    if (prevSuppLog && prevSuppLog.items) {
+      try {
+        const parsed = JSON.parse(prevSuppLog.items);
+        if (Array.isArray(parsed)) {
+          isBedtimeRecorded = parsed.some((p: any) => 
+            p.taken && (p.name?.includes('鎂') || p.name?.toLowerCase().includes('magnesium') || p.time?.includes('睡前'))
+          );
+        }
+      } catch {}
+    }
+    setHasBedtimeSupplements(isBedtimeRecorded);
   };
 
   const handleTypeChange = (newType: 'night' | 'nap') => {
@@ -327,7 +352,7 @@ export default function SleepFormModal({ isOpen, onClose, onSave, initialData, s
     e.preventDefault();
     const isNap = type === 'nap';
     onSave({
-      id: existingLogForSelection?.id || (isNap && initialData?.id ? initialData.id : crypto.randomUUID()),
+      id: existingLogForSelection?.id || crypto.randomUUID(),
       date,
       type,
       bedtime: isNap ? '' : bedTime,

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Moon, Plus, PenLine } from 'lucide-react';
 import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload, SupplementSetting } from '@/lib/types';
@@ -36,7 +36,7 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
     setIsFormModalOpen(true);
   };
 
-  const activeLogs = data.filter(log => log.status !== 'deleted');
+  const activeLogs = useMemo(() => data.filter(log => log.status !== 'deleted'), [data]);
 
   // 監聽喚醒與跨日，自動更新 todayStr
   useEffect(() => {
@@ -289,7 +289,8 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
       )}
 
       {/* 新增/編輯睡眠表單 */}
-      <SleepFormModal
+      {isFormModalOpen && (
+        <SleepFormModal
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         initialData={editingLog}
@@ -462,7 +463,8 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
             clientTimestamp: Date.now()
           });
         }}
-      />
+        />
+      )}
     </>
   );
 }
