@@ -2,7 +2,6 @@
 import { useState, useMemo } from 'react';
 import SupplementTracker from '@/components/SupplementTracker';
 import SleepCard from '@/components/SleepCard';
-import HRVCard from '@/components/HRVCard';
 import RainbowDietCard from '@/components/RainbowDietCard';
 import ActivePainsCard from '@/components/ActivePainsCard';
 import AcuteIllnessCard from '@/components/AcuteIllnessCard';
@@ -75,7 +74,6 @@ export default function Dashboard() {
             {activeTab === 'today' ? (
               <div className="w-full max-w-md mx-auto pt-2 space-y-4">
                 <SleepCard data={data?.sleepLogs} allergyLogs={data?.allergyLogs} supplementLogs={data?.supplementLogs} supplementSettings={data?.supplementSettings} splintLogs={data?.biteSplintLogs} updateData={updateData} forceSync={forceSync} initialSynced={initialSynced} />
-                <HRVCard data={data?.sleepLogs} updateData={updateData} />
                 <SupplementTracker data={data?.supplementLogs} settings={data?.supplementSettings} updateData={updateData} />
                 <RainbowDietCard data={data?.rainbowDietLogs} updateData={updateData} />
                 <AcuteIllnessCard data={data?.illnessLogs} updateData={updateData} />
