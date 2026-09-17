@@ -107,6 +107,8 @@ export interface TmySymptomLog {
 export interface AllergyLog {
   id: string;
   date: string;
+  timeSlot?: string; // '早' | '中' | '晚' | '睡前'
+  time?: string; // e.g. "14:30" (選填)
   locations: string; // comma-separated: 鼻子,皮膚,眼睛
   severity: number; // 1-10
   trigger?: string;

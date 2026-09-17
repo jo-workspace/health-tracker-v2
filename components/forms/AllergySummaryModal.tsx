@@ -1,11 +1,13 @@
 'use client';
-import { X } from 'lucide-react';
+import { X, Pencil, Trash2, Moon, Clock } from 'lucide-react';
 import type { AllergyLog } from '@/lib/types';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   logs: AllergyLog[];
+  onEdit: (log: AllergyLog) => void;
+  onDelete: (id: string) => void;
 }
 
 const PRESET_MEDS_MAP: Record<string, string> = {
@@ -13,10 +15,17 @@ const PRESET_MEDS_MAP: Record<string, string> = {
   "steroid_cream": "類固醇藥膏"
 };
 
-export default function AllergySummaryModal({ isOpen, onClose, logs }: Props) {
+export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onDelete }: Props) {
   if (!isOpen) return null;
 
-  const activeLogs = logs.filter(l => l.status !== 'deleted').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const activeLogs = logs
+    .filter(l => l.status !== 'deleted')
+    .sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      if (b.time && a.time) return b.time.localeCompare(a.time);
+      return (b.lastUpdated || 0) - (a.lastUpdated || 0);
+    });
 
   const formatList = (raw: string, map: Record<string, string>) => {
     if (!raw) return '';
@@ -69,13 +78,45 @@ export default function AllergySummaryModal({ isOpen, onClose, logs }: Props) {
             <div className="text-center text-stone-400 py-8 text-sm">目前沒有任何發作紀錄</div>
           ) : (
             activeLogs.map(log => (
-              <div key={log.id} className="bg-white border border-stone-200 rounded-lg p-3 shadow-sm flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-stone-700">{formatDate(log.date)}</span>
-                  <span className={`px-2 py-0.5 rounded font-black text-xs ${getSeverityColor(log.severity)}`}>
-                    嚴重度 {log.severity}（{getSeverityLabel(log.severity)}）
-                  </span>
+              <div key={log.id} className="bg-white border border-stone-200 rounded-lg p-3 shadow-xs flex flex-col gap-2">
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-stone-800 text-sm">{formatDate(log.date)}</span>
+                    {log.timeSlot && (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-stone-100 text-stone-700 border border-stone-200">
+                        {log.timeSlot}
+                      </span>
+                    )}
+                    {log.time && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-500">
+                        <Clock size={12} className="text-stone-400" />
+                        {log.time}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={`px-2 py-0.5 rounded font-black text-xs ${getSeverityColor(log.severity)}`}>
+                      嚴重度 {log.severity}（{getSeverityLabel(log.severity)}）
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(log)}
+                      className="p-1 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded transition-colors"
+                      title="編輯紀錄"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(log.id)}
+                      className="p-1 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="刪除紀錄"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
+
                 <div className="text-sm text-stone-600">
                   <span className="font-medium text-stone-500">部位：</span>{log.locations || '無'}
                 </div>
@@ -90,8 +131,10 @@ export default function AllergySummaryModal({ isOpen, onClose, logs }: Props) {
                   </div>
                 )}
                 {log.sleepImpact && log.sleepImpact !== 'none' && (
-                  <div className="text-sm text-stone-600">
-                    <span className="font-medium text-stone-500">😴 影響睡眠：</span>{SLEEP_IMPACT_LABELS[log.sleepImpact]}
+                  <div className="text-xs text-stone-600 flex items-center gap-1">
+                    <Moon size={13} className="text-[#6f7f99]" />
+                    <span className="font-medium text-stone-500">影響睡眠：</span>
+                    <span>{SLEEP_IMPACT_LABELS[log.sleepImpact]}</span>
                   </div>
                 )}
                 {log.notes && (

@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ClipboardList, Edit3, Trash2, CalendarPlus, FileText, Plus, Sparkles } from 'lucide-react';
+import { ClipboardList, Pencil, Calendar, Trash2, CalendarPlus, FileText, Plus, Sparkles } from 'lucide-react';
 import type { LongTermLog, TmySymptomLog, BiteSplintLog, AllergyLog, SyncPayload } from '@/lib/types';
 import LongTermFormModal from '@/components/forms/LongTermFormModal';
 import TmySymptomFormModal from '@/components/forms/TmySymptomFormModal';
@@ -25,6 +25,7 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
 
   const [isAllergyModalOpen, setIsAllergyModalOpen] = useState(false);
   const [isAllergySummaryModalOpen, setIsAllergySummaryModalOpen] = useState(false);
+  const [editingAllergyLog, setEditingAllergyLog] = useState<AllergyLog | null>(null);
 
   const activeItems = data.filter(log => log.status !== 'deleted');
 
@@ -105,13 +106,13 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
     
     if (diffDays > 0) {
       if (diffDays <= 7) {
-        return <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#fef3c7] text-[#d97706]">📅 剩 {diffDays} 天</span>;
+        return <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#fef3c7] text-[#d97706]"><Calendar size={11} />剩 {diffDays} 天</span>;
       }
-      return <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#e2e7e1] text-[#5b6657]">📅 剩 {diffDays} 天</span>;
+      return <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#e2e7e1] text-[#5b6657]"><Calendar size={11} />剩 {diffDays} 天</span>;
     } else if (diffDays === 0) {
-      return <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-[#fef2f2] text-[#dc2626] border border-[#fca5a5]">📅 今天回診</span>;
+      return <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-bold bg-[#fef2f2] text-[#dc2626] border border-[#fca5a5]"><Calendar size={11} />今天回診</span>;
     }
-    return <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#fef2f2] text-[#dc2626] border border-[#fca5a5]">📅 逾期 {Math.abs(diffDays)} 天</span>;
+    return <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#fef2f2] text-[#dc2626] border border-[#fca5a5]"><Calendar size={11} />逾期 {Math.abs(diffDays)} 天</span>;
   };
 
   const getRelativeTimeStr = (timestamp: number) => {
@@ -160,7 +161,7 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
     const newLogs = [...splintLogs, { id: crypto.randomUUID(), date: today, status: 'active' as const, lastUpdated: Date.now() }];
     updateData({ biteSplintLogs: newLogs, clientTimestamp: Date.now() });
     setTimeout(() => {
-      alert(`🦷 成功紀錄：${today} 已配戴咬合板！`);
+      alert(`已記錄：${today} 配戴咬合板`);
     }, 10);
   };
 
@@ -170,8 +171,21 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
   };
 
   const handleSaveAllergy = (logData: Partial<AllergyLog>) => {
-    const newLogs = [...allergyLogs, logData as AllergyLog];
-    updateData({ allergyLogs: newLogs, clientTimestamp: Date.now() });
+    let updatedLogs = [...allergyLogs];
+    const existingIndex = updatedLogs.findIndex(l => l.id === logData.id);
+    if (existingIndex >= 0) {
+      updatedLogs[existingIndex] = { ...updatedLogs[existingIndex], ...logData, lastUpdated: Date.now() } as AllergyLog;
+    } else {
+      updatedLogs.push(logData as AllergyLog);
+    }
+    updateData({ allergyLogs: updatedLogs, clientTimestamp: Date.now() });
+    setEditingAllergyLog(null);
+  };
+
+  const handleDeleteAllergy = (id: string) => {
+    if (!window.confirm('確定要刪除這筆過敏紀錄嗎？')) return;
+    const updatedLogs = allergyLogs.map(l => l.id === id ? { ...l, status: 'deleted' as const, lastUpdated: Date.now() } : l);
+    updateData({ allergyLogs: updatedLogs, clientTimestamp: Date.now() });
   };
 
   return (
@@ -247,9 +261,13 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-2">
-                      <button onClick={() => openEditModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-sm transition-colors" title="編輯項目">✏️</button>
+                      <button onClick={() => openEditModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-stone-500 hover:text-stone-700 transition-colors" title="編輯項目">
+                        <Pencil size={14} />
+                      </button>
                       {!isSymptomOnlyTracker && (
-                        <button onClick={() => openNewCheckupModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-sm transition-colors" title="新增回診紀錄">📅</button>
+                        <button onClick={() => openNewCheckupModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-stone-500 hover:text-stone-700 transition-colors" title="新增回診紀錄">
+                          <CalendarPlus size={14} />
+                        </button>
                       )}
                     </div>
                   </div>
@@ -357,7 +375,10 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                             <FileText size={14} />
                           </button>
                           <button
-                            onClick={() => setIsAllergyModalOpen(true)}
+                            onClick={() => {
+                              setEditingAllergyLog(null);
+                              setIsAllergyModalOpen(true);
+                            }}
                             className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-800 hover:bg-stone-50 shadow-sm transition-colors"
                             title="新增發作紀錄"
                           >
@@ -395,14 +416,24 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
 
       <AllergyFormModal
         isOpen={isAllergyModalOpen}
-        onClose={() => setIsAllergyModalOpen(false)}
+        onClose={() => {
+          setIsAllergyModalOpen(false);
+          setEditingAllergyLog(null);
+        }}
         onSave={handleSaveAllergy}
+        initialData={editingAllergyLog}
       />
 
       <AllergySummaryModal
         isOpen={isAllergySummaryModalOpen}
         onClose={() => setIsAllergySummaryModalOpen(false)}
         logs={allergyLogs}
+        onEdit={(log) => {
+          setEditingAllergyLog(log);
+          setIsAllergySummaryModalOpen(false);
+          setIsAllergyModalOpen(true);
+        }}
+        onDelete={handleDeleteAllergy}
       />
     </div>
   );

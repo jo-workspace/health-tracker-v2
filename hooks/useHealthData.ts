@@ -114,6 +114,15 @@ export function useHealthData() {
       if (payload.biteSplintLogs) {
         updated.biteSplintLogs = payload.biteSplintLogs as any;
       }
+      if (payload.allergyLogs) {
+        const existing = [...(prev.allergyLogs || [])];
+        payload.allergyLogs.forEach(newLog => {
+          const idx = existing.findIndex(l => l.id === newLog.id);
+          if (idx >= 0) existing[idx] = { ...existing[idx], ...newLog };
+          else existing.push(newLog as any);
+        });
+        updated.allergyLogs = existing;
+      }
       return updated;
     });
 

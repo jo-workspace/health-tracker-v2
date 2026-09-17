@@ -7,7 +7,7 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   longTermLogs: { name: "LongTermLogs", headers: ["id", "date", "itemName", "sizeWidth", "sizeHeight", "sizeDepth", "hospital", "doctor", "nextCheckupDate", "notes", "status", "lastUpdated"] },
   biteSplintLogs: { name: "BiteSplintLogs", headers: ["id", "date", "status", "lastUpdated"] },
   tmySymptomsLogs: { name: "TMJSymptomsLogs", headers: ["id", "date", "symptoms", "medication", "status", "lastUpdated", "side"] },
-  allergyLogs: { name: "AllergyLogs", headers: ["id", "date", "locations", "severity", "trigger", "medication", "notes", "status", "lastUpdated", "sleepImpact"] },
+  allergyLogs: { name: "AllergyLogs", headers: ["id", "date", "timeSlot", "time", "locations", "severity", "trigger", "medication", "notes", "status", "lastUpdated", "sleepImpact"] },
   sleepLogs: { name: "SleepLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "deepSleep", "remSleep", "stress", "feeling", "hrv", "restingHeartRate", "notes", "status", "lastUpdated"] },
   rainbowDietLogs: { name: "RainbowDietLogs", headers: ["id", "date", "plantName", "color", "status", "lastUpdated"] },
   supplementLogs: { name: "SupplementLogs", headers: ["id", "date", "items", "status", "lastUpdated"] },
@@ -56,6 +56,17 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]): Pro
         sheet = findSheet();
       }
       if (!sheet) throw err;
+    }
+  } else if (headers.length > 0) {
+    // 檢查現有試算表是否缺少新欄位，若缺少則自動補齊表頭避免報錯
+    const existingHeaders = sheet.headerValues || [];
+    const missingHeaders = headers.filter(h => !existingHeaders.includes(h));
+    if (missingHeaders.length > 0) {
+      try {
+        await withApiRetry(() => sheet!.setHeaderRow([...existingHeaders, ...missingHeaders]));
+      } catch (e) {
+        console.warn(`[Sync] 更新工作表 ${title} 表頭失敗:`, e);
+      }
     }
   }
   return sheet;

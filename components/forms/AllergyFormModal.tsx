@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import type { AllergyLog } from '@/lib/types';
 
@@ -7,6 +7,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSave: (log: Partial<AllergyLog>) => void;
+  initialData?: AllergyLog | null;
 }
 
 const PRESET_LOCATIONS = ["鼻子", "皮膚", "眼睛"];
@@ -15,20 +16,57 @@ const PRESET_MEDS = [
   { id: "antihistamine", label: "抗組織胺" },
   { id: "steroid_cream", label: "類固醇藥膏" }
 ];
+const TIME_SLOTS = ["早", "中", "晚", "睡前"];
 const SLEEP_IMPACT_OPTIONS: { id: 'none' | 'mild' | 'severe'; label: string }[] = [
   { id: 'none', label: '無' },
   { id: 'mild', label: '輕微' },
   { id: 'severe', label: '嚴重' }
 ];
 
-export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
+const getDefaultTimeSlot = () => {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return '早';
+  if (h >= 12 && h < 18) return '中';
+  if (h >= 18 && h < 22) return '晚';
+  return '睡前';
+};
+
+export default function AllergyFormModal({ isOpen, onClose, onSave, initialData }: Props) {
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [timeSlot, setTimeSlot] = useState(getDefaultTimeSlot());
+  const [time, setTime] = useState('');
   const [locations, setLocations] = useState<string[]>([]);
   const [severity, setSeverity] = useState(4);
   const [trigger, setTrigger] = useState('');
   const [meds, setMeds] = useState<string[]>([]);
   const [sleepImpact, setSleepImpact] = useState<'none' | 'mild' | 'severe'>('none');
   const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setDate(initialData.date || new Date().toLocaleDateString('en-CA'));
+        setTimeSlot(initialData.timeSlot || getDefaultTimeSlot());
+        setTime(initialData.time || '');
+        setLocations(initialData.locations ? initialData.locations.split(',').map(s => s.trim()).filter(Boolean) : []);
+        setSeverity(initialData.severity ?? 4);
+        setTrigger(initialData.trigger || '');
+        setMeds(initialData.medication ? initialData.medication.split(',').map(s => s.trim()).filter(Boolean) : []);
+        setSleepImpact(initialData.sleepImpact || 'none');
+        setNotes(initialData.notes || '');
+      } else {
+        setDate(new Date().toLocaleDateString('en-CA'));
+        setTimeSlot(getDefaultTimeSlot());
+        setTime('');
+        setLocations([]);
+        setSeverity(4);
+        setTrigger('');
+        setMeds([]);
+        setSleepImpact('none');
+        setNotes('');
+      }
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -59,24 +97,19 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
     if (locations.length === 0) return;
 
     onSave({
-      id: crypto.randomUUID(),
+      id: initialData?.id || crypto.randomUUID(),
       date,
+      timeSlot,
+      time: time || undefined,
       locations: locations.join(', '),
       severity,
-      trigger,
+      trigger: trigger.trim() || undefined,
       medication: meds.join(', '),
       sleepImpact,
-      notes,
+      notes: notes.trim() || undefined,
       status: 'active',
       lastUpdated: Date.now()
     });
-    setDate(new Date().toLocaleDateString('en-CA'));
-    setLocations([]);
-    setSeverity(4);
-    setTrigger('');
-    setMeds([]);
-    setSleepImpact('none');
-    setNotes('');
     onClose();
   };
 
@@ -89,23 +122,56 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
           <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
             <Sparkles size={20} className="text-[#c084a1]" />
-            紀錄過敏發作
+            {initialData ? '編輯過敏紀錄' : '紀錄過敏發作'}
           </h2>
           <button type="button" onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
             <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto flex-1 flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto flex-1 flex flex-col gap-5">
+          {/* 日期與精確時間 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-stone-700">發作日期</label>
+              <input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                className="w-full min-w-0 px-3 py-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 text-sm"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-stone-700">時間 (選填)</label>
+              <input
+                type="time"
+                value={time}
+                onChange={e => setTime(e.target.value)}
+                className="w-full min-w-0 px-3 py-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* 時段單選膠囊 */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-stone-700">發作日期</label>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
-              required
-            />
+            <label className="text-xs font-bold text-stone-700">發作時段</label>
+            <div className="grid grid-cols-4 gap-2">
+              {TIME_SLOTS.map(slot => (
+                <button
+                  key={slot}
+                  type="button"
+                  onClick={() => setTimeSlot(slot)}
+                  className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                    timeSlot === slot
+                      ? 'bg-stone-800 text-white border-stone-800 shadow-xs'
+                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                  }`}
+                >
+                  {slot}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-3">
@@ -234,7 +300,7 @@ export default function AllergyFormModal({ isOpen, onClose, onSave }: Props) {
               type="submit"
               className="w-full py-3.5 bg-[#444] text-white rounded-xl font-bold text-[15px] shadow-sm hover:bg-[#333] transition-colors"
             >
-              儲存紀錄
+              {initialData ? '儲存變更' : '儲存紀錄'}
             </button>
           </div>
         </form>
