@@ -57,17 +57,6 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]): Pro
       }
       if (!sheet) throw err;
     }
-  } else if (headers.length > 0) {
-    // 檢查現有試算表是否缺少新欄位，若缺少則自動補齊表頭避免報錯
-    const existingHeaders = sheet.headerValues || [];
-    const missingHeaders = headers.filter(h => !existingHeaders.includes(h));
-    if (missingHeaders.length > 0) {
-      try {
-        await withApiRetry(() => sheet!.setHeaderRow([...existingHeaders, ...missingHeaders]));
-      } catch (e) {
-        console.warn(`[Sync] 更新工作表 ${title} 表頭失敗:`, e);
-      }
-    }
   }
   return sheet;
 }
@@ -204,6 +193,33 @@ async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: stri
 }
 
 async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], headers: string[]) {
+  // 若現有工作表缺少程式定義的欄位，在儲存前安全載入並補齊表頭
+  try {
+    let existingHeaders: string[] = [];
+    try {
+      await withApiRetry(() => sheet.loadHeaderRow());
+      existingHeaders = sheet.headerValues || [];
+    } catch {
+      // 若工作表尚無表頭，直接設置完整表頭
+      if (headers.length > sheet.columnCount) {
+        await withApiRetry(() => sheet.resize({ rowCount: sheet.rowCount, columnCount: headers.length }));
+      }
+      await withApiRetry(() => sheet.setHeaderRow(headers));
+      existingHeaders = headers;
+    }
+
+    const missingHeaders = headers.filter(h => !existingHeaders.includes(h));
+    if (missingHeaders.length > 0) {
+      const newHeaders = [...existingHeaders, ...missingHeaders];
+      if (newHeaders.length > sheet.columnCount) {
+        await withApiRetry(() => sheet.resize({ rowCount: sheet.rowCount, columnCount: newHeaders.length }));
+      }
+      await withApiRetry(() => sheet.setHeaderRow(newHeaders));
+    }
+  } catch (err) {
+    console.warn(`[Sync] Check/update header row failed for ${sheet.title}:`, err);
+  }
+
   const chunkSize = 100;
   const allRows = logs.map(log => {
     const rowObj: any = {};

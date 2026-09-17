@@ -13,7 +13,12 @@ export default function manifest(): MetadataRoute.Manifest {
     // Next.js 會自動在 <head> 產生 <link rel="apple-touch-icon" href="/apple-icon.png" /> 供 iOS 使用
     icons: [
       {
-        src: '/apple-icon?v=3',
+        src: '/icon.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        src: '/apple-icon.png',
         sizes: '180x180',
         type: 'image/png',
       }
