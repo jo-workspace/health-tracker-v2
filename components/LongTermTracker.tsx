@@ -158,6 +158,11 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
 
   const handleRecordSplint = () => {
     const today = new Date().toLocaleDateString('en-CA');
+    const alreadyRecorded = splintLogs.some(l => l.date === today && l.status !== 'deleted');
+    if (alreadyRecorded) {
+      alert(`今日 (${today}) 已經記錄過配戴咬合板囉！`);
+      return;
+    }
     const newLogs = [...splintLogs, { id: crypto.randomUUID(), date: today, status: 'active' as const, lastUpdated: Date.now() }];
     updateData({ biteSplintLogs: newLogs, clientTimestamp: Date.now() });
     setTimeout(() => {

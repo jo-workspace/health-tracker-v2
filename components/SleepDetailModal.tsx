@@ -106,7 +106,10 @@ export default function SleepDetailModal({
     const magInfo = getMagnesiumInfo(dateStr);
     const hasMagnesium = magInfo.taken;
     const magnesiumName = magInfo.name;
-    const hasSplint = splintLogs.some(l => l.date === dateStr && l.status !== 'deleted');
+    const prevDateStr = getPrevDateStr(dateStr);
+    const hasSplint = splintLogs.some(
+      l => (l.date === dateStr || l.date === prevDateStr) && l.status !== 'deleted'
+    );
 
     return {
       dateStr,

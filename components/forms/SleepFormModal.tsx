@@ -91,10 +91,12 @@ export default function SleepFormModal({
     isInitializedRef.current = true;
     const targetDate = initialData?.date || defaultDate || new Date().toLocaleDateString('en-CA');
     const targetType = (initialData?.type as 'night' | 'nap') || defaultType;
-    const isSplintRecorded = splintLogs.some(l => l.date === targetDate && l.status !== 'deleted');
+    const prevDate = getPrevDateStr(targetDate);
+    const isSplintRecorded = splintLogs.some(
+      l => (l.date === prevDate || l.date === targetDate) && l.status !== 'deleted'
+    );
 
     // 檢查前一晚是否有服用睡前保健品
-    const prevDate = getPrevDateStr(targetDate);
     const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted');
     let isBedtimeRecorded = false;
     if (prevSuppLog && prevSuppLog.items) {
@@ -158,10 +160,12 @@ export default function SleepFormModal({
         setFeeling('normal');
       }
     }
-    const isSplintRecorded = splintLogs.some(l => l.date === newDate && l.status !== 'deleted');
+    const prevDate = getPrevDateStr(newDate);
+    const isSplintRecorded = splintLogs.some(
+      l => (l.date === prevDate || l.date === newDate) && l.status !== 'deleted'
+    );
     setHasBiteSplint(isSplintRecorded);
 
-    const prevDate = getPrevDateStr(newDate);
     const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted');
     let isBedtimeRecorded = false;
     if (prevSuppLog && prevSuppLog.items) {
@@ -193,6 +197,11 @@ export default function SleepFormModal({
         setDurationMinutes('');
         setFeeling('normal');
       }
+      const prevDate = getPrevDateStr(date);
+      const isSplintRecorded = splintLogs.some(
+        l => (l.date === prevDate || l.date === date) && l.status !== 'deleted'
+      );
+      setHasBiteSplint(isSplintRecorded);
     } else {
       setNapMinutes('');
     }

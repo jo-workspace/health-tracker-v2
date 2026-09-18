@@ -333,9 +333,14 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
           }
 
           let updatedSplintLogs = [...splintLogs];
-          if (hasBiteSplint !== undefined && logData.date) {
+          if (hasBiteSplint !== undefined && logData.date && logData.type === 'night') {
+            const [y, m, d] = logData.date.split('-').map(Number);
+            const prevDateObj = new Date(y, m - 1, d - 1);
+            const prevDate = prevDateObj.toLocaleDateString('en-CA');
+
+            // 尋找昨晚睡前 (prevDate) 或當天 (logData.date) 已存在的有效紀錄
             const existingSplintIndex = updatedSplintLogs.findIndex(
-              l => l.date === logData.date && l.status !== 'deleted'
+              l => (l.date === prevDate || l.date === logData.date) && l.status !== 'deleted'
             );
             if (hasBiteSplint) {
               if (existingSplintIndex >= 0) {
@@ -345,21 +350,22 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
                   lastUpdated: Date.now()
                 };
               } else {
+                // 咬合板是在昨晚睡前配戴，以 prevDate 記錄
                 updatedSplintLogs.push({
                   id: crypto.randomUUID(),
-                  date: logData.date,
+                  date: prevDate,
                   status: 'active',
                   lastUpdated: Date.now()
                 });
               }
             } else {
-              if (existingSplintIndex >= 0) {
-                updatedSplintLogs[existingSplintIndex] = {
-                  ...updatedSplintLogs[existingSplintIndex],
-                  status: 'deleted',
-                  lastUpdated: Date.now()
-                };
-              }
+              // 若取消勾選，把符合 prevDate 或 logData.date 的紀錄都設為 deleted
+              updatedSplintLogs = updatedSplintLogs.map(l => {
+                if ((l.date === prevDate || l.date === logData.date) && l.status !== 'deleted') {
+                  return { ...l, status: 'deleted', lastUpdated: Date.now() };
+                }
+                return l;
+              });
             }
           }
 
