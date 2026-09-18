@@ -1,4 +1,5 @@
-import { X, Moon } from 'lucide-react';
+'use client';
+import { X, Moon, Pill, Activity } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog } from '@/lib/types';
 
@@ -14,7 +15,31 @@ interface Props {
 
 const SLEEP_IMPACT_RANK: Record<string, number> = { none: 0, mild: 1, severe: 2 };
 
-export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLogs = [], supplementLogs = [], splintLogs = [], onEditDay }: Props) {
+const ToothIcon = ({ size = 11, className = "" }: { size?: number; className?: string }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M7 3C4.23858 3 2 5.23858 2 8C2 10.5 3.5 12.5 5.5 13.5V19C5.5 20.1046 6.39543 21 7.5 21H8.5C9.60457 21 10.5 20.1046 10.5 19V14H13.5V19C13.5 20.1046 14.3954 21 15.5 21H16.5C17.6046 21 18.5 20.1046 18.5 19V13.5C20.5 12.5 22 10.5 22 8C22 5.23858 19.7614 3 17 3H7Z" />
+  </svg>
+);
+
+export default function SleepDetailModal({
+  isOpen,
+  onClose,
+  sleepLogs,
+  allergyLogs = [],
+  supplementLogs = [],
+  splintLogs = [],
+  onEditDay
+}: Props) {
   if (!isOpen) return null;
 
   const activeAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted');
@@ -27,10 +52,8 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
 
   const getMagnesiumInfo = (wakeUpDateStr: string) => {
     if (!supplementLogs || supplementLogs.length === 0) return { taken: false, name: '' };
-    // 睡眠紀錄日期為「起床日期」(如 8/6 早上)，對應前一晚睡前(如 8/5 晚上)服用的鎂
     const prevDateStr = getPrevDateStr(wakeUpDateStr);
     
-    // 優先匹配前一晚(8/5)，若前一晚無紀錄則嘗試備用匹配當天
     const targetLog = supplementLogs.find(log => log.date === prevDateStr && log.status !== 'deleted')
       || supplementLogs.find(log => log.date === wakeUpDateStr && log.status !== 'deleted');
 
@@ -51,15 +74,13 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
     }
   };
 
-  const isMagnesiumTaken = (wakeUpDateStr: string) => getMagnesiumInfo(wakeUpDateStr).taken;
-
   // 取得近 7 天的日期字串 (YYYY-MM-DD)
   const last7Days: string[] = [];
   const today = new Date();
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    last7Days.push(d.toLocaleDateString('en-CA')); // local time string
+    last7Days.push(d.toLocaleDateString('en-CA'));
   }
 
   const activeLogs = sleepLogs.filter(log => log.status !== 'deleted');
@@ -74,15 +95,7 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
     const napHours = dayNaps.reduce((sum, n) => sum + Number(n.sleepDuration), 0);
     const totalHours = nightHours + napHours;
     
-    let nightColor = '#e5e7eb'; // default grey if no data
-    if (nightLog && nightLog.stress) {
-      const stress = Number(nightLog.stress);
-      if (stress <= 15) nightColor = '#3d5a80';      // 低壓力
-      else if (stress <= 30) nightColor = '#90b3c4'; // 普通壓力
-      else nightColor = '#b0c2cc';                   // 高壓力
-    } else if (nightLog) {
-      nightColor = '#6f7f99'; // 預設藍
-    }
+    const nightColor = nightHours > 0 ? '#5c697b' : '#e5e7eb';
 
     const dayAllergyLogs = activeAllergyLogs.filter(l => l.date === dateStr);
     const worstAllergyImpact = dayAllergyLogs.reduce((worst, l) => {
@@ -101,7 +114,6 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
       napHours,
       totalHours,
       nightColor,
-      stress: nightLog?.stress ? Number(nightLog.stress) : null,
       allergyImpact: worstAllergyImpact,
       hasMagnesium,
       magnesiumName,
@@ -122,40 +134,12 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
   const daysWithAnySleep = dailyData.filter(d => d.totalHours > 0);
   const avgTotalHours = daysWithAnySleep.length > 0 ? (totalSleepAll / daysWithAnySleep.length).toFixed(1) : '-';
 
-  const daysWithStress = dailyData.filter(d => d.stress !== null);
-  const totalStress = daysWithStress.reduce((sum, d) => sum + (d.stress || 0), 0);
-  const avgStress = daysWithStress.length > 0 ? Math.round(totalStress / daysWithStress.length) : '-';
-
-  // 統計所有有效的主睡眠紀錄中，吃鎂日 vs 無吃鎂日的深層睡眠平均
-  const nightLogsWithDeep = activeLogs.filter(log => log.type === 'night' && log.deepSleep && Number(log.deepSleep) > 0);
-  const magLogs = nightLogsWithDeep.filter(log => isMagnesiumTaken(log.date));
-  const noMagLogs = nightLogsWithDeep.filter(log => !isMagnesiumTaken(log.date));
-
-  const totalMagDeep = magLogs.reduce((sum, l) => sum + Number(l.deepSleep), 0);
-  const avgDeepMag = magLogs.length > 0 ? (totalMagDeep / magLogs.length).toFixed(1) : '-';
-
-  const totalNoMagDeep = noMagLogs.reduce((sum, l) => sum + Number(l.deepSleep), 0);
-  const avgDeepNoMag = noMagLogs.length > 0 ? (totalNoMagDeep / noMagLogs.length).toFixed(1) : '-';
-
   // 動態計算 Chart Y 軸最大值 (最高時數 + 1，最少 10)
   const maxDataVal = Math.max(...dailyData.map(d => d.totalHours), 0);
   const maxChartVal = Math.max(10, Math.ceil(maxDataVal + 1)); 
 
   // 目標計算
   const goalDays = daysWithNightSleep.filter(d => d.nightHours >= 7).length;
-  const stressGoalDays = daysWithStress.filter(d => (d.stress || 0) <= 15).length;
-  
-  // 計算深眠比例 (深眠 / 總夜間時數)
-  let totalDeep = 0;
-  let nightHoursForDeep = 0;
-  daysWithNightSleep.forEach(d => {
-    const log = activeLogs.find(l => l.date === d.dateStr && l.type === 'night');
-    if (log && log.deepSleep) {
-      totalDeep += Number(log.deepSleep);
-      nightHoursForDeep += Number(log.sleepDuration);
-    }
-  });
-  const deepRatio = nightHoursForDeep > 0 ? Math.round((totalDeep / nightHoursForDeep) * 100) : 0;
 
   return typeof document !== 'undefined' ? createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm transition-opacity">
@@ -164,12 +148,16 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
       <div className="relative bg-[#fcfcfc] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
-          <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
-            <Moon size={20} className="text-stone-700" /> 睡眠趨勢
+        <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0 bg-white">
+          <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
+            <Moon size={18} className="text-stone-700" />
+            <span>睡眠趨勢</span>
           </h2>
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-50 text-stone-400 hover:bg-stone-200 hover:text-stone-600 transition-colors ml-1">
+            <button 
+              onClick={onClose} 
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-50 text-stone-400 hover:bg-stone-200 hover:text-stone-600 transition-colors ml-1"
+            >
               <X size={16} />
             </button>
           </div>
@@ -177,65 +165,32 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
 
         <div className="p-4 overflow-y-auto custom-scrollbar flex flex-col gap-4">
           
-          {/* 目標區塊 (更緊湊) */}
-          <div className="bg-[#fffdf7] border border-[#f2ebe1] rounded-xl p-3 shadow-sm">
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center pb-2 border-b border-stone-100/60 dashed-border">
-                <span className="font-medium text-[#aa9275]">🔥 7h 達標：{goalDays} / {daysWithNightSleep.length} 天</span>
-                <span className="text-[11px] text-stone-400">每日目標：7 小時</span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-stone-100/60 dashed-border">
-                <span className="font-medium text-[#aa9275]">🧬 深眠達標：{deepRatio}%</span>
-                <span className="text-[11px] text-stone-400">深眠目標：&gt;20%</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-medium text-[#aa9275]">🧘 低壓力達標：{stressGoalDays} / {daysWithStress.length} 天</span>
-                <span className="text-[11px] text-stone-400">壓力目標：&le; 15</span>
-              </div>
+          {/* 目標區塊 */}
+          <div className="bg-[#fffdf7] border border-[#f2ebe1] rounded-xl p-3 shadow-2xs">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-[#8a6d4d]">7h 達標：{goalDays} / {daysWithNightSleep.length} 天</span>
+              <span className="text-[11px] text-stone-400">每日目標 7 小時</span>
             </div>
           </div>
 
-          {/* 數據快照 (新增第 3 列：吃鎂日深眠 vs 無吃日深眠) */}
-          <div className="grid grid-cols-2 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-100">
-            <div className="flex flex-col items-center justify-center border-r border-stone-200/60 pr-2">
-              <span className="text-xl font-black text-stone-700">{avgNightHours}<span className="text-sm font-medium ml-0.5">小時</span></span>
-              <span className="text-xs text-stone-500 font-medium mt-0.5">主睡眠日平均</span>
+          {/* 數據快照 */}
+          <div className="grid grid-cols-3 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-100 text-center">
+            <div className="flex flex-col items-center justify-center border-r border-stone-200/60 pr-1">
+              <span className="text-lg font-black text-stone-700">{avgNightHours}<span className="text-xs font-medium ml-0.5">h</span></span>
+              <span className="text-[11px] text-stone-500 font-medium mt-0.5">主睡眠均值</span>
             </div>
-            <div className="flex flex-col items-center justify-center pl-2">
-              <span className="text-xl font-black text-stone-700">{avgNapMins}<span className="text-sm font-medium ml-0.5">分鐘</span></span>
-              <span className="text-xs text-stone-500 font-medium mt-0.5">小睡日平均</span>
+            <div className="flex flex-col items-center justify-center border-r border-stone-200/60 px-1">
+              <span className="text-lg font-black text-stone-700">{avgNapMins}<span className="text-xs font-medium ml-0.5">m</span></span>
+              <span className="text-[11px] text-stone-500 font-medium mt-0.5">小睡均值</span>
             </div>
-            <div className="col-span-2 border-t border-stone-200/60 pt-3 mt-1 grid grid-cols-2">
-              <div className="flex flex-col items-center justify-center border-r border-stone-200/60 pr-2">
-                <span className="text-xl font-black text-stone-700">{avgTotalHours}<span className="text-sm font-medium ml-0.5">小時</span></span>
-                <span className="text-xs text-stone-500 font-medium mt-0.5">睡眠總日平均</span>
-              </div>
-              <div className="flex flex-col items-center justify-center pl-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xl font-black text-stone-700">{avgStress}</span>
-                  {typeof avgStress === 'number' && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${avgStress <= 15 ? 'bg-green-100 text-green-700' : avgStress <= 30 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
-                      {avgStress <= 15 ? '理想' : avgStress <= 30 ? '普通' : '偏高'}
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs text-stone-500 font-medium mt-0.5">平均睡眠壓力</span>
-              </div>
-            </div>
-            <div className="col-span-2 border-t border-stone-200/60 pt-3 mt-1 grid grid-cols-2">
-              <div className="flex flex-col items-center justify-center border-r border-stone-200/60 pr-2">
-                <span className="text-xl font-black text-stone-700">{avgDeepMag}{avgDeepMag !== '-' && <span className="text-sm font-medium ml-0.5">小時</span>}</span>
-                <span className="text-xs text-stone-500 font-medium mt-0.5">💊 吃鎂日深眠</span>
-              </div>
-              <div className="flex flex-col items-center justify-center pl-2">
-                <span className="text-xl font-black text-stone-700">{avgDeepNoMag}{avgDeepNoMag !== '-' && <span className="text-sm font-medium ml-0.5">小時</span>}</span>
-                <span className="text-xs text-stone-500 font-medium mt-0.5">無吃日深眠</span>
-              </div>
+            <div className="flex flex-col items-center justify-center pl-1">
+              <span className="text-lg font-black text-stone-700">{avgTotalHours}<span className="text-xs font-medium ml-0.5">h</span></span>
+              <span className="text-[11px] text-stone-500 font-medium mt-0.5">總睡眠均值</span>
             </div>
           </div>
 
           {/* 圖表 */}
-          <div className="flex justify-between items-end h-32 px-2 border-b border-stone-200 relative pt-4 mt-4">
+          <div className="flex justify-between items-end h-32 px-2 border-b border-stone-200 relative pt-4 mt-2">
             {/* Y軸標線 */}
             <div className="absolute top-0 left-0 w-full border-t border-dashed border-stone-200" />
             <div className="absolute top-1/2 left-0 w-full border-t border-dashed border-stone-200" />
@@ -257,14 +212,14 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
                   {/* Hover Tooltip (The Bar Background) */}
                   <div className="w-4 bg-stone-100/50 rounded-t flex flex-col justify-end overflow-hidden relative group-hover:bg-stone-200/50 transition-colors" style={{ height: '100%' }}>
                     <div 
-                      className="w-full transition-all duration-500 rounded-t-sm"
+                      className="w-full transition-all duration-500 rounded-t-xs"
                       style={{ height: `${napPct}%`, backgroundColor: '#9ca896' }} 
                       title={`小睡: ${Math.round(d.napHours * 60)}分`}
                     />
                     <div 
                       className="w-full transition-all duration-500"
                       style={{ height: `${nightPct}%`, backgroundColor: d.nightColor }}
-                      title={`主睡眠: ${d.nightHours.toFixed(1)}h (壓力: ${d.stress || '-'})`}
+                      title={`主睡眠: ${d.nightHours.toFixed(1)}h`}
                     />
                   </div>
                   
@@ -273,24 +228,20 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
                     <span className="text-[10px] font-bold text-stone-600">{d.totalHours > 0 ? d.totalHours.toFixed(1) + 'h' : ''}</span>
                     <span className="text-[9px] text-stone-400 mt-1">{d.dateStr.substring(8, 10)}</span>
                     <span className="text-[8px] text-stone-400">({weekdays[dateObj.getDay()]})</span>
-                    <div className="flex items-center gap-0.5 mt-0.5">
+                    <div className="flex items-center gap-1 mt-0.5 text-stone-400">
                       {d.allergyImpact !== 'none' && (
-                        <span
-                          className="text-[10px]"
-                          title={`過敏影響睡眠：${d.allergyImpact === 'severe' ? '嚴重' : '輕微'}`}
-                          style={{ opacity: d.allergyImpact === 'severe' ? 1 : 0.55 }}
-                        >
-                          🤧
+                        <span title={`過敏影響睡眠：${d.allergyImpact === 'severe' ? '嚴重' : '輕微'}`}>
+                          <Activity size={10} className={d.allergyImpact === 'severe' ? 'text-amber-600' : 'text-stone-400'} />
                         </span>
                       )}
                       {d.hasMagnesium && (
-                        <span className="text-[10px]" title={`當天有補充 ${d.magnesiumName || '鎂'}`}>
-                          💊
+                        <span title={`當天有補充 ${d.magnesiumName || '鎂'}`}>
+                          <Pill size={10} className="text-[#3e7256]" />
                         </span>
                       )}
                       {d.hasSplint && (
-                        <span className="text-[10px]" title="當天有佩戴咬合板">
-                          🦷
+                        <span title="當天有佩戴咬合板">
+                          <ToothIcon size={10} className="text-[#4a6b82]" />
                         </span>
                       )}
                     </div>
@@ -300,33 +251,27 @@ export default function SleepDetailModal({ isOpen, onClose, sleepLogs, allergyLo
             })}
           </div>
 
-          {/* Spacer for the labels that overflowed below (extra room for the allergy badge line) */}
-          <div className="h-14"></div>
+          {/* Spacer for bottom labels */}
+          <div className="h-12"></div>
 
-          <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[10px] text-stone-500 justify-center mt-2 mb-2">
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#3d5a80]"></span> 低壓力 (&le;15)
+          {/* 圖例 */}
+          <div className="flex gap-4 text-[10px] text-stone-500 justify-center mb-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-xs bg-[#5c697b]"></span> 主睡眠
             </div>
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#90b3c4]"></span> 普通壓力 (16-30)
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#b0c2cc]"></span> 高壓力 (&gt;30)
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#9ca896]"></span> 小睡
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-xs bg-[#9ca896]"></span> 小睡
             </div>
           </div>
           
-          <p className="text-[10px] text-stone-400 text-center mb-1">
-            💡 點擊上方各日期長條可直接補填或編輯該日睡眠紀錄
+          <p className="text-[10px] text-stone-400 text-center">
+            點擊各日期直條可直接補填或編輯該日睡眠
           </p>
           
         </div>
       </div>
       
       <style dangerouslySetInnerHTML={{__html: `
-        .dashed-border { border-bottom-style: dashed; border-color: rgba(0,0,0,0.06); }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
