@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Moon, Check, Smile, Meh, Frown, Pill } from 'lucide-react';
+import { X, Moon, Check, Laugh, Smile, Frown, Pill } from 'lucide-react';
 import type { SleepLog, BiteSplintLog, SupplementLog } from '@/lib/types';
 
 const getPrevDateStr = (dateStr: string) => {
@@ -38,8 +38,8 @@ const ToothIcon = ({ size = 14 }: { size?: number }) => (
 );
 
 const FEELING_OPTIONS = [
-  { id: 'great', label: '很好', icon: Smile },
-  { id: 'normal', label: '普通', icon: Meh },
+  { id: 'great', label: '很好', icon: Laugh },
+  { id: 'normal', label: '普通', icon: Smile },
   { id: 'bad', label: '差', icon: Frown }
 ] as const;
 

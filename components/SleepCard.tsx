@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Moon, Plus, PenLine, Smile, Meh, Frown, Coffee } from 'lucide-react';
+import { Moon, Plus, PenLine, Laugh, Smile, Frown, Coffee } from 'lucide-react';
 import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload, SupplementSetting } from '@/lib/types';
 import { isBedtimeSupplement, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
 import SleepDetailModal from './SleepDetailModal';
@@ -99,21 +99,21 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
   const renderFeelingIcon = (key: string) => {
     if (['great', 'excellent', 'good'].includes(key)) {
       return (
-        <span title="良好" className="inline-flex items-center">
-          <Smile size={18} className="text-[#3e7256]" />
+        <span title="很好" className="inline-flex items-center">
+          <Laugh size={18} className="text-[#3e7256]" />
         </span>
       );
     }
     if (['bad', 'poor', 'tired', 'sore'].includes(key)) {
       return (
-        <span title="疲憊" className="inline-flex items-center">
+        <span title="差" className="inline-flex items-center">
           <Frown size={18} className="text-[#a07d7e]" />
         </span>
       );
     }
     return (
       <span title="普通" className="inline-flex items-center">
-        <Meh size={18} className="text-[#788896]" />
+        <Smile size={18} className="text-[#5c697b]" />
       </span>
     );
   };
