@@ -96,8 +96,9 @@ export default function SleepFormModal({
       l => (l.date === prevDate || l.date === targetDate) && l.status !== 'deleted'
     );
 
-    // 檢查前一晚是否有服用睡前保健品
-    const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted');
+    // 檢查前一晚 (入睡時) 或當日是否有服用睡前保健品
+    const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted')
+      || (supplementLogs || []).find(l => l.date === targetDate && l.status !== 'deleted');
     let isBedtimeRecorded = false;
     if (prevSuppLog && prevSuppLog.items) {
       try {
@@ -166,7 +167,8 @@ export default function SleepFormModal({
     );
     setHasBiteSplint(isSplintRecorded);
 
-    const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted');
+    const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted')
+      || (supplementLogs || []).find(l => l.date === newDate && l.status !== 'deleted');
     let isBedtimeRecorded = false;
     if (prevSuppLog && prevSuppLog.items) {
       try {
@@ -202,6 +204,21 @@ export default function SleepFormModal({
         l => (l.date === prevDate || l.date === date) && l.status !== 'deleted'
       );
       setHasBiteSplint(isSplintRecorded);
+
+      const prevSuppLog = (supplementLogs || []).find(l => l.date === prevDate && l.status !== 'deleted')
+        || (supplementLogs || []).find(l => l.date === date && l.status !== 'deleted');
+      let isBedtimeRecorded = false;
+      if (prevSuppLog && prevSuppLog.items) {
+        try {
+          const parsed = JSON.parse(prevSuppLog.items);
+          if (Array.isArray(parsed)) {
+            isBedtimeRecorded = parsed.some((p: any) => 
+              p.taken && (p.name?.includes('鎂') || p.name?.toLowerCase().includes('magnesium') || p.time?.includes('睡前'))
+            );
+          }
+        } catch {}
+      }
+      setHasBedtimeSupplements(isBedtimeRecorded);
     } else {
       setNapMinutes('');
     }

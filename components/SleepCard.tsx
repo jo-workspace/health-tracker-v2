@@ -382,7 +382,7 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
             const bedtimeSettings = activeSettings.filter(s => isBedtimeSupplement(s.time, s.name));
 
             const existingSuppIndex = updatedSuppLogs.findIndex(
-              l => l.date === prevDate && l.status !== 'deleted'
+              l => (l.date === prevDate || l.date === logData.date) && l.status !== 'deleted'
             );
 
             let currentItems: any[] = [];
