@@ -256,18 +256,18 @@ export default function IllnessFormModal({ isOpen, onClose, onSave, onDelete, in
           </div>
 
           {/* 3. Start Date & Temperature */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-xs font-bold text-stone-700">發病起始日</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.5em] w-full min-w-0 px-2.5 sm:px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[38px]"
                 required
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-xs font-bold text-stone-700">
                 體溫 <span className="text-stone-400 font-normal">(選填 °C)</span>
               </label>
@@ -276,7 +276,7 @@ export default function IllnessFormModal({ isOpen, onClose, onSave, onDelete, in
                 value={temperature}
                 onChange={e => setTemperature(e.target.value)}
                 placeholder="例如 38.2"
-                className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                className="w-full min-w-0 px-2.5 sm:px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[38px]"
               />
             </div>
           </div>

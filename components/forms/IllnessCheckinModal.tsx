@@ -134,18 +134,18 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-4 overflow-y-auto flex-1 flex flex-col gap-4">
           {/* Date & Temperature */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-xs font-bold text-stone-700">記錄日期</label>
               <input
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.5em] w-full min-w-0 px-2.5 sm:px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[38px]"
                 required
               />
             </div>
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 min-w-0">
               <label className="text-xs font-bold text-stone-700">
                 今日體溫 <span className="text-stone-400 font-normal">(選填 °C)</span>
               </label>
@@ -154,7 +154,7 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
                 value={temperature}
                 onChange={e => setTemperature(e.target.value)}
                 placeholder="例如 37.1"
-                className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                className="w-full min-w-0 px-2.5 sm:px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[38px]"
               />
             </div>
           </div>
