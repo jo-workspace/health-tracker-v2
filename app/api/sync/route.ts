@@ -85,81 +85,105 @@ async function getDeletedIdsMap(doc: any): Promise<{ sheet: GoogleSpreadsheetWor
   return { sheet, map };
 }
 
+// 全域排程互斥鎖（Server Write Mutex Queue）：強制所有同步讀寫按順序執行，徹底消除並發時讀到空表導致的資料覆蓋問題
+let syncQueue: Promise<any> = Promise.resolve();
+
+function enqueueSync<T>(operation: () => Promise<T>): Promise<T> {
+  const result = syncQueue.then(operation, operation);
+  syncQueue = result.then(() => {}, () => {});
+  return result;
+}
+
 export async function POST(request: NextRequest) {
-  try {
-    const authHeader = request.headers.get('authorization');
-    const expectedPassword = process.env.APP_PASSWORD;
-    if (expectedPassword && authHeader !== `Bearer ${expectedPassword}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const payload = await request.json();
-    const doc = await withApiRetry(() => getGoogleSheet());
-    await withApiRetry(() => doc.loadInfo());
-
-    const { sheet: deletedIdsSheet, map: deletedIdsByKey } = await getDeletedIdsMap(doc);
-    const newDeletedIdRows: { sheetKey: string; id: string; deletedAt: string }[] = [];
-
-    const responsePayload: Record<string, any[]> = {};
-
-    const payloadKeys = Object.keys(payload).filter(k => k !== 'clientTimestamp');
-    const isFullSync = payloadKeys.length === 0;
-    const keysToSync = Object.keys(sheetsConfig).filter(key => isFullSync || payloadKeys.includes(key));
-
-    for (const key of keysToSync) {
-      const config = sheetsConfig[key];
-      const sheet = await getOrCreateSheet(doc, config.name, config.headers);
-
-      const deletedSet = deletedIdsByKey[key] || (deletedIdsByKey[key] = new Set());
-
-      // 讀取伺服器上的資料（永久刪除的 id 一律排除，避免手動刪列後又被舊快取復活）
-      const serverLogs = (await getLogsFromSheet(sheet, config.headers)).filter(item => !deletedSet.has(item.id));
-
-      if (payload[key] && Array.isArray(payload[key])) {
-        const clientLogs = payload[key];
-        const mergedMap: Record<string, any> = {};
-
-        serverLogs.forEach(item => {
-          if (item.id) mergedMap[item.id] = item;
-        });
-
-        clientLogs.forEach((item: any) => {
-          if (!item.id || deletedSet.has(item.id)) return;
-
-          if (item.status === 'deleted') {
-            newDeletedIdRows.push({ sheetKey: key, id: item.id, deletedAt: String(Date.now()) });
-            deletedSet.add(item.id);
-            delete mergedMap[item.id];
-            return;
-          }
-
-          const existing = mergedMap[item.id];
-          if (!existing || Number(item.lastUpdated) > Number(existing.lastUpdated)) {
-            mergedMap[item.id] = item;
-          }
-        });
-
-        const mergedList = Object.values(mergedMap);
-        const sheetList = mergedList.filter(item => item.status !== "deleted");
-
-        // 寫入 Google Sheets
-        await saveLogsToSheet(sheet, sheetList, config.headers);
-        responsePayload[key] = mergedList;
-      } else {
-        const activeLogs = serverLogs.filter(item => item.status !== "deleted");
-        responsePayload[key] = activeLogs;
+  return enqueueSync(async () => {
+    try {
+      const authHeader = request.headers.get('authorization');
+      const expectedPassword = process.env.APP_PASSWORD;
+      if (expectedPassword && authHeader !== `Bearer ${expectedPassword}`) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
-    }
 
-    if (newDeletedIdRows.length > 0) {
-      await withApiRetry(() => deletedIdsSheet.addRows(newDeletedIdRows));
-    }
+      const payload = await request.json();
+      const doc = await withApiRetry(() => getGoogleSheet());
+      await withApiRetry(() => doc.loadInfo());
 
-    return NextResponse.json(responsePayload);
-  } catch (error: any) {
-    console.error('[API/sync POST] Error:', error);
-    return NextResponse.json({ status: "error", message: error.message }, { status: 500 });
-  }
+      const { sheet: deletedIdsSheet, map: deletedIdsByKey } = await getDeletedIdsMap(doc);
+      const newDeletedIdRows: { sheetKey: string; id: string; deletedAt: string }[] = [];
+
+      const responsePayload: Record<string, any[]> = {};
+
+      const payloadKeys = Object.keys(payload).filter(k => k !== 'clientTimestamp');
+      const isFullSync = payloadKeys.length === 0;
+      const keysToSync = Object.keys(sheetsConfig).filter(key => isFullSync || payloadKeys.includes(key));
+
+      for (const key of keysToSync) {
+        const config = sheetsConfig[key];
+        const sheet = await getOrCreateSheet(doc, config.name, config.headers);
+
+        const deletedSet = deletedIdsByKey[key] || (deletedIdsByKey[key] = new Set());
+
+        // 讀取伺服器上的資料（永久刪除的 id 一律排除，避免手動刪列後又被舊快取復活）
+        const rawServerLogs = await getLogsFromSheet(sheet, config.headers);
+        const serverLogs = rawServerLogs.filter(item => {
+          // 若缺乏 id 但有 date，賦予穩定 fallback id 避免被誤判或遺失
+          if (!item.id && item.date) {
+            item.id = `${key}-${item.date}`;
+          }
+          return item.id && !deletedSet.has(item.id);
+        });
+
+        if (payload[key] && Array.isArray(payload[key])) {
+          const clientLogs = payload[key];
+          const mergedMap: Record<string, any> = {};
+
+          serverLogs.forEach(item => {
+            if (item.id) mergedMap[item.id] = item;
+          });
+
+          clientLogs.forEach((item: any) => {
+            if (!item.id || deletedSet.has(item.id)) return;
+
+            if (item.status === 'deleted') {
+              newDeletedIdRows.push({ sheetKey: key, id: item.id, deletedAt: String(Date.now()) });
+              deletedSet.add(item.id);
+              delete mergedMap[item.id];
+              return;
+            }
+
+            const existing = mergedMap[item.id];
+            if (!existing || Number(item.lastUpdated) > Number(existing.lastUpdated)) {
+              mergedMap[item.id] = item;
+            }
+          });
+
+          const mergedList = Object.values(mergedMap);
+          const sheetList = mergedList.filter(item => item.status !== "deleted");
+
+          // 防禦性檢查：若伺服器原先有資料，但合併結果意外為 0 筆，禁止直接抹除雲端資料
+          if (sheetList.length === 0 && serverLogs.length > 0) {
+            console.warn(`[Sync Safety] Aborted empty overwrite for ${config.name} (server had ${serverLogs.length} rows)`);
+            responsePayload[key] = serverLogs;
+          } else {
+            // 寫入 Google Sheets
+            await saveLogsToSheet(sheet, sheetList, config.headers);
+            responsePayload[key] = mergedList;
+          }
+        } else {
+          const activeLogs = serverLogs.filter(item => item.status !== "deleted");
+          responsePayload[key] = activeLogs;
+        }
+      }
+
+      if (newDeletedIdRows.length > 0) {
+        await withApiRetry(() => deletedIdsSheet.addRows(newDeletedIdRows));
+      }
+
+      return NextResponse.json(responsePayload);
+    } catch (error: any) {
+      console.error('[API/sync POST] Error:', error);
+      return NextResponse.json({ status: "error", message: error.message }, { status: 500 });
+    }
+  });
 }
 
 async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: string[]) {
@@ -233,6 +257,11 @@ async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], h
     });
     return rowObj;
   });
+
+  if (allRows.length === 0 && sheet.rowCount > 1) {
+    console.warn(`[Sync Safety] Aborted clearRows on ${sheet.title} because target rows are empty.`);
+    return;
+  }
 
   await withApiRetry(() => sheet.clearRows());
   

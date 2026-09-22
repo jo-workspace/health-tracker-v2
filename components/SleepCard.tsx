@@ -369,7 +369,7 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
             }
           }
 
-          let updatedSuppLogs = [...supplementLogs];
+          let deltaSuppLogs: any[] | undefined = undefined;
           if (hasBedtimeSupplements !== undefined && logData.date && logData.type === 'night') {
             const [y, m, d] = logData.date.split('-').map(Number);
             const prevDateObj = new Date(y, m - 1, d - 1);
@@ -381,14 +381,14 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
 
             const bedtimeSettings = activeSettings.filter(s => isBedtimeSupplement(s.time, s.name));
 
-            const existingSuppIndex = updatedSuppLogs.findIndex(
+            const existingSuppLog = (supplementLogs || []).find(
               l => (l.date === prevDate || l.date === logData.date) && l.status !== 'deleted'
             );
 
             let currentItems: any[] = [];
-            if (existingSuppIndex >= 0 && updatedSuppLogs[existingSuppIndex].items) {
+            if (existingSuppLog && existingSuppLog.items) {
               try {
-                currentItems = JSON.parse(updatedSuppLogs[existingSuppIndex].items);
+                currentItems = JSON.parse(existingSuppLog.items);
               } catch {
                 currentItems = [];
               }
@@ -436,30 +436,28 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
               }
             });
 
-            if (existingSuppIndex >= 0) {
-              updatedSuppLogs[existingSuppIndex] = {
-                ...updatedSuppLogs[existingSuppIndex],
-                items: JSON.stringify(updatedItems),
-                status: 'active',
-                lastUpdated: Date.now().toString()
-              };
-            } else {
-              updatedSuppLogs.push({
-                id: `supp-${prevDate}`,
-                date: prevDate,
-                items: JSON.stringify(updatedItems),
-                status: 'active',
-                lastUpdated: Date.now().toString()
-              });
-            }
+            const targetDate = existingSuppLog ? existingSuppLog.date : prevDate;
+            const targetId = existingSuppLog ? existingSuppLog.id : `supp-${prevDate}`;
+
+            deltaSuppLogs = [{
+              id: targetId,
+              date: targetDate,
+              items: JSON.stringify(updatedItems),
+              status: 'active',
+              lastUpdated: Date.now().toString()
+            }];
           }
 
-          updateData({
+          const syncPayload: SyncPayload = {
             sleepLogs: newLogs,
             biteSplintLogs: updatedSplintLogs,
-            supplementLogs: updatedSuppLogs,
             clientTimestamp: Date.now()
-          });
+          };
+          if (deltaSuppLogs) {
+            syncPayload.supplementLogs = deltaSuppLogs;
+          }
+
+          updateData(syncPayload);
         }}
         />
       )}
