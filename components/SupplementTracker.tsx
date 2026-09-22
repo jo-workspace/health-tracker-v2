@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Pill, Check, Plus, Minus, Clock, ChevronRight, ChevronLeft, X, Ban, History, Settings, Calendar } from 'lucide-react';
+import { Pill, Check, Plus, Minus, Clock, ChevronRight, ChevronLeft, X, Ban, History, Settings, Calendar, CheckCircle2 } from 'lucide-react';
 import type { SupplementLog, SupplementSetting, SyncPayload } from '@/lib/types';
 import { type Supplement, isScheduledDay, PREDEFINED_SUPPLEMENTS, getSupplementCategorySlot } from '@/lib/supplements';
 import SupplementHistoryModal from './forms/SupplementHistoryModal';
@@ -318,10 +318,13 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   };
   const currentSlotName = getCurrentSlotName();
 
-  const handleSaveBatchUpdates = (updates: { id: string; taken: boolean; amount: number }[]) => {
+  const handleSaveBatchUpdates = (
+    updates: { id: string; taken: boolean; amount: number }[],
+    newCustomItems: Supplement[] = []
+  ) => {
     setSupplements(prev => {
       const updateMap = new Map(updates.map(u => [u.id, u]));
-      const newState = prev.map(s => {
+      const updatedExisting = prev.map(s => {
         const u = updateMap.get(s.id);
         if (u) {
           return {
@@ -333,6 +336,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         }
         return s;
       });
+      const newState = [...updatedExisting, ...newCustomItems];
       saveToCloud(newState, selectedDate);
       return newState;
     });
@@ -496,9 +500,10 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
                     setBatchSlotName(currentSlotName);
                     setIsBatchModalOpen(true);
                   }}
-                  className="px-2.5 py-1 bg-[#6ba388] text-white text-xs font-bold rounded-lg hover:bg-[#5b8c74] transition-colors shadow-2xs flex items-center gap-1"
+                  className="px-2.5 py-1 bg-[#6ba388] text-white text-xs font-bold rounded-lg hover:bg-[#5b8c74] transition-colors shadow-2xs flex items-center gap-1.5"
                 >
-                  ✅ {currentSlotName}
+                  <CheckCircle2 size={13} className="stroke-[2.5]" />
+                  <span>{currentSlotName}</span>
                 </button>
               )}
               <ChevronRight size={18} className="text-stone-300 group-hover:text-stone-500 transition-colors shrink-0" />
@@ -597,9 +602,10 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
                       setBatchSlotName(currentSlotName);
                       setIsBatchModalOpen(true);
                     }}
-                    className="px-2.5 py-1 bg-[#6ba388] text-white text-xs font-bold rounded-lg hover:bg-[#5b8c74] transition-colors shadow-2xs flex items-center gap-1"
+                    className="px-2.5 py-1 bg-[#6ba388] text-white text-xs font-bold rounded-lg hover:bg-[#5b8c74] transition-colors shadow-2xs flex items-center gap-1.5"
                   >
-                    ✅ {currentSlotName}
+                    <CheckCircle2 size={13} className="stroke-[2.5]" />
+                    <span>{currentSlotName}</span>
                   </button>
                 )}
               </div>
@@ -670,6 +676,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         onClose={() => setIsBatchModalOpen(false)}
         slotName={batchSlotName}
         supplements={supplements}
+        pastCustomNames={pastCustomNames}
         onSaveBatch={handleSaveBatchUpdates}
       />
 
