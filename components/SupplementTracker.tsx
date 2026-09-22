@@ -181,9 +181,22 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
     }
   }, [selectedDate, todayStr, supplements, todayLog, baseSupplements]);
 
-  const totalCount = todayParsedSupps.length;
-  const takenCount = todayParsedSupps.filter(s => s.taken && isFulfilled(s)).length;
-  const ignoredCount = todayParsedSupps.filter(s => s.ignored).length;
+  const todayProgressSupps = useMemo(() => {
+    const [y, m, d] = todayStr.split('-').map(Number);
+    const todayDateObj = new Date(y, m - 1, d);
+    return todayParsedSupps.filter(s => {
+      // 1. 若今天有服用，必定計入進度
+      if (s.taken) return true;
+      // 2. 自訂品項且未被略過，計入
+      if (s.isCustom) return !s.ignored;
+      // 3. 常態品項：僅排程包含今日者才計入進度母數（排除非今日排程的品項）
+      return isScheduledDay(s.time, todayDateObj);
+    });
+  }, [todayParsedSupps, todayStr]);
+
+  const totalCount = todayProgressSupps.length;
+  const takenCount = todayProgressSupps.filter(s => s.taken && isFulfilled(s)).length;
+  const ignoredCount = todayProgressSupps.filter(s => s.ignored && !s.taken).length;
   
   const pTaken = totalCount === 0 ? 100 : (takenCount / totalCount) * 100;
   const pIgnored = totalCount === 0 ? 0 : (ignoredCount / totalCount) * 100;
