@@ -246,11 +246,56 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   };
 
   const addCustomSupplement = (name: string) => {
-    if (!name.trim()) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
     setSupplements(prev => {
+      // 1. 智慧喚醒：若在常態排程清單中已存在此項目（如非今日排程但被略過的魚油、葉黃素），直接喚醒該項目
+      const existingRegular = prev.find(
+        s => !s.isCustom && s.name.toLowerCase() === trimmed.toLowerCase()
+      );
+
+      if (existingRegular) {
+        const targetAmt = existingRegular.targetAmount || 1;
+        const newState = prev.map(s => {
+          if (s.id === existingRegular.id) {
+            return {
+              ...s,
+              ignored: false,
+              taken: true,
+              amount: s.taken ? (s.amount || 1) + 1 : targetAmt
+            };
+          }
+          return s;
+        });
+        saveToCloud(newState, selectedDate);
+        return newState;
+      }
+
+      // 2. 若已有同名自訂品項，增加顆數
+      const existingCustom = prev.find(
+        s => s.isCustom && s.name.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (existingCustom) {
+        const newState = prev.map(s => {
+          if (s.id === existingCustom.id) {
+            return {
+              ...s,
+              taken: true,
+              ignored: false,
+              amount: (s.amount || 1) + 1
+            };
+          }
+          return s;
+        });
+        saveToCloud(newState, selectedDate);
+        return newState;
+      }
+
+      // 3. 全新自訂品項
       const newSupp: Supplement = {
         id: `custom-${Date.now()}`,
-        name: name.trim(),
+        name: trimmed,
         time: '額外補充',
         taken: true,
         amount: 1,
@@ -290,10 +335,18 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   regularItemNames.add('甘胺酸鎂');
   regularItemNames.add('蘇糖酸鎂');
 
-  const pastCustomNames = Array.from(customNameCounts.entries())
-    .filter(([name]) => !todayCustomNames.has(name) && !regularItemNames.has(name))
-    .sort((a, b) => b[1] - a[1])
-    .map(([name]) => name);
+  // 今日非排程、已略過的常態項目（如非週一五的魚油、非週一三五的葉黃素）
+  const nonScheduledItemNames = supplements
+    .filter(s => !s.isCustom && s.ignored)
+    .map(s => s.name);
+
+  const pastCustomNames = Array.from(new Set([
+    ...nonScheduledItemNames,
+    ...Array.from(customNameCounts.entries())
+      .filter(([name]) => !todayCustomNames.has(name) && !regularItemNames.has(name))
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name)
+  ]));
 
   const getCurrentSlotName = () => {
     const isPending = (s: Supplement) => !s.ignored && !(s.taken && isFulfilled(s));
@@ -324,7 +377,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   ) => {
     setSupplements(prev => {
       const updateMap = new Map(updates.map(u => [u.id, u]));
-      const updatedExisting = prev.map(s => {
+      let newState = prev.map(s => {
         const u = updateMap.get(s.id);
         if (u) {
           return {
@@ -336,7 +389,38 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         }
         return s;
       });
-      const newState = [...updatedExisting, ...newCustomItems];
+
+      // 智慧合併 newCustomItems：若已有同名常態項目，直接喚醒該常態項目，杜絕重複建立雙胞胎卡片
+      newCustomItems.forEach(newItem => {
+        const regIdx = newState.findIndex(
+          s => !s.isCustom && s.name.toLowerCase() === newItem.name.toLowerCase()
+        );
+        if (regIdx >= 0) {
+          const reg = newState[regIdx];
+          newState[regIdx] = {
+            ...reg,
+            ignored: false,
+            taken: true,
+            amount: newItem.amount || reg.targetAmount || 1
+          };
+        } else {
+          const custIdx = newState.findIndex(
+            s => s.isCustom && s.name.toLowerCase() === newItem.name.toLowerCase()
+          );
+          if (custIdx >= 0) {
+            const cust = newState[custIdx];
+            newState[custIdx] = {
+              ...cust,
+              ignored: false,
+              taken: true,
+              amount: newItem.amount || (cust.amount || 1) + 1
+            };
+          } else {
+            newState.push(newItem);
+          }
+        }
+      });
+
       saveToCloud(newState, selectedDate);
       return newState;
     });

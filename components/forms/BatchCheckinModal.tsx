@@ -73,13 +73,35 @@ export default function BatchCheckinModal({
     const name = rawName.trim();
     if (!name) return;
 
-    const existing = items.find(i => i.name.toLowerCase() === name.toLowerCase());
-    if (existing) {
-      setItems(prev => prev.map(i => i.id === existing.id ? { ...i, checked: true, amount: i.amount + 1 } : i));
+    // 1. 若當前彈窗清單已有此項目，直接勾選並增加數量
+    const existingInItems = items.find(i => i.name.toLowerCase() === name.toLowerCase());
+    if (existingInItems) {
+      setItems(prev => prev.map(i => i.id === existingInItems.id ? { ...i, checked: true, amount: i.amount + 1 } : i));
       setCustomInput('');
       return;
     }
 
+    // 2. 智慧喚醒：若在原始品項清單中已有此常態項目（如今日非排程但已被略過的魚油、葉黃素）
+    const existingInSupps = supplements.find(
+      s => !s.isCustom && s.name.toLowerCase() === name.toLowerCase()
+    );
+
+    if (existingInSupps) {
+      const targetAmt = existingInSupps.targetAmount || 1;
+      const newItem: ItemState = {
+        id: existingInSupps.id,
+        name: existingInSupps.name,
+        targetAmount: targetAmt,
+        amount: targetAmt,
+        checked: true,
+        isCustom: false
+      };
+      setItems(prev => [...prev, newItem]);
+      setCustomInput('');
+      return;
+    }
+
+    // 3. 全新自訂品項
     const newItem: ItemState = {
       id: `custom-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name,
