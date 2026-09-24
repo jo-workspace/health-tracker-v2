@@ -76,6 +76,8 @@ export default function SleepFormModal({
   const [hasBiteSplint, setHasBiteSplint] = useState(false);
   const [hasBedtimeSupplements, setHasBedtimeSupplements] = useState(false);
 
+  const hoursInputRef = useRef<HTMLInputElement>(null);
+  const minutesInputRef = useRef<HTMLInputElement>(null);
   const isInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -224,6 +226,98 @@ export default function SleepFormModal({
     }
   };
 
+  const handleBedTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    if (!raw) {
+      setBedTime('');
+      return;
+    }
+
+    const digits = raw.replace(/\D/g, '').slice(0, 4);
+    if (!digits) {
+      setBedTime('');
+      return;
+    }
+
+    let formatted = digits;
+    if (digits.length > 2) {
+      formatted = `${digits.slice(0, 2)}:${digits.slice(2)}`;
+    }
+    setBedTime(formatted);
+
+    // 輸入滿 4 碼合法時間 (00:00 - 23:59) 自動跳下一格 (小時)
+    if (digits.length === 4) {
+      const h = parseInt(digits.slice(0, 2), 10);
+      const m = parseInt(digits.slice(2, 4), 10);
+      if (h < 24 && m < 60) {
+        setTimeout(() => {
+          hoursInputRef.current?.focus();
+          hoursInputRef.current?.select();
+        }, 120);
+      }
+    }
+  };
+
+  const handleBedTimeBlur = () => {
+    if (!bedTime) return;
+    const digits = bedTime.replace(/\D/g, '');
+    if (digits.length === 4) {
+      const h = parseInt(digits.slice(0, 2), 10);
+      const m = parseInt(digits.slice(2, 4), 10);
+      if (h < 24 && m < 60) {
+        setBedTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+      }
+    } else if (digits.length === 3) {
+      // 3 碼容錯，如 118 -> 01:18, 930 -> 09:30
+      const h = parseInt(digits.slice(0, 1), 10);
+      const m = parseInt(digits.slice(1, 3), 10);
+      if (m < 60) {
+        setBedTime(`0${h}:${String(m).padStart(2, '0')}`);
+      }
+    } else if (digits.length === 1 || digits.length === 2) {
+      const h = parseInt(digits, 10);
+      if (h < 24) {
+        setBedTime(`${String(h).padStart(2, '0')}:00`);
+      }
+    }
+  };
+
+  const handleHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setDurationHours(digits);
+
+    if (!digits) return;
+
+    const num = parseInt(digits, 10);
+    // 若首碼為 2~9，判定為單碼睡眠小時 (2~9小時)，直接跳至分鐘
+    if (/^[2-9]$/.test(digits)) {
+      setTimeout(() => {
+        minutesInputRef.current?.focus();
+        minutesInputRef.current?.select();
+      }, 120);
+    } else if (digits.length === 2 && num <= 24) {
+      setTimeout(() => {
+        minutesInputRef.current?.focus();
+        minutesInputRef.current?.select();
+      }, 120);
+    }
+  };
+
+  const handleMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 2);
+    setDurationMinutes(digits);
+
+    // 分鐘滿 2 碼且合法，自動收起鍵盤
+    if (digits.length === 2) {
+      const num = parseInt(digits, 10);
+      if (num < 60) {
+        setTimeout(() => {
+          minutesInputRef.current?.blur();
+        }, 120);
+      }
+    }
+  };
+
   const existingLogForSelection = type === 'night'
     ? sleepLogs.find(l => l.date === date && l.type === 'night' && l.status !== 'deleted')
     : (initialData && initialData.date === date && initialData.type === 'nap' ? initialData : null);
@@ -358,12 +452,23 @@ export default function SleepFormModal({
 
               {/* 上床時間 */}
               <div className="flex flex-col gap-1 min-w-0">
-                <label className="text-[11px] font-bold text-stone-500">上床時間</label>
+                <label className="text-[11px] font-bold text-stone-500">上床時間 (24小時制)</label>
                 <input 
-                  type="time" 
+                  type="text" 
+                  inputMode="numeric"
+                  enterKeyHint="next"
+                  maxLength={5}
                   value={bedTime} 
-                  onChange={e => setBedTime(e.target.value)}
-                  className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400"
+                  onChange={handleBedTimeChange}
+                  onBlur={handleBedTimeBlur}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      hoursInputRef.current?.focus();
+                    }
+                  }}
+                  placeholder="例 2342 或 0018"
+                  className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 placeholder:text-stone-300"
                 />
               </div>
 
@@ -373,12 +478,20 @@ export default function SleepFormModal({
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
                     <input 
-                      type="number" 
-                      min="0"
-                      max="24"
+                      ref={hoursInputRef}
+                      type="text" 
+                      inputMode="numeric"
+                      enterKeyHint="next"
+                      maxLength={2}
                       value={durationHours} 
-                      onChange={e => setDurationHours(e.target.value)}
-                      className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 pr-11" 
+                      onChange={handleHoursChange}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          minutesInputRef.current?.focus();
+                        }
+                      }}
+                      className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 pr-11 placeholder:text-stone-300" 
                       placeholder="7"
                       required={!durationMinutes}
                     />
@@ -386,12 +499,20 @@ export default function SleepFormModal({
                   </div>
                   <div className="relative">
                     <input 
-                      type="number" 
-                      min="0"
-                      max="59"
+                      ref={minutesInputRef}
+                      type="text" 
+                      inputMode="numeric"
+                      enterKeyHint="done"
+                      maxLength={2}
                       value={durationMinutes} 
-                      onChange={e => setDurationMinutes(e.target.value)}
-                      className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 pr-11" 
+                      onChange={handleMinutesChange}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          minutesInputRef.current?.blur();
+                        }
+                      }}
+                      className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 pr-11 placeholder:text-stone-300" 
                       placeholder="30"
                     />
                     <span className="absolute right-2.5 top-2.5 text-xs text-stone-400 pointer-events-none">分鐘</span>
@@ -441,12 +562,16 @@ export default function SleepFormModal({
                 <label className="text-[11px] font-bold text-stone-500">小睡 (分鐘)</label>
                 <div className="relative">
                   <input 
-                    type="number" 
-                    min="1"
-                    max="300"
+                    type="text" 
+                    inputMode="numeric"
+                    enterKeyHint="done"
+                    maxLength={3}
                     value={napMinutes} 
-                    onChange={e => setNapMinutes(e.target.value)}
-                    className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 pr-10" 
+                    onChange={e => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 3);
+                      setNapMinutes(digits);
+                    }}
+                    className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 pr-10 placeholder:text-stone-300" 
                     placeholder="30"
                     required
                   />
