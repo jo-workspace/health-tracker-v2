@@ -76,8 +76,10 @@ export default function SleepFormModal({
   const [hasBiteSplint, setHasBiteSplint] = useState(false);
   const [hasBedtimeSupplements, setHasBedtimeSupplements] = useState(false);
 
+  const bedTimeInputRef = useRef<HTMLInputElement>(null);
   const hoursInputRef = useRef<HTMLInputElement>(null);
   const minutesInputRef = useRef<HTMLInputElement>(null);
+  const napMinutesInputRef = useRef<HTMLInputElement>(null);
   const isInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -145,6 +147,22 @@ export default function SleepFormModal({
       }
     }
   }, [isOpen, initialData, defaultDate, defaultType, splintLogs, sleepLogs, supplementLogs]);
+
+  // 開啟表單或切換類型時，自動將游標聚焦在核心輸入框 (主睡眠為上床時間，小睡為分鐘數)
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        if (type === 'night') {
+          bedTimeInputRef.current?.focus();
+          bedTimeInputRef.current?.select();
+        } else {
+          napMinutesInputRef.current?.focus();
+          napMinutesInputRef.current?.select();
+        }
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, type]);
 
   const handleDateChange = (newDate: string) => {
     setDate(newDate);
@@ -454,6 +472,7 @@ export default function SleepFormModal({
               <div className="flex flex-col gap-1 min-w-0">
                 <label className="text-[11px] font-bold text-stone-500">上床時間 (24小時制)</label>
                 <input 
+                  ref={bedTimeInputRef}
                   type="text" 
                   inputMode="numeric"
                   enterKeyHint="next"
@@ -562,6 +581,7 @@ export default function SleepFormModal({
                 <label className="text-[11px] font-bold text-stone-500">小睡 (分鐘)</label>
                 <div className="relative">
                   <input 
+                    ref={napMinutesInputRef}
                     type="text" 
                     inputMode="numeric"
                     enterKeyHint="done"
