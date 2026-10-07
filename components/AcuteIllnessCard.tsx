@@ -129,7 +129,10 @@ export default function AcuteIllnessCard({ data = [], updateData }: Props) {
     const updatedLogs = data.map(log => {
       if (log.id === illnessId) {
         const existingHistory = ensureIllnessLogHistory(log);
-        const mergedHistory = [...existingHistory.filter(h => h.id !== entry.id), entry].sort(
+        const mergedHistory = [
+          ...existingHistory.filter(h => h.date !== entry.date && h.id !== entry.id),
+          entry
+        ].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         );
         const latestEntry = mergedHistory[mergedHistory.length - 1];

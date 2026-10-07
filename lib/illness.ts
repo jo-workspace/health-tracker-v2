@@ -144,7 +144,25 @@ export function formatDate(dateStr: string): string {
 
 export function ensureIllnessLogHistory(log: IllnessLog): IllnessHistoryEntry[] {
   if (Array.isArray(log.history) && log.history.length > 0) {
-    return [...log.history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sorted = [...log.history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // 若歷史紀錄中缺少發病起始日 (startDate) 的節點，自動補回起始節點
+    if (log.startDate && !sorted.some(h => h.date === log.startDate)) {
+      const initialEntry: IllnessHistoryEntry = {
+        id: `${log.id}-init`,
+        date: log.startDate,
+        symptoms: (sorted[0]?.symptoms && sorted[0].symptoms.length > 0) ? sorted[0].symptoms : (log.symptoms || []),
+        severity: sorted[0]?.severity !== undefined ? sorted[0].severity : (log.severity !== undefined ? log.severity : 1),
+        temperature: '',
+        medicationsTaken: log.prescribedMedications || [],
+        medicationCourseProgress: log.medicationDaysTotal ? `第 1/${log.medicationDaysTotal} 天` : '第 1 天',
+        notes: log.notes ? log.notes : '',
+        timestamp: new Date(log.startDate).getTime()
+      };
+      return [initialEntry, ...sorted].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
+
+    return sorted;
   }
 
   const initialSeverity = log.severity !== undefined ? log.severity : 1;

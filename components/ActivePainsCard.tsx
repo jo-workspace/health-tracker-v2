@@ -124,7 +124,10 @@ export default function ActivePainsCard({ data = [], updateData }: Props) {
     const updatedLogs = data.map(log => {
       if (log.id === painId) {
         const existingHistory = ensurePainLogHistory(log);
-        const mergedHistory = [...existingHistory.filter(h => h.id !== entry.id), entry].sort(
+        const mergedHistory = [
+          ...existingHistory.filter(h => h.date !== entry.date && h.id !== entry.id),
+          entry
+        ].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         );
         const latestEntry = mergedHistory[mergedHistory.length - 1];

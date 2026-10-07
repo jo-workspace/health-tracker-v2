@@ -123,6 +123,27 @@ export function useHealthData() {
         });
         updated.allergyLogs = existing;
       }
+      if (payload.illnessLogs) {
+        const existing = [...(prev.illnessLogs || [])];
+        payload.illnessLogs.forEach(newLog => {
+          const idx = existing.findIndex(l => l.id === newLog.id);
+          if (idx >= 0) existing[idx] = { ...existing[idx], ...newLog };
+          else existing.push(newLog as any);
+        });
+        updated.illnessLogs = existing;
+      }
+      if (payload.painLogs) {
+        const existing = [...(prev.painLogs || [])];
+        payload.painLogs.forEach(newLog => {
+          const idx = existing.findIndex(l => l.id === newLog.id);
+          if (idx >= 0) existing[idx] = { ...existing[idx], ...newLog };
+          else existing.push(newLog as any);
+        });
+        updated.painLogs = existing;
+      }
+      if (payload.longTermLogs) {
+        updated.longTermLogs = payload.longTermLogs as any;
+      }
       return updated;
     });
 

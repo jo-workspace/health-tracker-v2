@@ -157,8 +157,26 @@ export function formatDate(dateStr: string): string {
  * 確保 PainLog 擁有 history 結構（若無則自動產生初次節點）
  */
 export function ensurePainLogHistory(log: PainLog): PainHistoryEntry[] {
+  const initialStartDate = log.startDate || log.date;
   if (Array.isArray(log.history) && log.history.length > 0) {
-    return [...log.history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sorted = [...log.history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    if (initialStartDate && !sorted.some(h => h.date === initialStartDate)) {
+      const initialLevel = log.level ?? log.intensity ?? 3;
+      const levelObj = getPainLevel(initialLevel);
+      const initialEntry: PainHistoryEntry = {
+        id: `${log.id}-init`,
+        date: initialStartDate,
+        level: sorted[0]?.level !== undefined ? sorted[0].level : levelObj.level,
+        levelLabel: sorted[0]?.levelLabel || levelObj.label,
+        treatments: log.treatments || [],
+        notes: log.notes || '',
+        timestamp: new Date(initialStartDate).getTime()
+      };
+      return [initialEntry, ...sorted].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
+
+    return sorted;
   }
 
   const initialLevel = log.level ?? log.intensity ?? 3;
@@ -167,7 +185,7 @@ export function ensurePainLogHistory(log: PainLog): PainHistoryEntry[] {
   return [
     {
       id: `${log.id}-init`,
-      date: log.startDate || log.date || new Date(log.lastUpdated || Date.now()).toLocaleDateString('en-CA'),
+      date: initialStartDate || new Date(log.lastUpdated || Date.now()).toLocaleDateString('en-CA'),
       level: levelObj.level,
       levelLabel: levelObj.label,
       treatments: log.treatments || [],
