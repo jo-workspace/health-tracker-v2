@@ -40,7 +40,7 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
     if (isOpen && illnessLog) {
       const today = new Date().toLocaleDateString('en-CA');
       setDate(today);
-      setSeverity(illnessLog.severity || 1);
+      setSeverity(illnessLog.severity !== undefined ? illnessLog.severity : 1);
       setTemperature(illnessLog.temperature || '');
       setSymptoms(illnessLog.symptoms || []);
       // 預設將已開立之藥物帶入（若使用者今天只吃特定藥，可自行點擊取消）
@@ -56,16 +56,54 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
 
   if (!isOpen || !illnessLog) return null;
 
+  const toggleAsymptomatic = () => {
+    if (symptoms.includes('無症狀') || severity === 0) {
+      setSymptoms([]);
+      setSeverity(1);
+    } else {
+      setSymptoms(['無症狀']);
+      setSeverity(0);
+    }
+  };
+
+  const handleSeveritySelect = (lvl: number) => {
+    setSeverity(lvl);
+    if (lvl === 0) {
+      setSymptoms(['無症狀']);
+    } else {
+      setSymptoms(prev => prev.filter(s => s !== '無症狀'));
+    }
+  };
+
   const toggleSymptom = (item: string) => {
-    setSymptoms(prev =>
-      prev.includes(item) ? prev.filter(s => s !== item) : [...prev, item]
-    );
+    if (item === '無症狀') {
+      toggleAsymptomatic();
+      return;
+    }
+    setSymptoms(prev => {
+      const withoutAsymp = prev.filter(s => s !== '無症狀');
+      if (withoutAsymp.includes(item)) {
+        return withoutAsymp.filter(s => s !== item);
+      } else {
+        if (severity === 0) {
+          setSeverity(1);
+        }
+        return [...withoutAsymp, item];
+      }
+    });
   };
 
   const addCustomSymptom = () => {
     const trimmed = customSymptom.trim();
-    if (trimmed && !symptoms.includes(trimmed)) {
-      setSymptoms(prev => [...prev, trimmed]);
+    if (!trimmed) return;
+    if (trimmed === '無症狀') {
+      toggleAsymptomatic();
+      setCustomSymptom('');
+      return;
+    }
+    if (!symptoms.includes(trimmed)) {
+      setSymptoms(prev => [...prev.filter(s => s !== '無症狀'), trimmed]);
+      if (severity === 0) setSeverity(1);
       setCustomSymptom('');
     }
   };
@@ -78,10 +116,11 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const finalSymptoms = symptoms.length === 0 && severity === 0 ? ['無症狀'] : symptoms;
     const newEntry: IllnessHistoryEntry = {
       id: crypto.randomUUID(),
       date,
-      symptoms,
+      symptoms: finalSymptoms,
       severity,
       temperature: temperature.trim(),
       medicationsTaken: medsTaken,
@@ -94,7 +133,7 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
       illnessLog.id,
       newEntry,
       severity,
-      symptoms,
+      finalSymptoms,
       temperature.trim(),
       medsTaken,
       notes.trim()
@@ -162,17 +201,19 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
           {/* Severity */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-stone-700">今日嚴重度</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               {SEVERITY_LEVELS.map(lvl => {
                 const isSelected = severity === lvl.level;
                 return (
                   <button
                     key={lvl.level}
                     type="button"
-                    onClick={() => setSeverity(lvl.level)}
-                    className={`py-2 px-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all ${
+                    onClick={() => handleSeveritySelect(lvl.level)}
+                    className={`py-2 px-1 rounded-lg text-xs font-medium border flex items-center justify-center gap-1 transition-all ${
                       isSelected
-                        ? 'bg-stone-800 text-white border-stone-800 shadow-2xs font-bold'
+                        ? lvl.level === 0
+                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs font-bold'
+                          : 'bg-stone-800 text-white border-stone-800 shadow-2xs font-bold'
                         : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
                     }`}
                   >
@@ -186,9 +227,28 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
 
           {/* Symptoms today */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-stone-700">今日症狀 (點選以更新)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-stone-700">今日症狀 (點選以更新)</label>
+              {symptoms.includes('無症狀') && (
+                <span className="text-[11px] text-emerald-600 font-medium">無症狀觀察中</span>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {catConfig.presetSymptoms.map(item => {
+              {/* 無症狀快捷標籤 */}
+              <button
+                type="button"
+                onClick={toggleAsymptomatic}
+                className={`text-xs px-2.5 py-1 rounded-md border transition-all flex items-center gap-1 ${
+                  symptoms.includes('無症狀')
+                    ? 'bg-emerald-700 text-white border-emerald-700 font-bold'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-medium'
+                }`}
+              >
+                {symptoms.includes('無症狀') && <Check size={12} />}
+                無症狀
+              </button>
+
+              {catConfig.presetSymptoms.filter(item => item !== '無症狀').map(item => {
                 const isSelected = symptoms.includes(item);
                 return (
                   <button
@@ -207,7 +267,7 @@ export default function IllnessCheckinModal({ isOpen, onClose, illnessLog, onSav
                 );
               })}
               {symptoms
-                .filter(s => !catConfig.presetSymptoms.includes(s))
+                .filter(s => s !== '無症狀' && !catConfig.presetSymptoms.includes(s))
                 .map(item => (
                   <button
                     key={item}

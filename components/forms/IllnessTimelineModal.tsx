@@ -146,7 +146,11 @@ export default function IllnessTimelineModal({
                           {entry.symptoms.map(s => (
                             <span
                               key={s}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 font-medium"
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                s === '無症狀'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-stone-100 text-stone-600'
+                              }`}
                             >
                               {s}
                             </span>

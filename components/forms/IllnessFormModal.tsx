@@ -42,7 +42,7 @@ export default function IllnessFormModal({ isOpen, onClose, onSave, onDelete, in
         setCategory(initialData.category || 'respiratory');
         setName(initialData.name || '');
         setStartDate(initialData.startDate || new Date().toLocaleDateString('en-CA'));
-        setSeverity(initialData.severity || 1);
+        setSeverity(initialData.severity !== undefined ? initialData.severity : 1);
         setTemperature(initialData.temperature || '');
         setSymptoms(initialData.symptoms || []);
         setMedicalCare(initialData.medicalCare || 'clinic');
@@ -88,16 +88,32 @@ export default function IllnessFormModal({ isOpen, onClose, onSave, onDelete, in
     }
   };
 
+  const handleSeveritySelect = (lvl: number) => {
+    setSeverity(lvl);
+    if (lvl === 0) {
+      setSymptoms(['無症狀']);
+    } else {
+      setSymptoms(prev => prev.filter(s => s !== '無症狀'));
+    }
+  };
+
   const toggleSymptom = (item: string) => {
-    setSymptoms(prev =>
-      prev.includes(item) ? prev.filter(s => s !== item) : [...prev, item]
-    );
+    setSymptoms(prev => {
+      const withoutAsymp = prev.filter(s => s !== '無症狀');
+      if (withoutAsymp.includes(item)) {
+        return withoutAsymp.filter(s => s !== item);
+      } else {
+        if (severity === 0) setSeverity(1);
+        return [...withoutAsymp, item];
+      }
+    });
   };
 
   const addCustomSymptom = () => {
     const trimmed = customSymptom.trim();
     if (trimmed && !symptoms.includes(trimmed)) {
-      setSymptoms(prev => [...prev, trimmed]);
+      setSymptoms(prev => [...prev.filter(s => s !== '無症狀'), trimmed]);
+      if (severity === 0) setSeverity(1);
       setCustomSymptom('');
     }
   };
@@ -284,17 +300,19 @@ export default function IllnessFormModal({ isOpen, onClose, onSave, onDelete, in
           {/* 4. Severity Level */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-stone-700">目前嚴重度</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               {SEVERITY_LEVELS.map(lvl => {
                 const isSelected = severity === lvl.level;
                 return (
                   <button
                     key={lvl.level}
                     type="button"
-                    onClick={() => setSeverity(lvl.level)}
-                    className={`py-2 px-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all ${
+                    onClick={() => handleSeveritySelect(lvl.level)}
+                    className={`py-2 px-1 rounded-lg text-xs font-medium border flex items-center justify-center gap-1 transition-all ${
                       isSelected
-                        ? 'bg-stone-800 text-white border-stone-800 shadow-2xs font-bold'
+                        ? lvl.level === 0
+                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs font-bold'
+                          : 'bg-stone-800 text-white border-stone-800 shadow-2xs font-bold'
                         : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
                     }`}
                   >
@@ -310,7 +328,27 @@ export default function IllnessFormModal({ isOpen, onClose, onSave, onDelete, in
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-stone-700">主要症狀 (可複選)</label>
             <div className="flex flex-wrap gap-1.5">
-              {currentCategoryConfig.presetSymptoms.map(item => {
+              <button
+                type="button"
+                onClick={() => {
+                  if (symptoms.includes('無症狀') || severity === 0) {
+                    setSymptoms([]);
+                    setSeverity(1);
+                  } else {
+                    setSymptoms(['無症狀']);
+                    setSeverity(0);
+                  }
+                }}
+                className={`text-xs px-2.5 py-1 rounded-md border transition-all flex items-center gap-1 ${
+                  symptoms.includes('無症狀')
+                    ? 'bg-emerald-700 text-white border-emerald-700 font-bold'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 font-medium'
+                }`}
+              >
+                {symptoms.includes('無症狀') && <Check size={12} />}
+                無症狀
+              </button>
+              {currentCategoryConfig.presetSymptoms.filter(item => item !== '無症狀').map(item => {
                 const isSelected = symptoms.includes(item);
                 return (
                   <button
@@ -329,7 +367,7 @@ export default function IllnessFormModal({ isOpen, onClose, onSave, onDelete, in
                 );
               })}
               {symptoms
-                .filter(s => !currentCategoryConfig.presetSymptoms.includes(s))
+                .filter(s => s !== '無症狀' && !currentCategoryConfig.presetSymptoms.includes(s))
                 .map(item => (
                   <button
                     key={item}

@@ -69,6 +69,12 @@ export interface SeverityOption {
 
 export const SEVERITY_LEVELS: SeverityOption[] = [
   {
+    level: 0,
+    label: '無症狀',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    dotClass: 'bg-emerald-500'
+  },
+  {
     level: 1,
     label: '輕微',
     badgeClass: 'bg-stone-100 text-stone-700 border-stone-200',
@@ -102,9 +108,11 @@ export function getCategoryOption(categoryId?: IllnessCategory): CategoryConfig 
 
 export function getSeverityOption(level?: number): SeverityOption {
   const num = Number(level);
-  if (num === 3) return SEVERITY_LEVELS[2];
-  if (num === 2) return SEVERITY_LEVELS[1];
-  return SEVERITY_LEVELS[0];
+  if (num === 0) return SEVERITY_LEVELS[0];
+  if (num === 3) return SEVERITY_LEVELS[3];
+  if (num === 2) return SEVERITY_LEVELS[2];
+  if (num === 1) return SEVERITY_LEVELS[1];
+  return SEVERITY_LEVELS[1];
 }
 
 export function getIllnessDurationDays(startDateStr: string, endDateStr?: string): number {
@@ -139,7 +147,7 @@ export function ensureIllnessLogHistory(log: IllnessLog): IllnessHistoryEntry[] 
     return [...log.history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
-  const initialSeverity = log.severity || 1;
+  const initialSeverity = log.severity !== undefined ? log.severity : 1;
   return [
     {
       id: `${log.id}-init`,

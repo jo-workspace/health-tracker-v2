@@ -227,7 +227,7 @@ export default function AcuteIllnessCard({ data = [], updateData }: Props) {
         <div className="space-y-3">
           {activeIllnesses.map(illness => {
             const latestEntry = getLatestEntry(illness);
-            const displaySeverity = latestEntry ? latestEntry.severity : illness.severity;
+            const displaySeverity = latestEntry ? latestEntry.severity : (illness.severity ?? 1);
             const displaySymptoms = latestEntry?.symptoms?.length ? latestEntry.symptoms : illness.symptoms;
             const displayTemp = latestEntry?.temperature ?? illness.temperature;
             const displayMeds = latestEntry?.medicationsTaken || illness.medicationsTaken || illness.prescribedMedications;
@@ -274,7 +274,11 @@ export default function AcuteIllnessCard({ data = [], updateData }: Props) {
                     {displaySymptoms.map(sym => (
                       <span
                         key={sym}
-                        className="text-[11px] px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 font-medium"
+                        className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${
+                          sym === '無症狀'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-stone-100 text-stone-700'
+                        }`}
                       >
                         {sym}
                       </span>

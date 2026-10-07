@@ -125,7 +125,7 @@ export interface IllnessHistoryEntry {
   id: string;
   date: string; // YYYY-MM-DD
   symptoms: string[];
-  severity: number; // 1: 輕微, 2: 中度, 3: 嚴重
+  severity: number; // 0: 無症狀, 1: 輕微, 2: 中度, 3: 嚴重
   temperature?: string; // e.g. 38.2
   medicationsTaken?: string[]; // 今日實際服用的藥物
   medicationCourseProgress?: string; // e.g. "第 2/3 天" or "第 2 天"
@@ -140,7 +140,7 @@ export interface IllnessLog {
   startDate: string; // YYYY-MM-DD
   recoveredDate?: string; // YYYY-MM-DD
   symptoms: string[]; // 目前/最新症狀
-  severity: number; // 1: 輕微, 2: 中度, 3: 嚴重
+  severity: number; // 0: 無症狀, 1: 輕微, 2: 中度, 3: 嚴重
   temperature?: string; // 最新體溫 (°C)
   medicalCare?: 'home' | 'clinic' | 'hospital' | 'other' | ''; // 就醫狀態: 居家照護/診所就醫/醫院就醫
   prescribedMedications?: string[]; // 醫生開立或自備的所有藥物清單
