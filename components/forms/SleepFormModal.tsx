@@ -22,6 +22,30 @@ const parseDurationToHoursAndMinutes = (dur: string) => {
   };
 };
 
+const parseBedtimeTo12h = (raw?: string): { time: string; period: 'AM' | 'PM' } => {
+  if (!raw || !raw.trim()) return { time: '', period: 'PM' };
+  const str = raw.trim();
+  const ampmMatch = str.match(/^(\d{1,2}:\d{2})\s*(am|pm)$/i);
+  if (ampmMatch) {
+    return {
+      time: ampmMatch[1],
+      period: ampmMatch[2].toUpperCase() as 'AM' | 'PM'
+    };
+  }
+  const match24 = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24) {
+    const h = parseInt(match24[1], 10);
+    const m = match24[2];
+    const period: 'AM' | 'PM' = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return {
+      time: `${String(h12).padStart(2, '0')}:${m}`,
+      period
+    };
+  }
+  return { time: str, period: 'PM' };
+};
+
 const ToothIcon = ({ size = 14 }: { size?: number }) => (
   <svg 
     width={size} 
@@ -69,6 +93,7 @@ export default function SleepFormModal({
   const [date, setDate] = useState('');
   const [type, setType] = useState<'night' | 'nap'>('night');
   const [bedTime, setBedTime] = useState('');
+  const [bedTimePeriod, setBedTimePeriod] = useState<'AM' | 'PM'>('PM');
   const [durationHours, setDurationHours] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('');
   const [napMinutes, setNapMinutes] = useState('');
@@ -121,7 +146,9 @@ export default function SleepFormModal({
     setHasBedtimeSupplements(isBedtimeRecorded);
 
     if (initialData) {
-      setBedTime(initialData.bedtime || '');
+      const parsedBedtime = parseBedtimeTo12h(initialData.bedtime);
+      setBedTime(parsedBedtime.time);
+      setBedTimePeriod(parsedBedtime.period);
       const parsed = parseDurationToHoursAndMinutes(initialData.sleepDuration || '');
       setDurationHours(parsed.hours);
       setDurationMinutes(parsed.mins);
@@ -133,13 +160,16 @@ export default function SleepFormModal({
         : null;
 
       if (existingLog) {
-        setBedTime(existingLog.bedtime || '');
+        const parsedBedtime = parseBedtimeTo12h(existingLog.bedtime);
+        setBedTime(parsedBedtime.time);
+        setBedTimePeriod(parsedBedtime.period);
         const parsed = parseDurationToHoursAndMinutes(existingLog.sleepDuration || '');
         setDurationHours(parsed.hours);
         setDurationMinutes(parsed.mins);
         setFeeling(existingLog.feeling || 'normal');
       } else {
         setBedTime('');
+        setBedTimePeriod('PM');
         setDurationHours('');
         setDurationMinutes('');
         setNapMinutes('');
@@ -148,7 +178,7 @@ export default function SleepFormModal({
     }
   }, [isOpen, initialData, defaultDate, defaultType, splintLogs, sleepLogs, supplementLogs]);
 
-  // 開啟表單或切換類型時，自動將游標聚焦在核心輸入框 (主睡眠為上床時間，小睡為分鐘數)
+  // 開啟表單或切換類型時，自動將游標聚焦在核心輸入框 (主睡眠為入睡時間，小睡為分鐘數)
   useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(() => {
@@ -169,13 +199,16 @@ export default function SleepFormModal({
     if (type === 'night') {
       const matchingLog = sleepLogs.find(l => l.date === newDate && l.type === 'night' && l.status !== 'deleted');
       if (matchingLog) {
-        setBedTime(matchingLog.bedtime || '');
+        const parsedBedtime = parseBedtimeTo12h(matchingLog.bedtime);
+        setBedTime(parsedBedtime.time);
+        setBedTimePeriod(parsedBedtime.period);
         const parsed = parseDurationToHoursAndMinutes(matchingLog.sleepDuration || '');
         setDurationHours(parsed.hours);
         setDurationMinutes(parsed.mins);
         setFeeling(matchingLog.feeling || 'normal');
       } else {
         setBedTime('');
+        setBedTimePeriod('PM');
         setDurationHours('');
         setDurationMinutes('');
         setFeeling('normal');
@@ -208,13 +241,16 @@ export default function SleepFormModal({
     if (newType === 'night') {
       const matchingLog = sleepLogs.find(l => l.date === date && l.type === 'night' && l.status !== 'deleted');
       if (matchingLog) {
-        setBedTime(matchingLog.bedtime || '');
+        const parsedBedtime = parseBedtimeTo12h(matchingLog.bedtime);
+        setBedTime(parsedBedtime.time);
+        setBedTimePeriod(parsedBedtime.period);
         const parsed = parseDurationToHoursAndMinutes(matchingLog.sleepDuration || '');
         setDurationHours(parsed.hours);
         setDurationMinutes(parsed.mins);
         setFeeling(matchingLog.feeling || 'normal');
       } else {
         setBedTime('');
+        setBedTimePeriod('PM');
         setDurationHours('');
         setDurationMinutes('');
         setFeeling('normal');
@@ -257,17 +293,52 @@ export default function SleepFormModal({
       return;
     }
 
+    // 容錯支援：如果使用者習慣性輸入 24 小時制 (例如 2330 或 0015)
+    if (digits.length === 4) {
+      const h = parseInt(digits.slice(0, 2), 10);
+      const m = parseInt(digits.slice(2, 4), 10);
+      if (h >= 13 && h < 24 && m < 60) {
+        // 例: 2342 -> 11:42 PM
+        const h12 = h - 12;
+        setBedTime(`${String(h12).padStart(2, '0')}:${digits.slice(2, 4)}`);
+        setBedTimePeriod('PM');
+        setTimeout(() => {
+          hoursInputRef.current?.focus();
+          hoursInputRef.current?.select();
+        }, 120);
+        return;
+      } else if (h === 0 && m < 60) {
+        // 例: 0018 -> 12:18 AM
+        setBedTime(`12:${digits.slice(2, 4)}`);
+        setBedTimePeriod('AM');
+        setTimeout(() => {
+          hoursInputRef.current?.focus();
+          hoursInputRef.current?.select();
+        }, 120);
+        return;
+      } else if (h >= 1 && h <= 6 && m < 60) {
+        // 例: 0130 / 0200 (凌晨入睡) -> 自動切為 AM
+        setBedTime(`${String(h).padStart(2, '0')}:${digits.slice(2, 4)}`);
+        setBedTimePeriod('AM');
+        setTimeout(() => {
+          hoursInputRef.current?.focus();
+          hoursInputRef.current?.select();
+        }, 120);
+        return;
+      }
+    }
+
     let formatted = digits;
     if (digits.length > 2) {
       formatted = `${digits.slice(0, 2)}:${digits.slice(2)}`;
     }
     setBedTime(formatted);
 
-    // 輸入滿 4 碼合法時間 (00:00 - 23:59) 自動跳下一格 (小時)
+    // 輸入滿 4 碼 (12小時制 01:00 - 12:59) 自動跳下一格 (小時)
     if (digits.length === 4) {
       const h = parseInt(digits.slice(0, 2), 10);
       const m = parseInt(digits.slice(2, 4), 10);
-      if (h < 24 && m < 60) {
+      if (h >= 1 && h <= 12 && m < 60) {
         setTimeout(() => {
           hoursInputRef.current?.focus();
           hoursInputRef.current?.select();
@@ -282,19 +353,19 @@ export default function SleepFormModal({
     if (digits.length === 4) {
       const h = parseInt(digits.slice(0, 2), 10);
       const m = parseInt(digits.slice(2, 4), 10);
-      if (h < 24 && m < 60) {
+      if (h >= 1 && h <= 12 && m < 60) {
         setBedTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
       }
     } else if (digits.length === 3) {
       // 3 碼容錯，如 118 -> 01:18, 930 -> 09:30
       const h = parseInt(digits.slice(0, 1), 10);
       const m = parseInt(digits.slice(1, 3), 10);
-      if (m < 60) {
-        setBedTime(`0${h}:${String(m).padStart(2, '0')}`);
+      if (h >= 1 && h <= 12 && m < 60) {
+        setBedTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
       }
     } else if (digits.length === 1 || digits.length === 2) {
       const h = parseInt(digits, 10);
-      if (h < 24) {
+      if (h >= 1 && h <= 12) {
         setBedTime(`${String(h).padStart(2, '0')}:00`);
       }
     }
@@ -357,11 +428,13 @@ export default function SleepFormModal({
       finalSleepDuration = totalDur > 0 ? String(totalDur) : '';
     }
 
+    const finalBedtime = (!isNap && bedTime.trim()) ? `${bedTime.trim()} ${bedTimePeriod}` : '';
+
     onSave({
       id: existingLogForSelection?.id || crypto.randomUUID(),
       date,
       type,
-      bedtime: isNap ? '' : bedTime,
+      bedtime: finalBedtime,
       wakeupTime: existingLogForSelection?.wakeupTime || '',
       sleepDuration: finalSleepDuration,
       hrv: existingLogForSelection?.hrv || '',
@@ -468,27 +541,45 @@ export default function SleepFormModal({
                 />
               </div>
 
-              {/* 上床時間 */}
+              {/* 入睡時間 */}
               <div className="flex flex-col gap-1 min-w-0">
-                <label className="text-[11px] font-bold text-stone-500">上床時間 (24小時制)</label>
-                <input 
-                  ref={bedTimeInputRef}
-                  type="text" 
-                  inputMode="numeric"
-                  enterKeyHint="next"
-                  maxLength={5}
-                  value={bedTime} 
-                  onChange={handleBedTimeChange}
-                  onBlur={handleBedTimeBlur}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      hoursInputRef.current?.focus();
-                    }
-                  }}
-                  placeholder="例 2342 或 0018"
-                  className="w-full min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 placeholder:text-stone-300"
-                />
+                <label className="text-[11px] font-bold text-stone-500">入睡時間 (12小時制)</label>
+                <div className="flex gap-2 items-center">
+                  <input 
+                    ref={bedTimeInputRef}
+                    type="text" 
+                    inputMode="numeric"
+                    enterKeyHint="next"
+                    maxLength={5}
+                    value={bedTime} 
+                    onChange={handleBedTimeChange}
+                    onBlur={handleBedTimeBlur}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        hoursInputRef.current?.focus();
+                      }
+                    }}
+                    placeholder="例 11:30 或 01:15"
+                    className="flex-1 min-w-0 p-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400 placeholder:text-stone-300"
+                  />
+                  <div className="flex bg-stone-100 p-1 rounded-lg shrink-0 border border-stone-200/50">
+                    <button 
+                      type="button" 
+                      onClick={() => setBedTimePeriod('PM')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${bedTimePeriod === 'PM' ? 'bg-white shadow-xs text-stone-800' : 'text-stone-400 hover:text-stone-600'}`}
+                    >
+                      PM
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => setBedTimePeriod('AM')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-md transition-colors ${bedTimePeriod === 'AM' ? 'bg-white shadow-xs text-stone-800' : 'text-stone-400 hover:text-stone-600'}`}
+                    >
+                      AM
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* 睡眠長度 (小時 / 分鐘) */}
