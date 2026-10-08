@@ -128,19 +128,6 @@ export default function SleepDetailModal({
     };
   });
 
-  // 計算平均數據 (只有當天有夜間睡眠才計入分母)
-  const daysWithNightSleep = dailyData.filter(d => d.nightHours > 0);
-  const totalNightHours = daysWithNightSleep.reduce((sum, d) => sum + d.nightHours, 0);
-  const avgNightHours = daysWithNightSleep.length > 0 ? (totalNightHours / daysWithNightSleep.length).toFixed(1) : '-';
-
-  const daysWithNap = dailyData.filter(d => d.napHours > 0);
-  const totalNapHours = dailyData.reduce((sum, d) => sum + d.napHours, 0);
-  const avgNapMins = daysWithNap.length > 0 ? Math.round((totalNapHours / daysWithNap.length) * 60) : 0;
-
-  const totalSleepAll = dailyData.reduce((sum, d) => sum + d.totalHours, 0);
-  const daysWithAnySleep = dailyData.filter(d => d.totalHours > 0);
-  const avgTotalHours = daysWithAnySleep.length > 0 ? (totalSleepAll / daysWithAnySleep.length).toFixed(1) : '-';
-
   // 動態計算 Chart Y 軸最大值 (最高時數 + 1，最少 10)
   const maxDataVal = Math.max(...dailyData.map(d => d.totalHours), 0);
   const maxChartVal = Math.max(10, Math.ceil(maxDataVal + 1)); 
@@ -209,72 +196,54 @@ export default function SleepDetailModal({
 
         <div className="p-4 overflow-y-auto custom-scrollbar flex flex-col gap-4">
           
-          {/* 目標區塊 (近 7 天 vs 近 30 天) */}
-          <div className="bg-[#fffdf7] border border-[#f2ebe1] rounded-xl p-3 shadow-2xs space-y-2.5">
-            <div className="grid grid-cols-2 gap-3 divide-x divide-[#f2ebe1]">
-              {/* 近 7 天 */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-bold text-stone-400 block tracking-wide">近 7 天目標</span>
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-[#8a6d4d]">7h 達標：{goal7hDays} / 7 天</span>
-                    <span className="text-[10px] text-stone-400 font-medium">{p7h}%</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
-                    <div className="h-full bg-[#8a6d4d] rounded-full transition-all duration-500" style={{ width: `${p7h}%` }} />
-                  </div>
+          {/* 目標區塊 (近 7 天 & 近 30 天) */}
+          <div className="bg-[#fffdf7] border border-[#f2ebe1] rounded-xl p-3.5 shadow-2xs space-y-3">
+            {/* 近 7 天 */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-stone-400 block tracking-wide">近 7 天目標</span>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-[#8a6d4d]">7h 達標：{goal7hDays} / 7 天</span>
+                  <span className="text-xs font-semibold text-stone-500">{p7h}%</span>
                 </div>
-
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-[#8a6d4d]">10:30 入睡：{goalEarly7Days} / 7 天</span>
-                    <span className="text-[10px] text-stone-400 font-medium">{pEarly7}%</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
-                    <div className="h-full bg-[#5c697b] rounded-full transition-all duration-500" style={{ width: `${pEarly7}%` }} />
-                  </div>
+                <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
+                  <div className="h-full bg-[#8a6d4d] rounded-full transition-all duration-500" style={{ width: `${p7h}%` }} />
                 </div>
               </div>
 
-              {/* 近 30 天 */}
-              <div className="space-y-1.5 pl-3">
-                <span className="text-[10px] font-bold text-stone-400 block tracking-wide">近 30 天目標</span>
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-[#8a6d4d]">7h 達標：{goal30hDays} / 30 天</span>
-                    <span className="text-[10px] text-stone-400 font-medium">{p30h}%</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
-                    <div className="h-full bg-[#8a6d4d] rounded-full transition-all duration-500" style={{ width: `${p30h}%` }} />
-                  </div>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-[#8a6d4d]">10:30 前入睡：{goalEarly7Days} / 7 天</span>
+                  <span className="text-xs font-semibold text-stone-500">{pEarly7}%</span>
                 </div>
-
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-[#8a6d4d]">10:30 入睡：{goalEarly30Days} / 30 天</span>
-                    <span className="text-[10px] text-stone-400 font-medium">{pEarly30}%</span>
-                  </div>
-                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
-                    <div className="h-full bg-[#5c697b] rounded-full transition-all duration-500" style={{ width: `${pEarly30}%` }} />
-                  </div>
+                <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
+                  <div className="h-full bg-[#5c697b] rounded-full transition-all duration-500" style={{ width: `${pEarly7}%` }} />
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* 數據快照 */}
-          <div className="grid grid-cols-3 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-100 text-center">
-            <div className="flex flex-col items-center justify-center border-r border-stone-200/60 pr-1">
-              <span className="text-lg font-black text-stone-700">{avgNightHours}<span className="text-xs font-medium ml-0.5">h</span></span>
-              <span className="text-[11px] text-stone-500 font-medium mt-0.5">主睡眠均值</span>
-            </div>
-            <div className="flex flex-col items-center justify-center border-r border-stone-200/60 px-1">
-              <span className="text-lg font-black text-stone-700">{avgNapMins}<span className="text-xs font-medium ml-0.5">m</span></span>
-              <span className="text-[11px] text-stone-500 font-medium mt-0.5">小睡均值</span>
-            </div>
-            <div className="flex flex-col items-center justify-center pl-1">
-              <span className="text-lg font-black text-stone-700">{avgTotalHours}<span className="text-xs font-medium ml-0.5">h</span></span>
-              <span className="text-[11px] text-stone-500 font-medium mt-0.5">總睡眠均值</span>
+            {/* 近 30 天 */}
+            <div className="space-y-1.5 pt-2.5 border-t border-[#f2ebe1]">
+              <span className="text-[10px] font-bold text-stone-400 block tracking-wide">近 30 天目標</span>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-[#8a6d4d]">7h 達標：{goal30hDays} / 30 天</span>
+                  <span className="text-xs font-semibold text-stone-500">{p30h}%</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
+                  <div className="h-full bg-[#8a6d4d] rounded-full transition-all duration-500" style={{ width: `${p30h}%` }} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-[#8a6d4d]">10:30 前入睡：{goalEarly30Days} / 30 天</span>
+                  <span className="text-xs font-semibold text-stone-500">{pEarly30}%</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
+                  <div className="h-full bg-[#5c697b] rounded-full transition-all duration-500" style={{ width: `${pEarly30}%` }} />
+                </div>
+              </div>
             </div>
           </div>
 
