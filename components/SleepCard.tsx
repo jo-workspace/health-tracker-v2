@@ -7,6 +7,8 @@ import { isBedtimeSupplement, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
 import SleepDetailModal from './SleepDetailModal';
 import SleepFormModal from './forms/SleepFormModal';
 
+import { formatTo12Hour, isBefore1030PM } from '@/lib/sleep';
+
 interface Props {
   data?: SleepLog[];
   allergyLogs?: AllergyLog[];
@@ -131,56 +133,36 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
   const napHours = todayNaps.reduce((sum, n) => sum + Number(n.sleepDuration), 0);
 
   const displayTotalHours = sleepHours + napHours;
-  // 7 天與 30 天達標統計 (當日總睡眠 >= 7 小時)
+
+  // 7 天雙核心指標：7h 達標 & 10:30 前入睡
   const stats = useMemo(() => {
     const today = new Date();
-    const getDays = (count: number) => {
-      const dates: string[] = [];
-      for (let i = count - 1; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        dates.push(d.toLocaleDateString('en-CA'));
-      }
-      return dates;
-    };
-
-    const d7 = getDays(7);
-    const d30 = getDays(30);
-
-    const countAchieved = (dates: string[]) => {
-      let count = 0;
-      dates.forEach(dateStr => {
-        const dayLogs = activeLogs.filter(l => l.date === dateStr);
-        const dayTotal = dayLogs.reduce((sum, l) => sum + (Number(l.sleepDuration) || 0), 0);
-        if (dayTotal >= 7) count++;
-      });
-      return count;
-    };
-
-    const achieved7 = countAchieved(d7);
-    const achieved30 = countAchieved(d30);
-    const p7 = Math.min(100, Math.round((achieved7 / 7) * 100));
-    const p30 = Math.min(100, Math.round((achieved30 / 30) * 100));
-
-    return { achieved7, p7, achieved30, p30 };
-  }, [activeLogs]);
-
-  // 12 小時制格式化 (例 23:42 -> 11:42 PM, 00:18 -> 12:18 AM)
-  const formatTo12Hour = (timeStr?: string) => {
-    if (!timeStr || timeStr.trim() === '' || timeStr === '-') return '-';
-    const trimmed = timeStr.trim();
-    if (/(am|pm)$/i.test(trimmed)) {
-      return trimmed;
+    const dates7: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      dates7.push(d.toLocaleDateString('en-CA'));
     }
-    const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-    if (!match) return timeStr;
-    const h = parseInt(match[1], 10);
-    const m = match[2];
-    if (isNaN(h)) return timeStr;
-    const period = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return `${h12}:${m} ${period}`;
-  };
+
+    let achieved7h = 0;
+    let achievedEarly7 = 0;
+
+    dates7.forEach(dateStr => {
+      const dayLogs = activeLogs.filter(l => l.date === dateStr);
+      const dayTotal = dayLogs.reduce((sum, l) => sum + (Number(l.sleepDuration) || 0), 0);
+      if (dayTotal >= 7) achieved7h++;
+
+      const nightLog = dayLogs.find(l => l.type === 'night');
+      if (nightLog && isBefore1030PM(nightLog.bedtime)) {
+        achievedEarly7++;
+      }
+    });
+
+    const p7h = Math.min(100, Math.round((achieved7h / 7) * 100));
+    const pEarly7 = Math.min(100, Math.round((achievedEarly7 / 7) * 100));
+
+    return { achieved7h, p7h, achievedEarly7, pEarly7 };
+  }, [activeLogs]);
 
   return (
     <>
@@ -214,32 +196,32 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
             </div>
           </div>
 
-          {/* 7天 & 30天 達標達成率指標 (取代單日進度條) */}
+          {/* 7天雙核心指標：7h 達標 & 10:30 入睡 */}
           <div className="bg-[#fffdf7] border border-[#f2ebe1] rounded-lg p-2.5 mb-3 space-y-2">
-            {/* 7 天統計 */}
+            {/* 7h 達標 */}
             <div className="space-y-1">
               <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-[#8a6d4d]">7h 達標：{stats.achieved7} / 7 天</span>
-                <span className="text-[11px] text-stone-400 font-medium">近 7 天 · {stats.p7}%</span>
+                <span className="font-bold text-[#8a6d4d]">7h 達標：{stats.achieved7h} / 7 天</span>
+                <span className="text-[11px] text-stone-400 font-medium">近 7 天 · {stats.p7h}%</span>
               </div>
               <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
                 <div 
                   className="h-full bg-[#8a6d4d] transition-all duration-500 rounded-full" 
-                  style={{ width: `${stats.p7}%` }} 
+                  style={{ width: `${stats.p7h}%` }} 
                 />
               </div>
             </div>
 
-            {/* 30 天統計 */}
+            {/* 10:30 前入睡 */}
             <div className="space-y-1">
               <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-[#8a6d4d]">7h 達標：{stats.achieved30} / 30 天</span>
-                <span className="text-[11px] text-stone-400 font-medium">近 30 天 · {stats.p30}%</span>
+                <span className="font-bold text-[#8a6d4d]">10:30 前入睡：{stats.achievedEarly7} / 7 天</span>
+                <span className="text-[11px] text-stone-400 font-medium">近 7 天 · {stats.pEarly7}%</span>
               </div>
               <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
                 <div 
                   className="h-full bg-[#5c697b] transition-all duration-500 rounded-full" 
-                  style={{ width: `${stats.p30}%` }} 
+                  style={{ width: `${stats.pEarly7}%` }} 
                 />
               </div>
             </div>

@@ -3,6 +3,8 @@ import { X, Moon, Pill, Activity } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog } from '@/lib/types';
 
+import { formatTo12Hour, isBefore1030PM } from '@/lib/sleep';
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -94,6 +96,7 @@ export default function SleepDetailModal({
     const nightHours = nightLog ? Number(nightLog.sleepDuration) : 0;
     const napHours = dayNaps.reduce((sum, n) => sum + Number(n.sleepDuration), 0);
     const totalHours = nightHours + napHours;
+    const bedtime = nightLog?.bedtime || '';
     
     const nightColor = nightHours > 0 ? '#5c697b' : '#e5e7eb';
 
@@ -117,6 +120,7 @@ export default function SleepDetailModal({
       napHours,
       totalHours,
       nightColor,
+      bedtime,
       allergyImpact: worstAllergyImpact,
       hasMagnesium,
       magnesiumName,
@@ -141,8 +145,45 @@ export default function SleepDetailModal({
   const maxDataVal = Math.max(...dailyData.map(d => d.totalHours), 0);
   const maxChartVal = Math.max(10, Math.ceil(maxDataVal + 1)); 
 
-  // 目標計算
-  const goalDays = daysWithNightSleep.filter(d => d.nightHours >= 7).length;
+  // 取得近 30 天日期
+  const last30Days: string[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    last30Days.push(d.toLocaleDateString('en-CA'));
+  }
+
+  // 7 天達標統計 (7h 達標 & 10:30 前入睡)
+  let goal7hDays = 0;
+  let goalEarly7Days = 0;
+  last7Days.forEach(dateStr => {
+    const dayLogs = activeLogs.filter(l => l.date === dateStr);
+    const dayTotal = dayLogs.reduce((sum, l) => sum + (Number(l.sleepDuration) || 0), 0);
+    if (dayTotal >= 7) goal7hDays++;
+
+    const nightLog = dayLogs.find(l => l.type === 'night');
+    if (nightLog && isBefore1030PM(nightLog.bedtime)) {
+      goalEarly7Days++;
+    }
+  });
+  const p7h = Math.round((goal7hDays / 7) * 100);
+  const pEarly7 = Math.round((goalEarly7Days / 7) * 100);
+
+  // 30 天達標統計 (7h 達標 & 10:30 前入睡)
+  let goal30hDays = 0;
+  let goalEarly30Days = 0;
+  last30Days.forEach(dateStr => {
+    const dayLogs = activeLogs.filter(l => l.date === dateStr);
+    const dayTotal = dayLogs.reduce((sum, l) => sum + (Number(l.sleepDuration) || 0), 0);
+    if (dayTotal >= 7) goal30hDays++;
+
+    const nightLog = dayLogs.find(l => l.type === 'night');
+    if (nightLog && isBefore1030PM(nightLog.bedtime)) {
+      goalEarly30Days++;
+    }
+  });
+  const p30h = Math.round((goal30hDays / 30) * 100);
+  const pEarly30 = Math.round((goalEarly30Days / 30) * 100);
 
   return typeof document !== 'undefined' ? createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm transition-opacity">
@@ -168,11 +209,56 @@ export default function SleepDetailModal({
 
         <div className="p-4 overflow-y-auto custom-scrollbar flex flex-col gap-4">
           
-          {/* 目標區塊 */}
-          <div className="bg-[#fffdf7] border border-[#f2ebe1] rounded-xl p-3 shadow-2xs">
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-bold text-[#8a6d4d]">7h 達標：{goalDays} / {daysWithNightSleep.length} 天</span>
-              <span className="text-[11px] text-stone-400">每日目標 7 小時</span>
+          {/* 目標區塊 (近 7 天 vs 近 30 天) */}
+          <div className="bg-[#fffdf7] border border-[#f2ebe1] rounded-xl p-3 shadow-2xs space-y-2.5">
+            <div className="grid grid-cols-2 gap-3 divide-x divide-[#f2ebe1]">
+              {/* 近 7 天 */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-stone-400 block tracking-wide">近 7 天目標</span>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-[#8a6d4d]">7h 達標：{goal7hDays} / 7 天</span>
+                    <span className="text-[10px] text-stone-400 font-medium">{p7h}%</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
+                    <div className="h-full bg-[#8a6d4d] rounded-full transition-all duration-500" style={{ width: `${p7h}%` }} />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-[#8a6d4d]">10:30 入睡：{goalEarly7Days} / 7 天</span>
+                    <span className="text-[10px] text-stone-400 font-medium">{pEarly7}%</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
+                    <div className="h-full bg-[#5c697b] rounded-full transition-all duration-500" style={{ width: `${pEarly7}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* 近 30 天 */}
+              <div className="space-y-1.5 pl-3">
+                <span className="text-[10px] font-bold text-stone-400 block tracking-wide">近 30 天目標</span>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-[#8a6d4d]">7h 達標：{goal30hDays} / 30 天</span>
+                    <span className="text-[10px] text-stone-400 font-medium">{p30h}%</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
+                    <div className="h-full bg-[#8a6d4d] rounded-full transition-all duration-500" style={{ width: `${p30h}%` }} />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-[#8a6d4d]">10:30 入睡：{goalEarly30Days} / 30 天</span>
+                    <span className="text-[10px] text-stone-400 font-medium">{pEarly30}%</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full overflow-hidden bg-stone-100">
+                    <div className="h-full bg-[#5c697b] rounded-full transition-all duration-500" style={{ width: `${pEarly30}%` }} />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -231,6 +317,11 @@ export default function SleepDetailModal({
                     <span className="text-[10px] font-bold text-stone-600">{d.totalHours > 0 ? d.totalHours.toFixed(1) + 'h' : ''}</span>
                     <span className="text-[9px] text-stone-400 mt-1">{d.dateStr.substring(8, 10)}</span>
                     <span className="text-[8px] text-stone-400">({weekdays[dateObj.getDay()]})</span>
+                    {d.bedtime && (
+                      <span className="text-[8px] font-medium text-stone-400 tracking-tight mt-0.5" title={`入睡時間：${formatTo12Hour(d.bedtime)}`}>
+                        {formatTo12Hour(d.bedtime).replace(' ', '')}
+                      </span>
+                    )}
                     <div className="flex items-center gap-1 mt-0.5 text-stone-400">
                       {d.allergyImpact !== 'none' && (
                         <span title={`過敏影響睡眠：${d.allergyImpact === 'severe' ? '嚴重' : '輕微'}`}>
@@ -255,7 +346,7 @@ export default function SleepDetailModal({
           </div>
 
           {/* Spacer for bottom labels */}
-          <div className="h-12"></div>
+          <div className="h-14"></div>
 
           {/* 圖例 */}
           <div className="flex gap-4 text-[10px] text-stone-500 justify-center mb-1">
