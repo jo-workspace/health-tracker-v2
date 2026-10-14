@@ -67,7 +67,8 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
             taken: false,
             amount: 0,
             ignored: false,
-            targetAmount: parseInt(s.targetAmount, 10) || 1
+            targetAmount: parseInt(s.targetAmount, 10) || 1,
+            rotationGroup: s.rotationGroup
           };
         });
     }
@@ -86,7 +87,11 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         const merged = baseSupplements.map(base => {
           const logged = parsed.find(p => p.id === base.id || (base.name === '甘胺酸鎂' && p.name === '鎂') || (p.name === base.name));
           if (logged) {
-            return { ...base, taken: logged.taken, amount: logged.amount, ignored: logged.ignored };
+            const isToday = selectedDate === todayStr;
+            const ignoredState = (!logged.taken && isToday)
+              ? !isScheduledDay(base.time, dateObj)
+              : logged.ignored;
+            return { ...base, taken: logged.taken, amount: logged.amount, ignored: ignoredState };
           }
           return applyAutoIgnore(base);
         });

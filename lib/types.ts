@@ -42,6 +42,7 @@ export interface SupplementSetting {
   status: string;
   lastUpdated: string;
   category?: string;
+  rotationGroup?: string;
 }
 
 export interface PainHistoryEntry {
