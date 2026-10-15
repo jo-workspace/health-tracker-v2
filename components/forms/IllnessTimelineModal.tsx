@@ -141,22 +141,22 @@ export default function IllnessTimelineModal({
                       </div>
 
                       {/* Symptoms tags */}
-                      {entry.symptoms && entry.symptoms.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {entry.symptoms.map(s => (
-                            <span
-                              key={s}
-                              className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                                s === '無症狀'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : 'bg-stone-100 text-stone-600'
-                              }`}
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {(() => {
+                        const actualSymptoms = (entry.symptoms || []).filter(s => s !== '無症狀');
+                        if (actualSymptoms.length === 0) return null;
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {actualSymptoms.map(s => (
+                              <span
+                                key={s}
+                                className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-stone-100 text-stone-600"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
 
                       {/* Medications Taken */}
                       {entry.medicationsTaken && entry.medicationsTaken.length > 0 && (

@@ -272,22 +272,22 @@ export default function AcuteIllnessCard({ data = [], updateData }: Props) {
                 </div>
 
                 {/* Symptoms tags */}
-                {displaySymptoms && displaySymptoms.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {displaySymptoms.map(sym => (
-                      <span
-                        key={sym}
-                        className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${
-                          sym === '無症狀'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-stone-100 text-stone-700'
-                        }`}
-                      >
-                        {sym}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                {(() => {
+                  const actualSymptoms = (displaySymptoms || []).filter(sym => sym !== '無症狀');
+                  if (actualSymptoms.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      {actualSymptoms.map(sym => (
+                        <span
+                          key={sym}
+                          className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-stone-100 text-stone-700"
+                        >
+                          {sym}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {/* Medication course info */}
                 {displayMeds && displayMeds.length > 0 && (
