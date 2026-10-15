@@ -390,7 +390,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   const currentSlotName = getCurrentSlotName();
 
   const handleSaveBatchUpdates = (
-    updates: { id: string; taken: boolean; amount: number }[],
+    updates: { id: string; taken: boolean; amount: number; ignored?: boolean }[],
     newCustomItems: Supplement[] = []
   ) => {
     setSupplements(prev => {
@@ -402,7 +402,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
             ...s,
             taken: u.taken,
             amount: u.taken ? u.amount : 0,
-            ignored: false
+            ignored: u.ignored !== undefined ? u.ignored : false
           };
         }
         return s;

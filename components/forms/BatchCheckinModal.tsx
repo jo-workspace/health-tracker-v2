@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, Plus, Minus, Pill, CheckCircle2 } from 'lucide-react';
+import { X, Check, Plus, Minus, CheckCircle2, Ban, RotateCcw, ChevronDown } from 'lucide-react';
 import { type Supplement, getSupplementCategorySlot } from '@/lib/supplements';
 
 interface Props {
@@ -11,7 +11,7 @@ interface Props {
   supplements: Supplement[];
   pastCustomNames?: string[];
   onSaveBatch: (
-    updates: { id: string; taken: boolean; amount: number }[],
+    updates: { id: string; taken: boolean; amount: number; ignored?: boolean }[],
     newCustomItems?: Supplement[]
   ) => void;
 }
@@ -21,9 +21,12 @@ interface ItemState {
   name: string;
   targetAmount: number;
   amount: number;
-  checked: boolean;
+  status: 'take' | 'skip' | 'none';
+  initialTaken: boolean;
   isCustom?: boolean;
 }
+
+const isFulfilled = (s: Supplement) => (s.amount || 0) >= (s.targetAmount || 1);
 
 export default function BatchCheckinModal({
   isOpen,
@@ -34,20 +37,29 @@ export default function BatchCheckinModal({
   onSaveBatch
 }: Props) {
   const [items, setItems] = useState<ItemState[]>([]);
+  const [isCompletedExpanded, setIsCompletedExpanded] = useState(false);
   const [isAddingOther, setIsAddingOther] = useState(false);
   const [customInput, setCustomInput] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       const slotSupps = supplements.filter(s => getSupplementCategorySlot(s.time) === slotName && !s.ignored);
-      setItems(slotSupps.map(s => ({
-        id: s.id,
-        name: s.name,
-        targetAmount: s.targetAmount || 1,
-        amount: s.taken && s.amount ? s.amount : (s.targetAmount || 1),
-        checked: true,
-        isCustom: s.isCustom
-      })));
+      const initialItems: ItemState[] = slotSupps.map(s => {
+        const isAlreadyTaken = Boolean(s.taken && isFulfilled(s));
+        return {
+          id: s.id,
+          name: s.name,
+          targetAmount: s.targetAmount || 1,
+          amount: s.amount && s.amount > 0 ? s.amount : (s.targetAmount || 1),
+          status: 'take',
+          initialTaken: isAlreadyTaken,
+          isCustom: s.isCustom
+        };
+      });
+      setItems(initialItems);
+
+      const hasPending = initialItems.some(i => !i.initialTaken);
+      setIsCompletedExpanded(!hasPending);
       setIsAddingOther(false);
       setCustomInput('');
     }
@@ -55,8 +67,46 @@ export default function BatchCheckinModal({
 
   if (!isOpen) return null;
 
-  const toggleCheck = (id: string) => {
-    setItems(prev => prev.map(item => item.id === id ? { ...item, checked: !item.checked } : item));
+  const pendingItems = items.filter(i => !i.initialTaken);
+  const completedItems = items.filter(i => i.initialTaken);
+
+  const isAllPendingChecked = pendingItems.length > 0 && pendingItems.every(i => i.status === 'take');
+
+  const toggleSelectAllPending = () => {
+    const nextStatus = isAllPendingChecked ? 'none' : 'take';
+    setItems(prev => prev.map(i => {
+      if (i.initialTaken) return i;
+      return { ...i, status: nextStatus };
+    }));
+  };
+
+  const togglePendingStatus = (id: string) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        if (item.status === 'take') return { ...item, status: 'none' };
+        return { ...item, status: 'take' };
+      }
+      return item;
+    }));
+  };
+
+  const togglePendingSkip = (id: string) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        if (item.status === 'skip') return { ...item, status: 'take' };
+        return { ...item, status: 'skip' };
+      }
+      return item;
+    }));
+  };
+
+  const toggleCompletedStatus = (id: string) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, status: item.status === 'none' ? 'take' : 'none' };
+      }
+      return item;
+    }));
   };
 
   const updateAmount = (id: string, delta: number) => {
@@ -73,10 +123,10 @@ export default function BatchCheckinModal({
     const name = rawName.trim();
     if (!name) return;
 
-    // 1. 若當前彈窗清單已有此項目，直接勾選並增加數量
+    // 1. 若當前彈窗清單已有此項目，直接設為服用並增加數量
     const existingInItems = items.find(i => i.name.toLowerCase() === name.toLowerCase());
     if (existingInItems) {
-      setItems(prev => prev.map(i => i.id === existingInItems.id ? { ...i, checked: true, amount: i.amount + 1 } : i));
+      setItems(prev => prev.map(i => i.id === existingInItems.id ? { ...i, status: 'take', amount: i.amount + 1 } : i));
       setCustomInput('');
       return;
     }
@@ -93,7 +143,8 @@ export default function BatchCheckinModal({
         name: existingInSupps.name,
         targetAmount: targetAmt,
         amount: targetAmt,
-        checked: true,
+        status: 'take',
+        initialTaken: false,
         isCustom: false
       };
       setItems(prev => [...prev, newItem]);
@@ -107,30 +158,39 @@ export default function BatchCheckinModal({
       name,
       targetAmount: 1,
       amount: 1,
-      checked: true,
+      status: 'take',
+      initialTaken: false,
       isCustom: true
     };
     setItems(prev => [...prev, newItem]);
     setCustomInput('');
   };
 
-  const isAllChecked = items.length > 0 && items.every(i => i.checked);
-  const toggleSelectAll = () => {
-    const nextState = !isAllChecked;
-    setItems(prev => prev.map(i => ({ ...i, checked: nextState })));
-  };
-
   const handleSave = () => {
-    const regularUpdates = items
+    const regularUpdates: { id: string; taken: boolean; amount: number; ignored?: boolean }[] = [];
+
+    items
       .filter(i => !i.isCustom)
-      .map(i => ({
-        id: i.id,
-        taken: i.checked,
-        amount: i.checked ? i.amount : 0
-      }));
+      .forEach(i => {
+        if (!i.initialTaken) {
+          if (i.status === 'take') {
+            regularUpdates.push({ id: i.id, taken: true, amount: i.amount, ignored: false });
+          } else if (i.status === 'skip') {
+            regularUpdates.push({ id: i.id, taken: false, amount: 0, ignored: true });
+          } else if (i.status === 'none') {
+            regularUpdates.push({ id: i.id, taken: false, amount: 0, ignored: false });
+          }
+        } else {
+          if (i.status === 'none') {
+            regularUpdates.push({ id: i.id, taken: false, amount: 0, ignored: false });
+          } else {
+            regularUpdates.push({ id: i.id, taken: true, amount: i.amount, ignored: false });
+          }
+        }
+      });
 
     const newCustomItems: Supplement[] = items
-      .filter(i => i.isCustom && i.checked)
+      .filter(i => i.isCustom && i.status === 'take')
       .map(i => ({
         id: i.id,
         name: i.name,
@@ -171,82 +231,231 @@ export default function BatchCheckinModal({
           </button>
         </div>
 
-        {/* Action Header */}
+        {/* Action Sub-Header */}
         <div className="px-4 pt-3 pb-2 flex justify-between items-center bg-stone-50/60 border-b border-stone-100 shrink-0">
-          <span className="text-xs font-semibold text-stone-500">共 {items.length} 項品項</span>
-          <button
-            type="button"
-            onClick={toggleSelectAll}
-            className="text-xs font-bold text-[#6ba388] hover:text-[#5b8c74] transition-colors"
-          >
-            {isAllChecked ? '取消全選' : '全選'}
-          </button>
+          <span className="text-xs font-semibold text-stone-500">
+            {pendingItems.length > 0
+              ? `待打卡 ${pendingItems.length} 項${completedItems.length > 0 ? ` · 已服 ${completedItems.length} 項` : ''}`
+              : `共 ${completedItems.length} 項已完成`}
+          </span>
+          {pendingItems.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectAllPending}
+              className="text-xs font-bold text-[#6ba388] hover:text-[#5b8c74] transition-colors"
+            >
+              {isAllPendingChecked ? '取消全選' : '全選'}
+            </button>
+          )}
         </div>
 
         {/* Item List */}
         <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-2.5">
           {items.length === 0 ? (
             <div className="text-center text-stone-400 py-6 text-sm">此時段目前無固定排程的保健食品</div>
-          ) : (
-            items.map(item => (
+          ) : pendingItems.length === 0 ? (
+            <div className="text-center py-3.5 px-3 bg-[#f4f7f4] border border-[#d5e0d7] rounded-xl flex items-center justify-center gap-2 text-[#3e5f4f]">
+              <CheckCircle2 size={16} className="stroke-[2.5]" />
+              <span className="text-xs font-bold">{slotName} 排程品項今日皆已服用完成</span>
+            </div>
+          ) : null}
+
+          {/* Pending Items */}
+          {pendingItems.map(item => {
+            const isTake = item.status === 'take';
+            const isSkip = item.status === 'skip';
+
+            return (
               <div
                 key={item.id}
-                onClick={() => toggleCheck(item.id)}
+                onClick={() => togglePendingStatus(item.id)}
                 className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
-                  item.checked
+                  isTake
                     ? 'bg-[#f4f7f4] border-[#d5e0d7] shadow-2xs'
-                    : 'bg-white border-stone-200 opacity-60'
+                    : isSkip
+                    ? 'bg-stone-50/80 border-stone-200 opacity-75'
+                    : 'bg-white border-stone-200 opacity-60 hover:opacity-100'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${
-                    item.checked ? 'bg-[#6ba388] border-[#6ba388]' : 'bg-white border-stone-300'
+                {/* Left side: Checkbox / Ban icon & Name */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors shrink-0 ${
+                    isTake
+                      ? 'bg-[#6ba388] border-[#6ba388]'
+                      : isSkip
+                      ? 'bg-stone-200 border-stone-300 text-stone-500'
+                      : 'bg-white border-stone-300'
                   }`}>
-                    {item.checked && <Check size={14} className="text-white stroke-[3]" />}
+                    {isTake && <Check size={14} className="text-white stroke-[3]" />}
+                    {isSkip && <Ban size={12} className="stroke-[2.5]" />}
                   </div>
-                  <div>
-                    <div className={`text-sm font-bold flex items-center gap-1.5 ${item.checked ? 'text-[#3e5f4f]' : 'text-stone-600'}`}>
-                      <span>{item.name}</span>
+
+                  <div className="min-w-0">
+                    <div className={`text-sm flex items-center gap-1.5 ${
+                      isTake ? 'font-bold text-[#3e5f4f]' : isSkip ? 'font-medium text-stone-400 line-through' : 'font-semibold text-stone-600'
+                    }`}>
+                      <span className="truncate">{item.name}</span>
                       {item.isCustom && (
-                        <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-stone-100 text-stone-500 border border-stone-200">
+                        <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-stone-100 text-stone-500 border border-stone-200 shrink-0">
                           額外
                         </span>
                       )}
+                      {isSkip && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-200/80 text-stone-600 shrink-0 no-underline">
+                          略過
+                        </span>
+                      )}
                     </div>
-                    {item.targetAmount > 1 && !item.isCustom && (
+                    {item.targetAmount > 1 && !item.isCustom && !isSkip && (
                       <div className="text-[10px] text-stone-400 font-medium">目標: {item.targetAmount}</div>
                     )}
                   </div>
                 </div>
 
-                {item.checked && (
-                  <div
-                    className="flex items-center gap-2 bg-white border border-[#d5e0d7] rounded-full px-2 py-1 shadow-2xs"
-                    onClick={e => e.stopPropagation()}
-                  >
+                {/* Right side: Amount stepper & Skip / Undo button */}
+                <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                  {isTake && (
+                    <div className="flex items-center gap-2 bg-white border border-[#d5e0d7] rounded-full px-2 py-1 shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => updateAmount(item.id, -1)}
+                        className="p-0.5 hover:text-stone-800 disabled:opacity-30"
+                        disabled={item.amount <= 1}
+                      >
+                        <Minus size={12} />
+                      </button>
+                      <span className="text-xs font-bold min-w-[12px] text-center text-stone-700">{item.amount}</span>
+                      <button
+                        type="button"
+                        onClick={() => updateAmount(item.id, 1)}
+                        className="p-0.5 hover:text-stone-800"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                  )}
+
+                  {isSkip ? (
                     <button
                       type="button"
-                      onClick={() => updateAmount(item.id, -1)}
-                      className="p-0.5 hover:text-stone-800 disabled:opacity-30"
-                      disabled={item.amount <= 1}
+                      onClick={() => togglePendingSkip(item.id)}
+                      className="px-2 py-1 text-xs font-bold text-[#5b8c74] hover:bg-[#eaf2ed] rounded-lg transition-colors flex items-center gap-1"
                     >
-                      <Minus size={12} />
+                      <RotateCcw size={12} />
+                      <span>復原</span>
                     </button>
-                    <span className="text-xs font-bold min-w-[12px] text-center text-stone-700">{item.amount}</span>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => updateAmount(item.id, 1)}
-                      className="p-0.5 hover:text-stone-800"
+                      onClick={() => togglePendingSkip(item.id)}
+                      className="p-1.5 text-stone-400 hover:text-amber-800 hover:bg-amber-50/80 rounded-lg transition-colors flex items-center gap-1 text-xs"
+                      title="今日略過此品項"
                     >
-                      <Plus size={12} />
+                      <Ban size={13} />
+                      <span className="text-[11px] hidden sm:inline">略過</span>
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            ))
+            );
+          })}
+
+          {/* Already Completed Section */}
+          {completedItems.length > 0 && (
+            <div className="pt-2 border-t border-stone-100 flex flex-col gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => setIsCompletedExpanded(!isCompletedExpanded)}
+                className="flex items-center justify-between w-full py-1 px-1 text-xs font-bold text-stone-500 hover:text-stone-700 transition-colors"
+              >
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 size={13} className="text-[#6ba388] stroke-[2.5]" />
+                  <span>今日已服用 ({completedItems.length})</span>
+                </div>
+                <div className="flex items-center gap-0.5 text-[11px] font-normal text-stone-400">
+                  <span>{isCompletedExpanded ? '收合' : '檢視'}</span>
+                  <ChevronDown size={13} className={`transition-transform duration-200 ${isCompletedExpanded ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              {isCompletedExpanded && (
+                <div className="flex flex-col gap-2 animate-in fade-in duration-150">
+                  {completedItems.map(item => (
+                    <div
+                      key={item.id}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                        item.status === 'none'
+                          ? 'bg-stone-50/70 border-stone-200 opacity-60'
+                          : 'bg-[#fafbfa] border-[#e2eae3]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${
+                          item.status === 'none' ? 'bg-stone-200 text-stone-500' : 'bg-[#eaf2ed] text-[#5b8c74]'
+                        }`}>
+                          {item.status === 'none' ? <X size={10} /> : <Check size={10} className="stroke-[3]" />}
+                        </div>
+                        <div className="min-w-0 flex items-center gap-1.5">
+                          <span className={`text-xs font-bold truncate ${
+                            item.status === 'none' ? 'text-stone-400 line-through' : 'text-stone-700'
+                          }`}>
+                            {item.name}
+                          </span>
+                          <span className="text-[10px] text-stone-400 shrink-0">
+                            {item.status === 'none' ? '將還原為未服' : `已服 ${item.amount} 顆`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                        {item.status !== 'none' ? (
+                          <>
+                            <div className="flex items-center gap-1.5 bg-white border border-stone-200 rounded-full px-2 py-0.5 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => updateAmount(item.id, -1)}
+                                className="text-stone-400 hover:text-stone-700 disabled:opacity-30"
+                                disabled={item.amount <= 1}
+                              >
+                                <Minus size={11} />
+                              </button>
+                              <span className="text-xs font-bold text-stone-700 min-w-[10px] text-center">{item.amount}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateAmount(item.id, 1)}
+                                className="text-stone-400 hover:text-stone-700"
+                              >
+                                <Plus size={11} />
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleCompletedStatus(item.id)}
+                              className="p-1 text-stone-300 hover:text-stone-600 hover:bg-stone-100 rounded transition-colors"
+                              title="撤銷今日打卡"
+                            >
+                              <X size={12} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleCompletedStatus(item.id)}
+                            className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-[#5b8c74] hover:bg-[#eaf2ed] rounded transition-colors"
+                          >
+                            <RotateCcw size={11} />
+                            <span>復原</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
-          {/* 方案 A: 內嵌展開新增其他 */}
+          {/* Add custom item */}
           {!isAddingOther ? (
             <button
               type="button"
@@ -300,7 +509,7 @@ export default function BatchCheckinModal({
                     }
                   }}
                   placeholder="輸入名稱，例如：B 群"
-                  className="flex-1 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-stone-400 text-stone-800"
+                  className="min-w-0 w-full flex-1 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-stone-400 text-stone-800"
                 />
                 <button
                   type="button"
