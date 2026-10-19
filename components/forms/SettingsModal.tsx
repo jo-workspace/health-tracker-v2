@@ -30,58 +30,61 @@ export default function SettingsModal({ isOpen, onClose, onForceSync, syncing }:
   };
 
   return typeof document !== 'undefined' ? createPortal(
-    <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95 duration-200">
+    <div 
+      className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div 
+        className="relative bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex justify-between items-center p-4 border-b border-stone-100 bg-stone-50">
-          <h2 className="font-bold text-stone-700 flex items-center gap-2">
-            <Settings className="w-5 h-5 text-stone-500" />
+          <h2 className="font-bold text-stone-700 flex items-center gap-2 text-base">
+            <Settings className="w-4 h-4 text-stone-500" />
             系統設定
           </h2>
-          <button onClick={onClose} className="p-2 text-stone-400 hover:text-stone-600 rounded-full hover:bg-stone-200">
-            <X className="w-5 h-5" />
+          <button 
+            type="button"
+            onClick={onClose} 
+            className="p-1.5 text-stone-400 hover:text-stone-600 rounded-full hover:bg-stone-200 transition-colors"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
         
-        <div className="p-5 space-y-6">
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-stone-600 flex items-center gap-1.5">
-              <Lock className="w-4 h-4" />
-              雲端同步密碼
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="請輸入 Vercel 環境變數密碼"
-                className="flex-1 p-2.5 bg-stone-50 border border-stone-200 rounded-lg text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#8bbd9f] focus:border-transparent"
-              />
-              <button 
-                onClick={handleSavePassword}
-                className="px-4 py-2 bg-stone-800 text-white font-medium rounded-lg hover:bg-stone-700 transition-colors flex items-center gap-1"
-              >
-                {saved ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : '儲存'}
-              </button>
-            </div>
-            <p className="text-xs text-stone-400 leading-relaxed">
-              此密碼將儲存於您的設備。若未設定或密碼錯誤，將無法與 Google Sheets 進行同步。
-            </p>
-          </div>
-
-          <div className="pt-4 border-t border-stone-100 space-y-3">
-             <label className="text-sm font-bold text-stone-600">
-              資料同步
-            </label>
+        <div className="p-5 space-y-3">
+          <label className="text-xs font-bold text-stone-600 flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5" />
+            雲端同步密碼
+          </label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="請輸入環境變數密碼"
+              className="flex-1 min-w-0 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[38px]"
+            />
             <button 
+              type="button"
+              onClick={handleSavePassword}
+              className="px-3.5 py-2 bg-stone-800 text-white text-xs font-bold rounded-lg hover:bg-stone-700 transition-colors flex items-center justify-center gap-1 min-h-[38px] shrink-0"
+            >
+              {saved ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : '儲存'}
+            </button>
+            <button
+              type="button"
               onClick={onForceSync}
               disabled={syncing}
-              className="w-full py-3 bg-[#f0f4f2] text-[#5b8c74] font-bold rounded-lg hover:bg-[#e2ebe6] transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              title="強制同步"
+              className="p-2.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg border border-stone-200 transition-colors flex items-center justify-center min-h-[38px] shrink-0 disabled:opacity-50"
             >
-              <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? '正在同步雲端資料...' : '強制重新同步'}
+              <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin text-[#5b8c74]' : ''}`} />
             </button>
           </div>
+          <p className="text-[11px] text-stone-400 leading-relaxed">
+            此密碼儲存於本地設備。若未設定或密碼錯誤，將無法與 Google Sheets 同步。
+          </p>
         </div>
       </div>
     </div>,
