@@ -3,23 +3,32 @@ import type { HealthData, SyncPayload } from './types';
 /** 同步資料到 Google Sheets */
 export async function syncBatch(payload: SyncPayload): Promise<HealthData> {
   const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
-  const res = await fetch('/api/sync', {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${password}`
-    },
-    body: JSON.stringify(payload),
-  });
-  let data;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
-    data = await res.json();
-  } catch (e) {
-    throw new Error(`Failed to parse API response: ${res.status}`);
+    const res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${password}`
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      throw new Error(`Failed to parse API response: ${res.status}`);
+    }
+    
+    if (!res.ok || data.status === 'error') {
+      throw new Error(`[Server API Error]: ${data.message || res.statusText || 'Unknown error'}`);
+    }
+    return data as HealthData;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  
-  if (!res.ok || data.status === 'error') {
-    throw new Error(`[Server API Error]: ${data.message || res.statusText || 'Unknown error'}`);
-  }
-  return data as HealthData;
 }
+

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Moon, Plus, PenLine, Laugh, Smile, Frown, Coffee } from 'lucide-react';
 import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload, SupplementSetting } from '@/lib/types';
@@ -18,8 +18,9 @@ interface Props {
   updateData: (payload: SyncPayload) => void;
   forceSync?: () => Promise<void>;
   initialSynced?: boolean;
+  syncing?: boolean;
 }
-export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], supplementSettings = [], splintLogs = [], updateData, forceSync, initialSynced = false }: Props) {
+export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], supplementSettings = [], splintLogs = [], updateData, forceSync, initialSynced = false, syncing = false }: Props) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null);
@@ -27,9 +28,8 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
   const [defaultType, setDefaultType] = useState<'night' | 'nap'>('night');
   
   const [isAutoPromptOpen, setIsAutoPromptOpen] = useState(false);
-  const [hasTimeoutFired, setHasTimeoutFired] = useState(false);
   const [todayStr, setTodayStr] = useState(() => new Date().toLocaleDateString('en-CA'));
-  const hasCheckedAutoPromptRef = useState<{ date: string }>({ date: '' })[0];
+  const hasCheckedAutoPromptRef = useRef<string>('');
 
   const openForm = (dateStr: string, typeVal: 'night' | 'nap', logToEdit?: SleepLog | null) => {
     setEditingLog(logToEdit || null);
@@ -68,23 +68,20 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
       log => log.date === todayStr && log.type === 'night'
     );
 
-    // 若已存在今天紀錄，立即關閉提醒
+    // 若已存在今天紀錄，關閉提醒並標記今日已檢查
     if (hasTodayNightSleep) {
       setIsAutoPromptOpen(false);
+      hasCheckedAutoPromptRef.current = todayStr;
       return;
     }
 
-    // 尚未完成首次雲端同步時不急著彈窗（避免 B 裝置拿舊快取誤跳）
-    // 但設定 2.5 秒超時保護以防離線
-    if (!initialSynced && !hasTimeoutFired) {
-      const timer = setTimeout(() => {
-        setHasTimeoutFired(true);
-      }, 2500);
-      return () => clearTimeout(timer);
+    // 尚未完成首次雲端同步，或當前正在進行雲端同步時，不彈窗（避免跨裝置開啟時因載入未完成或使用舊快取誤跳）
+    if (!initialSynced || syncing) {
+      return;
     }
 
     // 當日若已檢查過則不重複觸發
-    if (hasCheckedAutoPromptRef.date === todayStr) {
+    if (hasCheckedAutoPromptRef.current === todayStr) {
       return;
     }
 
@@ -95,8 +92,8 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
     if (!isDismissed && !hasTodayNightSleep) {
       setIsAutoPromptOpen(true);
     }
-    hasCheckedAutoPromptRef.date = todayStr;
-  }, [activeLogs, todayStr, initialSynced, hasTimeoutFired, hasCheckedAutoPromptRef]);
+    hasCheckedAutoPromptRef.current = todayStr;
+  }, [activeLogs, todayStr, initialSynced, syncing]);
 
   const renderFeelingIcon = (key: string) => {
     if (['great', 'excellent', 'good'].includes(key)) {
@@ -281,9 +278,14 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
 
       {/* 自動偵測提醒 */}
       {isAutoPromptOpen && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="absolute inset-0" onClick={dismissPrompt} />
-          <div className="relative bg-[#fdfdfc] w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 border border-stone-200">
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={dismissPrompt}
+        >
+          <div 
+            className="relative bg-[#fdfdfc] w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200 border border-stone-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-200">
               <Moon size={22} />
             </div>

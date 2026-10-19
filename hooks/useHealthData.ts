@@ -70,6 +70,7 @@ export function useHealthData() {
       if (isDateChanged || !isThrottled) {
         if (isDateChanged) {
           lastKnownDateRef.current = currentDateStr;
+          setInitialSynced(false);
         }
         loadData(true);
       }

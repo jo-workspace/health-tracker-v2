@@ -73,7 +73,7 @@ export default function Dashboard() {
           <>
             {activeTab === 'today' ? (
               <div className="w-full max-w-md mx-auto pt-2 space-y-4">
-                <SleepCard data={data?.sleepLogs} allergyLogs={data?.allergyLogs} supplementLogs={data?.supplementLogs} supplementSettings={data?.supplementSettings} splintLogs={data?.biteSplintLogs} updateData={updateData} forceSync={forceSync} initialSynced={initialSynced} />
+                <SleepCard data={data?.sleepLogs} allergyLogs={data?.allergyLogs} supplementLogs={data?.supplementLogs} supplementSettings={data?.supplementSettings} splintLogs={data?.biteSplintLogs} updateData={updateData} forceSync={forceSync} initialSynced={initialSynced} syncing={syncing} />
                 <SupplementTracker data={data?.supplementLogs} settings={data?.supplementSettings} updateData={updateData} />
                 <RainbowDietCard data={data?.rainbowDietLogs} updateData={updateData} />
                 <AcuteIllnessCard data={data?.illnessLogs} updateData={updateData} />
