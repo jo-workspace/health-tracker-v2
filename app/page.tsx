@@ -41,6 +41,32 @@ export default function Dashboard() {
     ).length;
   }, [inventoryList]);
 
+  const hasActiveIllness = useMemo(() => {
+    return (data?.illnessLogs || []).some(log => log.status === 'active');
+  }, [data?.illnessLogs]);
+
+  const hasActivePain = useMemo(() => {
+    return (data?.painLogs || []).some(log => log.status === 'active');
+  }, [data?.painLogs]);
+
+  const acuteIllnessElement = (
+    <AcuteIllnessCard data={data?.illnessLogs} updateData={updateData} />
+  );
+
+  const activePainsElement = (
+    <ActivePainsCard data={data?.painLogs} updateData={updateData} />
+  );
+
+  const longTermTrackerElement = (
+    <LongTermTracker
+      data={data?.longTermLogs}
+      tmyLogs={data?.tmySymptomsLogs}
+      splintLogs={data?.biteSplintLogs}
+      allergyLogs={data?.allergyLogs}
+      updateData={updateData}
+    />
+  );
+
   return (
     <div className="min-h-screen bg-[#f4f5f4] p-4 sm:p-6 pb-24 flex flex-col items-center font-sans">
       <header className="w-full max-w-md mb-4 flex items-center justify-between">
@@ -76,15 +102,11 @@ export default function Dashboard() {
                 <SleepCard data={data?.sleepLogs} allergyLogs={data?.allergyLogs} supplementLogs={data?.supplementLogs} supplementSettings={data?.supplementSettings} splintLogs={data?.biteSplintLogs} updateData={updateData} forceSync={forceSync} initialSynced={initialSynced} syncing={syncing} />
                 <SupplementTracker data={data?.supplementLogs} settings={data?.supplementSettings} updateData={updateData} />
                 <RainbowDietCard data={data?.rainbowDietLogs} updateData={updateData} />
-                <AcuteIllnessCard data={data?.illnessLogs} updateData={updateData} />
-                <ActivePainsCard data={data?.painLogs} updateData={updateData} />
-                <LongTermTracker
-                  data={data?.longTermLogs}
-                  tmyLogs={data?.tmySymptomsLogs}
-                  splintLogs={data?.biteSplintLogs}
-                  allergyLogs={data?.allergyLogs}
-                  updateData={updateData}
-                />
+                {hasActiveIllness && acuteIllnessElement}
+                {hasActivePain && activePainsElement}
+                {longTermTrackerElement}
+                {!hasActiveIllness && acuteIllnessElement}
+                {!hasActivePain && activePainsElement}
               </div>
             ) : (
               <SupplementInventoryTab
