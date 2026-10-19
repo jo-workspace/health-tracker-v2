@@ -87,10 +87,11 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
         const merged = baseSupplements.map(base => {
           const logged = parsed.find(p => p.id === base.id || (base.name === '甘胺酸鎂' && p.name === '鎂') || (p.name === base.name));
           if (logged) {
-            const isToday = selectedDate === todayStr;
-            const ignoredState = (!logged.taken && isToday)
-              ? !isScheduledDay(base.time, dateObj)
-              : logged.ignored;
+            // 保留使用者手動設定之 ignored 狀態；若為未設定之舊資料且未服用，則依排程自動略過
+            const isAutoIgnoredBySchedule = !logged.taken && !isScheduledDay(base.time, dateObj);
+            const ignoredState = logged.ignored !== undefined
+              ? logged.ignored
+              : isAutoIgnoredBySchedule;
             return { ...base, taken: logged.taken, amount: logged.amount, ignored: ignoredState };
           }
           return applyAutoIgnore(base);
@@ -207,7 +208,7 @@ export default function SupplementTracker({ data, settings, updateData }: Props)
   const pIgnored = totalCount === 0 ? 0 : (ignoredCount / totalCount) * 100;
   const progressText = totalCount === 0 ? 100 : Math.round(pTaken);
   
-  const pending = todayParsedSupps.filter(s => !s.taken && !s.ignored || (s.taken && !isFulfilled(s)));
+  const pending = todayParsedSupps.filter(s => !s.ignored && (!s.taken || !isFulfilled(s)));
   
   const suggestedNow = pending.filter(s => {
     const slot = getSupplementCategorySlot(s.time);

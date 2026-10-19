@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Moon, Plus, PenLine, Laugh, Smile, Frown, Coffee } from 'lucide-react';
 import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload, SupplementSetting } from '@/lib/types';
-import { isBedtimeSupplement, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
+import { isBedtimeSupplement, isScheduledDay, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
 import SleepDetailModal from './SleepDetailModal';
 import SleepFormModal from './forms/SleepFormModal';
 
@@ -435,6 +435,7 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
             const existingSuppLog = (supplementLogs || []).find(
               l => (l.date === prevDate || l.date === logData.date) && l.status !== 'deleted'
             );
+            const targetDate = existingSuppLog ? existingSuppLog.date : prevDate;
 
             let currentItems: any[] = [];
             if (existingSuppLog && existingSuppLog.items) {
@@ -444,6 +445,8 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
                 currentItems = [];
               }
             } else {
+              const [ty, tm, td] = targetDate.split('-').map(Number);
+              const targetDateObj = new Date(ty, tm - 1, td);
               currentItems = activeSettings.map(s => ({
                 id: s.id,
                 name: s.name === '鎂' ? '甘胺酸鎂' : s.name,
@@ -451,7 +454,7 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
                 taken: false,
                 amount: 0,
                 targetAmount: parseInt(s.targetAmount, 10) || 1,
-                ignored: false
+                ignored: !isScheduledDay(s.time, targetDateObj)
               }));
             }
 
@@ -487,7 +490,6 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
               }
             });
 
-            const targetDate = existingSuppLog ? existingSuppLog.date : prevDate;
             const targetId = existingSuppLog ? existingSuppLog.id : `supp-${prevDate}`;
 
             deltaSuppLogs = [{
