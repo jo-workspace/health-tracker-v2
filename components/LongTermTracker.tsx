@@ -87,9 +87,11 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
 
   // Calculate Allergy specific stats
   const recentAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted' && new Date(l.date).getTime() >= thirtyDaysAgo);
-  const allergyFlareCount = recentAllergyLogs.length;
+  const flareLogs = recentAllergyLogs.filter(l => Number(l.severity || 0) > 0);
+  const allergyFlareCount = flareLogs.length;
+  const allergyControlCount = recentAllergyLogs.filter(l => Number(l.severity || 0) === 0).length;
   const allergyAvgSeverity = allergyFlareCount > 0
-    ? Number((recentAllergyLogs.reduce((sum, l) => sum + Number(l.severity || 0), 0) / allergyFlareCount).toFixed(1))
+    ? Number((flareLogs.reduce((sum, l) => sum + Number(l.severity || 0), 0) / allergyFlareCount).toFixed(1))
     : 0;
   const allergySteroidCount = recentAllergyLogs.filter(l => l.medication && l.medication.includes('steroid_cream')).length;
   const allergySleepImpactCount = recentAllergyLogs.filter(l => l.sleepImpact === 'mild' || l.sleepImpact === 'severe').length;
@@ -362,11 +364,14 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                       <div className="p-3 bg-purple-50/50 border-l-4 border-[#c084a1] rounded-r-lg relative mt-2">
                         <div className="flex justify-between items-center mb-2">
                           <span className="font-bold text-stone-700 text-sm flex items-center gap-1.5">
-                            過敏發作追蹤 (30天)
+                            過敏追蹤 (30天)
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-stone-500">
                           <span>發作次數：<strong className="text-[#c084a1]">{allergyFlareCount}</strong> 次</span>
+                          {allergyControlCount > 0 && (
+                            <span>穩定未發作：<strong className="text-[#3e7256]">{allergyControlCount}</strong> 天</span>
+                          )}
                           <span>平均嚴重度：<strong className="text-stone-700">{allergyAvgSeverity || '-'}</strong></span>
                           <span>類固醇使用：<strong className="text-stone-700">{allergySteroidCount}</strong> 次</span>
                           <span>影響睡眠：<strong className="text-stone-700">{allergySleepImpactCount}</strong> 次</span>
@@ -385,7 +390,7 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                               setIsAllergyModalOpen(true);
                             }}
                             className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-800 hover:bg-stone-50 shadow-sm transition-colors"
-                            title="新增發作紀錄"
+                            title="紀錄"
                           >
                             <Plus size={16} />
                           </button>

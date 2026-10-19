@@ -11,7 +11,7 @@ interface Props {
 }
 
 const PRESET_LOCATIONS = ["鼻子", "皮膚", "眼睛"];
-const PRESET_TRIGGERS = ["花粉", "灰塵", "食物", "鬆緊帶摩擦", "不明", "其他"];
+const PRESET_TRIGGERS = ["鬆緊帶摩擦", "灰塵", "食物", "不明", "其他"];
 const PRESET_MEDS = [
   { id: "antihistamine", label: "抗組織胺" },
   { id: "steroid_cream", label: "類固醇藥膏" }
@@ -19,8 +19,15 @@ const PRESET_MEDS = [
 const TIME_SLOTS = ["早", "中", "晚", "睡前"];
 const SLEEP_IMPACT_OPTIONS: { id: 'none' | 'mild' | 'severe'; label: string }[] = [
   { id: 'none', label: '無' },
-  { id: 'mild', label: '輕微' },
-  { id: 'severe', label: '嚴重' }
+  { id: 'mild', label: '輕' },
+  { id: 'severe', label: '重' }
+];
+
+const SEVERITY_OPTIONS = [
+  { value: 0, label: "未發作", desc: "" },
+  { value: 2, label: "輕微", desc: "輕微不適，不影響日常" },
+  { value: 5, label: "中度", desc: "明顯不適，需要吃藥緩解" },
+  { value: 8, label: "嚴重", desc: "大範圍發作，嚴重干擾活動" }
 ];
 
 const getDefaultTimeSlot = () => {
@@ -34,10 +41,10 @@ const getDefaultTimeSlot = () => {
 export default function AllergyFormModal({ isOpen, onClose, onSave, initialData }: Props) {
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [timeSlot, setTimeSlot] = useState(getDefaultTimeSlot());
-  const [time, setTime] = useState('');
+  const [severity, setSeverity] = useState(0);
   const [locations, setLocations] = useState<string[]>([]);
-  const [severity, setSeverity] = useState(4);
   const [trigger, setTrigger] = useState('');
+  const [customTrigger, setCustomTrigger] = useState('');
   const [meds, setMeds] = useState<string[]>([]);
   const [sleepImpact, setSleepImpact] = useState<'none' | 'mild' | 'severe'>('none');
   const [notes, setNotes] = useState('');
@@ -47,20 +54,38 @@ export default function AllergyFormModal({ isOpen, onClose, onSave, initialData 
       if (initialData) {
         setDate(initialData.date || new Date().toLocaleDateString('en-CA'));
         setTimeSlot(initialData.timeSlot || getDefaultTimeSlot());
-        setTime(initialData.time || '');
+        
+        // 嚴重度檔位回填
+        const rawSev = initialData.severity ?? 0;
+        if (rawSev === 0) setSeverity(0);
+        else if (rawSev <= 3) setSeverity(2);
+        else if (rawSev <= 6) setSeverity(5);
+        else setSeverity(8);
+
         setLocations(initialData.locations ? initialData.locations.split(',').map(s => s.trim()).filter(Boolean) : []);
-        setSeverity(initialData.severity ?? 4);
-        setTrigger(initialData.trigger || '');
+        
+        const trig = initialData.trigger || '';
+        if (PRESET_TRIGGERS.includes(trig)) {
+          setTrigger(trig);
+          setCustomTrigger('');
+        } else if (trig) {
+          setTrigger('其他');
+          setCustomTrigger(trig);
+        } else {
+          setTrigger('');
+          setCustomTrigger('');
+        }
+
         setMeds(initialData.medication ? initialData.medication.split(',').map(s => s.trim()).filter(Boolean) : []);
         setSleepImpact(initialData.sleepImpact || 'none');
         setNotes(initialData.notes || '');
       } else {
         setDate(new Date().toLocaleDateString('en-CA'));
         setTimeSlot(getDefaultTimeSlot());
-        setTime('');
+        setSeverity(0);
         setLocations([]);
-        setSeverity(4);
         setTrigger('');
+        setCustomTrigger('');
         setMeds([]);
         setSleepImpact('none');
         setNotes('');
@@ -78,34 +103,25 @@ export default function AllergyFormModal({ isOpen, onClose, onSave, initialData 
     setMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   };
 
-  const getSeverityColor = (val: number) => {
-    if (val <= 3) return 'bg-[#e2e7e1] text-[#5b6657] border-[#c0cfbe]';
-    if (val <= 6) return 'bg-[#fef3c7] text-[#d97706] border-[#fde68a]';
-    if (val <= 8) return 'bg-[#ffedd5] text-[#ea580c] border-[#fed7aa]';
-    return 'bg-[#fef2f2] text-[#dc2626] border-[#fecaca]';
-  };
-
-  const getSeverityDesc = (val: number) => {
-    if (val <= 3) return '輕微（有點癢/紅，不太影響生活）';
-    if (val <= 6) return '中度（明顯不適，需要吃藥緩解）';
-    if (val <= 8) return '嚴重（大範圍發作，影響日常活動）';
-    return '劇烈（難以忍受，可能需要就醫）';
-  };
+  const currentSeverityOpt = SEVERITY_OPTIONS.find(o => o.value === severity);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (locations.length === 0) return;
+
+    let finalTrigger = trigger;
+    if (trigger === '其他') {
+      finalTrigger = customTrigger.trim() || '其他';
+    }
 
     onSave({
       id: initialData?.id || crypto.randomUUID(),
       date,
       timeSlot,
-      time: time || undefined,
-      locations: locations.join(', '),
+      locations: severity === 0 ? '' : locations.join(', '),
       severity,
-      trigger: trigger.trim() || undefined,
+      trigger: severity === 0 ? undefined : (finalTrigger.trim() || undefined),
       medication: meds.join(', '),
-      sleepImpact,
+      sleepImpact: severity === 0 ? 'none' : sleepImpact,
       notes: notes.trim() || undefined,
       status: 'active',
       lastUpdated: Date.now()
@@ -120,187 +136,222 @@ export default function AllergyFormModal({ isOpen, onClose, onSave, initialData 
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
-          <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
-            <Sparkles size={20} className="text-[#c084a1]" />
-            {initialData ? '編輯過敏紀錄' : '紀錄過敏發作'}
+          <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
+            <Sparkles size={18} className="text-[#c084a1]" />
+            {initialData ? '編輯過敏' : '紀錄過敏'}
           </h2>
-          <button type="button" onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
-            <X size={18} />
+          <button type="button" onClick={onClose} className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
+            <X size={16} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto flex-1 flex flex-col gap-5">
-          {/* 日期與精確時間 */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="flex flex-col gap-1.5 min-w-0">
-              <label className="text-xs font-bold text-stone-700">發作日期</label>
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto flex-1 flex flex-col gap-4">
+          {/* 日期與時段並列 */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex flex-col gap-1 min-w-0 flex-1">
+              <label className="text-xs font-bold text-stone-700">日期</label>
               <input
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
-                className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.5em] w-full min-w-0 px-2.5 sm:px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[38px]"
+                className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.5em] w-full min-w-0 px-2.5 sm:px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[36px]"
                 required
               />
             </div>
-            <div className="flex flex-col gap-1.5 min-w-0">
-              <label className="text-xs font-bold text-stone-700">時間 (選填)</label>
-              <input
-                type="time"
-                value={time}
-                onChange={e => setTime(e.target.value)}
-                className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-date-and-time-value]:text-left [&::-webkit-date-and-time-value]:min-h-[1.5em] w-full min-w-0 px-2.5 sm:px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[38px]"
-              />
+            <div className="flex flex-col gap-1 shrink-0">
+              <label className="text-xs font-bold text-stone-700">時段</label>
+              <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
+                {TIME_SLOTS.map(slot => (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() => setTimeSlot(slot)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
+                      timeSlot === slot
+                        ? 'bg-white text-stone-800 shadow-2xs'
+                        : 'text-stone-400 hover:text-stone-600'
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* 時段單選膠囊 */}
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold text-stone-700">發作時段</label>
+          {/* 程度 */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-stone-700">程度</label>
             <div className="grid grid-cols-4 gap-2">
-              {TIME_SLOTS.map(slot => (
-                <button
-                  key={slot}
-                  type="button"
-                  onClick={() => setTimeSlot(slot)}
-                  className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
-                    timeSlot === slot
-                      ? 'bg-stone-800 text-white border-stone-800 shadow-xs'
-                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
-                  }`}
-                >
-                  {slot}
-                </button>
-              ))}
+              {SEVERITY_OPTIONS.map(opt => {
+                const isSelected = severity === opt.value;
+                let activeStyle = 'bg-stone-800 text-white border-stone-800 shadow-2xs';
+                if (opt.value === 0 && isSelected) {
+                  activeStyle = 'bg-[#3e7256] text-white border-[#3e7256] shadow-2xs';
+                } else if (opt.value === 8 && isSelected) {
+                  activeStyle = 'bg-[#a07d7e] text-white border-[#a07d7e] shadow-2xs';
+                }
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSeverity(opt.value)}
+                    className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                      isSelected
+                        ? activeStyle
+                        : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
+            {currentSeverityOpt?.desc ? (
+              <div className="text-[11px] text-stone-400 pl-0.5 mt-0.5">
+                {currentSeverityOpt.desc}
+              </div>
+            ) : null}
           </div>
 
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-bold text-stone-700">部位 (可複選)</label>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_LOCATIONS.map(l => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => toggleLocation(l)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                    locations.includes(l)
-                    ? 'bg-[#c084a1] text-white border-[#c084a1]'
-                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
-                  }`}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* 若嚴重度大於 0，漸進展開發作細節 */}
+          {severity > 0 && (
+            <>
+              {/* 部位 */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-stone-700">部位</label>
+                <div className="flex flex-wrap gap-2">
+                  {PRESET_LOCATIONS.map(l => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => toggleLocation(l)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                        locations.includes(l)
+                          ? 'bg-[#c084a1] text-white border-[#c084a1]'
+                          : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-center">
-              <label className="text-sm font-bold text-stone-700">嚴重度</label>
-              <span className={`px-2 py-0.5 rounded-md font-black text-sm border ${getSeverityColor(severity)}`}>
-                {severity}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="1" max="10"
-              value={severity}
-              onChange={e => setSeverity(Number(e.target.value))}
-              className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer mt-2"
-            />
-            <div className="text-xs font-medium text-stone-500 text-center mt-1">
-              {getSeverityDesc(severity)}
-            </div>
-            <div className="flex justify-between text-[10px] text-stone-400 font-bold px-1 mt-1">
-              <span>輕微 (1)</span>
-              <span>中度 (5)</span>
-              <span>劇烈 (10)</span>
-            </div>
-          </div>
+              {/* 觸發原因 */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-stone-700">觸發原因</label>
+                <div className="flex flex-wrap gap-2">
+                  {PRESET_TRIGGERS.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setTrigger(t)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                        trigger === t
+                          ? 'bg-stone-800 text-white border-stone-800'
+                          : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                {trigger === '其他' && (
+                  <input
+                    type="text"
+                    value={customTrigger}
+                    onChange={e => setCustomTrigger(e.target.value)}
+                    placeholder="輸入其他原因..."
+                    className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[36px] mt-1"
+                  />
+                )}
+              </div>
+            </>
+          )}
 
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-bold text-stone-700">觸發原因</label>
-            <div className="flex flex-wrap gap-2 mb-1">
-              {PRESET_TRIGGERS.map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTrigger(t)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                    trigger === t
-                    ? 'bg-stone-800 text-white border-stone-800'
-                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
+          {/* 用藥與影響睡眠：未發作時只顯示用藥，發作時雙欄並列 */}
+          {severity === 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-stone-700">用藥</label>
+              <div className="flex flex-wrap gap-2">
+                {PRESET_MEDS.map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggleMed(m.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                      meds.includes(m.id)
+                        ? 'bg-stone-700 text-white border-stone-700'
+                        : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
             </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-stone-700">用藥</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {PRESET_MEDS.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleMed(m.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                        meds.includes(m.id)
+                          ? 'bg-stone-700 text-white border-stone-700'
+                          : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-stone-700">影響睡眠</label>
+                <div className="flex rounded-lg border border-stone-200 bg-stone-100 p-0.5">
+                  {SLEEP_IMPACT_OPTIONS.map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setSleepImpact(opt.id)}
+                      className={`flex-1 py-1 rounded-md text-xs font-bold transition-all text-center ${
+                        sleepImpact === opt.id
+                          ? 'bg-white text-stone-800 shadow-2xs'
+                          : 'text-stone-400 hover:text-stone-600'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 備註：輕量單線格 */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-stone-700">備註</label>
             <input
               type="text"
-              value={trigger}
-              onChange={e => setTrigger(e.target.value)}
-              placeholder="或輸入其他原因..."
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px]"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-bold text-stone-700">用藥 (可複選)</label>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_MEDS.map(m => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => toggleMed(m.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                    meds.includes(m.id)
-                    ? 'bg-stone-700 text-white border-stone-700'
-                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <label className="text-sm font-bold text-stone-700">是否影響睡眠</label>
-            <div className="flex flex-wrap gap-2">
-              {SLEEP_IMPACT_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setSleepImpact(opt.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                    sleepImpact === opt.id
-                    ? 'bg-[#6f7f99] text-white border-[#6f7f99]'
-                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-stone-700">詳細備註 (選填)</label>
-            <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="例如：頭皮/耳朵偏內因性發作，或腰間鬆緊帶接觸型蕁麻疹..."
-              className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-400 focus:border-transparent text-[15px] resize-none h-20"
+              placeholder="選填備註..."
+              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400 min-h-[36px]"
             />
           </div>
 
-          <div className="mt-2 pt-4 border-t border-stone-100">
+          <div className="mt-2 pt-2 border-t border-stone-100">
             <button
               type="submit"
-              className="w-full py-3.5 bg-[#444] text-white rounded-xl font-bold text-[15px] shadow-sm hover:bg-[#333] transition-colors"
+              className="w-full py-2.5 bg-stone-800 text-white rounded-xl font-bold text-sm shadow-2xs hover:bg-stone-900 transition-colors"
             >
-              {initialData ? '儲存變更' : '儲存紀錄'}
+              儲存
             </button>
           </div>
         </form>

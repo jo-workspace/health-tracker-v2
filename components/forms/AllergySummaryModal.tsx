@@ -43,6 +43,7 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
   };
 
   const getSeverityColor = (val: number) => {
+    if (val === 0) return 'bg-[#e2e7e1] text-[#3e7256]';
     if (val <= 3) return 'bg-[#e2e7e1] text-[#5b6657]';
     if (val <= 6) return 'bg-[#fef3c7] text-[#d97706]';
     if (val <= 8) return 'bg-[#ffedd5] text-[#ea580c]';
@@ -50,6 +51,7 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
   };
 
   const getSeverityLabel = (val: number) => {
+    if (val === 0) return '未發作';
     if (val <= 3) return '輕微';
     if (val <= 6) return '中度';
     if (val <= 8) return '嚴重';
@@ -65,20 +67,20 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
-          <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
-            過敏發作摘要
+          <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
+            過敏紀錄摘要
           </h2>
-          <button onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
-            <X size={18} />
+          <button onClick={onClose} className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
+            <X size={16} />
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-3">
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 flex flex-col gap-3">
           {activeLogs.length === 0 ? (
-            <div className="text-center text-stone-400 py-8 text-sm">目前沒有任何發作紀錄</div>
+            <div className="text-center text-stone-400 py-8 text-sm">目前沒有任何紀錄</div>
           ) : (
             activeLogs.map(log => (
-              <div key={log.id} className="bg-white border border-stone-200 rounded-lg p-3 shadow-xs flex flex-col gap-2">
+              <div key={log.id} className="bg-white border border-stone-200 rounded-lg p-3 shadow-2xs flex flex-col gap-2">
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-stone-800 text-sm">{formatDate(log.date)}</span>
@@ -95,8 +97,8 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className={`px-2 py-0.5 rounded font-black text-xs ${getSeverityColor(log.severity)}`}>
-                      嚴重度 {log.severity}（{getSeverityLabel(log.severity)}）
+                    <span className={`px-2 py-0.5 rounded font-bold text-xs ${getSeverityColor(log.severity)}`}>
+                      {log.severity === 0 ? '未發作' : `${getSeverityLabel(log.severity)} (${log.severity})`}
                     </span>
                     <button
                       type="button"
@@ -117,9 +119,11 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
                   </div>
                 </div>
 
-                <div className="text-sm text-stone-600">
-                  <span className="font-medium text-stone-500">部位：</span>{log.locations || '無'}
-                </div>
+                {log.locations && (
+                  <div className="text-sm text-stone-600">
+                    <span className="font-medium text-stone-500">部位：</span>{log.locations}
+                  </div>
+                )}
                 {log.trigger && (
                   <div className="text-sm text-stone-600">
                     <span className="font-medium text-stone-500">觸發原因：</span>{log.trigger}
