@@ -68,7 +68,7 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
       >
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
           <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
-            過敏紀錄摘要
+            過敏歷程
           </h2>
           <button onClick={onClose} className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
             <X size={16} />

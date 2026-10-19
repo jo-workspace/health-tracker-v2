@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { ClipboardList, Pencil, Calendar, Trash2, CalendarPlus, FileText, Plus, Sparkles } from 'lucide-react';
+import { ClipboardList, Pencil, Calendar, Trash2, CalendarPlus, History, Plus, Sparkles } from 'lucide-react';
 import type { LongTermLog, TmySymptomLog, BiteSplintLog, AllergyLog, SyncPayload } from '@/lib/types';
 import LongTermFormModal from '@/components/forms/LongTermFormModal';
 import TmySymptomFormModal from '@/components/forms/TmySymptomFormModal';
@@ -86,13 +86,24 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
   }
 
   // Calculate Allergy specific stats
-  const recentAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted' && new Date(l.date).getTime() >= thirtyDaysAgo);
+  const activeAllergyLogs = allergyLogs.filter(l => l.status !== 'deleted');
+  const recentAllergyLogs = activeAllergyLogs.filter(l => new Date(l.date).getTime() >= thirtyDaysAgo);
   const flareLogs = recentAllergyLogs.filter(l => Number(l.severity || 0) > 0);
   const allergyFlareCount = flareLogs.length;
-  const allergyControlCount = recentAllergyLogs.filter(l => Number(l.severity || 0) === 0).length;
-  const allergyAvgSeverity = allergyFlareCount > 0
-    ? Number((flareLogs.reduce((sum, l) => sum + Number(l.severity || 0), 0) / allergyFlareCount).toFixed(1))
-    : 0;
+
+  // 最新連續未發作天數：以全歷史最近一次發作日為分界，計算其後連續無發作之相異日期天數
+  const allFlareLogs = activeAllergyLogs.filter(l => Number(l.severity || 0) > 0);
+  const latestFlareDate = allFlareLogs.length > 0
+    ? allFlareLogs.map(l => l.date).sort().reverse()[0]
+    : null;
+
+  const controlDatesAfterFlare = new Set(
+    activeAllergyLogs
+      .filter(l => Number(l.severity || 0) === 0 && (!latestFlareDate || l.date > latestFlareDate))
+      .map(l => l.date)
+  );
+  const allergyControlStreak = controlDatesAfterFlare.size;
+
   const allergySteroidCount = recentAllergyLogs.filter(l => l.medication && l.medication.includes('steroid_cream')).length;
   const allergyAntihistamineCount = recentAllergyLogs.filter(l => l.medication && l.medication.includes('antihistamine')).length;
   const allergySleepImpactCount = recentAllergyLogs.filter(l => l.sleepImpact === 'mild' || l.sleepImpact === 'severe').length;
@@ -116,13 +127,6 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
       return <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-bold bg-[#fef2f2] text-[#dc2626] border border-[#fca5a5]"><Calendar size={11} />今天回診</span>;
     }
     return <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium bg-[#fef2f2] text-[#dc2626] border border-[#fca5a5]"><Calendar size={11} />逾期 {Math.abs(diffDays)} 天</span>;
-  };
-
-  const getRelativeTimeStr = (timestamp: number) => {
-    const daysAgo = Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24));
-    if (daysAgo === 0) return '今天';
-    if (daysAgo > 30) return `${Math.floor(daysAgo / 30)} 個月前`;
-    return `${daysAgo} 天前`;
   };
 
   const markDeleted = (id: string) => {
@@ -264,9 +268,6 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-black text-stone-700 text-base">{log.itemName}</h3>
                       {getCheckupBadge(log.nextCheckupDate)}
-                      {isSymptomOnlyTracker && (
-                        <span className="text-[10px] text-stone-400">更新於 {getRelativeTimeStr(log.lastUpdated)}</span>
-                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0 ml-2">
                       <button onClick={() => openEditModal(log)} className="p-1.5 hover:bg-stone-100 rounded text-stone-500 hover:text-stone-700 transition-colors" title="編輯項目">
@@ -295,12 +296,6 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                     <div className="flex gap-3 text-[13px] mt-2">
                       <span className="text-stone-400 font-medium shrink-0">備註</span>
                       <span className="text-stone-600 leading-snug whitespace-pre-wrap">{log.notes}</span>
-                    </div>
-                  )}
-
-                  {!isSymptomOnlyTracker && (
-                    <div className="text-[10px] text-stone-400 text-right mt-1 mb-2">
-                      更新於 {getRelativeTimeStr(log.lastUpdated)}
                     </div>
                   )}
 
@@ -343,9 +338,9 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                           <button 
                             onClick={() => setIsTmySummaryModalOpen(true)} 
                             className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-800 hover:bg-stone-50 shadow-sm transition-colors" 
-                            title="摘要"
+                            title="歷程"
                           >
-                            <FileText size={14} />
+                            <History size={14} />
                           </button>
                           <button 
                             onClick={() => setIsTmySymptomModalOpen(true)} 
@@ -370,10 +365,9 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                         </div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-stone-500">
                           <span>發作次數：<strong className="text-[#c084a1]">{allergyFlareCount}</strong> 次</span>
-                          {allergyControlCount > 0 && (
-                            <span>穩定未發作：<strong className="text-[#3e7256]">{allergyControlCount}</strong> 天</span>
+                          {allergyControlStreak > 0 && (
+                            <span>穩定未發作：<strong className="text-[#3e7256]">{allergyControlStreak}</strong> 天</span>
                           )}
-                          <span>平均嚴重度：<strong className="text-stone-700">{allergyAvgSeverity || '-'}</strong></span>
                           {allergyAntihistamineCount > 0 && (
                             <span>抗組織胺：<strong className="text-stone-700">{allergyAntihistamineCount}</strong> 次</span>
                           )}
@@ -388,9 +382,9 @@ export default function LongTermTracker({ data = [], tmyLogs = [], splintLogs = 
                           <button
                             onClick={() => setIsAllergySummaryModalOpen(true)}
                             className="w-8 h-8 bg-white border border-stone-200 rounded-full flex items-center justify-center text-stone-500 hover:text-stone-800 hover:bg-stone-50 shadow-sm transition-colors"
-                            title="摘要"
+                            title="歷程"
                           >
-                            <FileText size={14} />
+                            <History size={14} />
                           </button>
                           <button
                             onClick={() => {

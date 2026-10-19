@@ -58,8 +58,8 @@ export default function TmySummaryModal({ isOpen, onClose, logs }: Props) {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-stone-100 shrink-0">
-          <h2 className="text-lg font-bold text-stone-800 flex items-center gap-2">
-            顳顎症狀發作摘要
+          <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
+            顳顎歷程
           </h2>
           <button onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-500 rounded-full transition-colors">
             <X size={18} />
