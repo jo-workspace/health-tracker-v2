@@ -1,54 +1,90 @@
-export function formatTo12Hour(timeStr?: string): string {
-  if (!timeStr || timeStr.trim() === '' || timeStr === '-') return '-';
+export interface ParsedBedtime {
+  hour12: number;
+  minute: number;
+  period: 'AM' | 'PM';
+  hour24: number;
+}
+
+export function parseBedtimeParts(timeStr?: string): ParsedBedtime | null {
+  if (!timeStr || !timeStr.trim() || timeStr === '-') return null;
   const trimmed = timeStr.trim();
-  if (/(am|pm)$/i.test(trimmed)) {
-    return trimmed;
+
+  // 判定是否包含 PM / 下午 / 晚上 或 AM / 上午 / 凌晨 關鍵字
+  const isPM = /pm|下午|晚上|傍晚|夜間/i.test(trimmed);
+  const isAM = /am|上午|凌晨|早上|清晨/i.test(trimmed);
+
+  // 抓取時間數字符號，支援 HH:mm 或 HH:mm:ss（例："10:01", "22:01:00", "下午 10:01"）
+  const match = trimmed.match(/(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (!match) return null;
+
+  const rawH = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (isNaN(rawH) || isNaN(m) || m < 0 || m > 59) return null;
+
+  let hour24: number;
+  let hour12: number;
+  let period: 'AM' | 'PM';
+
+  if (isPM) {
+    period = 'PM';
+    hour24 = rawH === 12 ? 12 : rawH < 12 ? rawH + 12 : rawH;
+    hour12 = rawH === 0 ? 12 : rawH > 12 ? rawH - 12 : rawH;
+  } else if (isAM) {
+    period = 'AM';
+    hour24 = rawH === 12 ? 0 : rawH;
+    hour12 = rawH === 0 ? 12 : rawH > 12 ? rawH - 12 : rawH;
+  } else {
+    // 無明確 AM/PM 標記（如純 24 小時制 "22:01" 或 "00:15"）
+    if (rawH >= 13 && rawH <= 23) {
+      period = 'PM';
+      hour24 = rawH;
+      hour12 = rawH - 12;
+    } else if (rawH === 0) {
+      period = 'AM';
+      hour24 = 0;
+      hour12 = 12;
+    } else if (rawH === 12) {
+      period = 'PM';
+      hour24 = 12;
+      hour12 = 12;
+    } else if (rawH >= 1 && rawH <= 5) {
+      // 凌晨 1 ~ 5 點入睡
+      period = 'AM';
+      hour24 = rawH;
+      hour12 = rawH;
+    } else {
+      // 6 ~ 11 點夜間就寢習慣，無標示時預設視為晚間 PM
+      period = 'PM';
+      hour24 = rawH + 12;
+      hour12 = rawH;
+    }
   }
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return timeStr;
-  const h = parseInt(match[1], 10);
-  const m = match[2];
-  if (isNaN(h)) return timeStr;
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${m} ${period}`;
+
+  if (hour24 < 0 || hour24 > 23) return null;
+
+  return { hour12, minute: m, period, hour24 };
+}
+
+export function formatTo12Hour(timeStr?: string): string {
+  if (!timeStr || !timeStr.trim() || timeStr === '-') return '-';
+  const parsed = parseBedtimeParts(timeStr);
+  if (!parsed) return timeStr;
+  const m = String(parsed.minute).padStart(2, '0');
+  return `${parsed.hour12}:${m} ${parsed.period}`;
 }
 
 export function isBefore1030PM(timeStr?: string): boolean {
   if (!timeStr || !timeStr.trim() || timeStr === '-') return false;
-  const trimmed = timeStr.trim();
+  const parsed = parseBedtimeParts(timeStr);
+  if (!parsed) return false;
 
-  // 12 小時制 (例如 "10:15 PM", "9:30 PM", "12:15 AM", "1:30 AM")
-  const ampmMatch = trimmed.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
-  if (ampmMatch) {
-    const rawH = parseInt(ampmMatch[1], 10);
-    const m = parseInt(ampmMatch[2], 10);
-    const period = ampmMatch[3].toUpperCase();
-    if (isNaN(rawH) || isNaN(m)) return false;
+  const { hour24, minute } = parsed;
 
-    // 凌晨/上午跨夜入睡 (12:00 AM - 11:59 AM) -> 不符合 10:30 PM 前
-    if (period === 'AM') return false;
-
-    // 12:xx PM 為正午，非夜間就寢
-    if (rawH === 12) return false;
-
-    // 傍晚 18:00 (6 PM) 至 22:30 (10:30 PM) 為早睡達標區間
-    if (rawH >= 6 && rawH < 10) return true;
-    if (rawH === 10 && m <= 30) return true;
-    return false;
-  }
-
-  // 24 小時制 (例如 "22:15", "22:30", "23:45", "00:15", "01:30")
-  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})$/);
-  if (match24) {
-    const h = parseInt(match24[1], 10);
-    const m = parseInt(match24[2], 10);
-    if (isNaN(h) || isNaN(m)) return false;
-
-    if (h >= 18 && h < 22) return true;
-    if (h === 22 && m <= 30) return true;
-    return false;
-  }
+  // 傍晚 18:00 (6 PM) 至 22:30 (10:30 PM) 為早睡達標區間
+  // 例如 21:50, 22:01, 22:30 皆為 true
+  // 22:31, 23:00, 00:30 (凌晨), 01:00 皆為 false
+  if (hour24 >= 18 && hour24 < 22) return true;
+  if (hour24 === 22 && minute <= 30) return true;
 
   return false;
 }

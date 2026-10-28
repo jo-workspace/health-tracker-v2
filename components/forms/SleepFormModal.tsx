@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Moon, Check, Laugh, Smile, Frown, Pill } from 'lucide-react';
 import type { SleepLog, BiteSplintLog, SupplementLog } from '@/lib/types';
+import { parseBedtimeParts } from '@/lib/sleep';
 
 const getPrevDateStr = (dateStr: string) => {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -24,26 +25,12 @@ const parseDurationToHoursAndMinutes = (dur: string) => {
 
 const parseBedtimeTo12h = (raw?: string): { time: string; period: 'AM' | 'PM' } => {
   if (!raw || !raw.trim()) return { time: '', period: 'PM' };
-  const str = raw.trim();
-  const ampmMatch = str.match(/^(\d{1,2}:\d{2})\s*(am|pm)$/i);
-  if (ampmMatch) {
-    return {
-      time: ampmMatch[1],
-      period: ampmMatch[2].toUpperCase() as 'AM' | 'PM'
-    };
-  }
-  const match24 = str.match(/^(\d{1,2}):(\d{2})$/);
-  if (match24) {
-    const h = parseInt(match24[1], 10);
-    const m = match24[2];
-    const period: 'AM' | 'PM' = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 === 0 ? 12 : h % 12;
-    return {
-      time: `${String(h12).padStart(2, '0')}:${m}`,
-      period
-    };
-  }
-  return { time: str, period: 'PM' };
+  const parsed = parseBedtimeParts(raw);
+  if (!parsed) return { time: raw.trim(), period: 'PM' };
+  return {
+    time: `${String(parsed.hour12).padStart(2, '0')}:${String(parsed.minute).padStart(2, '0')}`,
+    period: parsed.period
+  };
 };
 
 const ToothIcon = ({ size = 14 }: { size?: number }) => (
