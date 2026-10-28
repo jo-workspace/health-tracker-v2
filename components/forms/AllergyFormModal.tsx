@@ -24,7 +24,7 @@ const SLEEP_IMPACT_OPTIONS: { id: 'none' | 'mild' | 'severe'; label: string }[] 
 ];
 
 const SEVERITY_OPTIONS = [
-  { value: 0, label: "未發作", desc: "" },
+  { value: 0, label: "無症狀", desc: "" },
   { value: 2, label: "輕微", desc: "輕微不適，不影響日常" },
   { value: 5, label: "中度", desc: "明顯不適，需要吃藥緩解" },
   { value: 8, label: "嚴重", desc: "大範圍發作，嚴重干擾活動" }
@@ -56,7 +56,7 @@ export default function AllergyFormModal({ isOpen, onClose, onSave, initialData 
         setTimeSlot(initialData.timeSlot || getDefaultTimeSlot());
         
         // 嚴重度檔位回填
-        const rawSev = initialData.severity ?? 0;
+        const rawSev = Number(initialData.severity ?? 0);
         if (rawSev === 0) setSeverity(0);
         else if (rawSev <= 3) setSeverity(2);
         else if (rawSev <= 6) setSeverity(5);
@@ -118,7 +118,7 @@ export default function AllergyFormModal({ isOpen, onClose, onSave, initialData 
       date,
       timeSlot,
       locations: severity === 0 ? '' : locations.join(', '),
-      severity,
+      severity: Number(severity),
       trigger: severity === 0 ? undefined : (finalTrigger.trim() || undefined),
       medication: meds.join(', '),
       sleepImpact: severity === 0 ? 'none' : sleepImpact,

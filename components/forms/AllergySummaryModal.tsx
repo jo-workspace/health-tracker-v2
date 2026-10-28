@@ -42,7 +42,8 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
     return dateStr.split('T')[0];
   };
 
-  const getSeverityColor = (val: number) => {
+  const getSeverityColor = (rawVal: number | string) => {
+    const val = Number(rawVal ?? 0);
     if (val === 0) return 'bg-[#e2e7e1] text-[#3e7256]';
     if (val <= 3) return 'bg-[#e2e7e1] text-[#5b6657]';
     if (val <= 6) return 'bg-[#fef3c7] text-[#d97706]';
@@ -50,8 +51,9 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
     return 'bg-[#fef2f2] text-[#dc2626]';
   };
 
-  const getSeverityLabel = (val: number) => {
-    if (val === 0) return '未發作';
+  const getSeverityLabel = (rawVal: number | string) => {
+    const val = Number(rawVal ?? 0);
+    if (val === 0) return '無症狀';
     if (val <= 3) return '輕微';
     if (val <= 6) return '中度';
     if (val <= 8) return '嚴重';
@@ -98,7 +100,7 @@ export default function AllergySummaryModal({ isOpen, onClose, logs, onEdit, onD
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <span className={`px-2 py-0.5 rounded font-bold text-xs ${getSeverityColor(log.severity)}`}>
-                      {log.severity === 0 ? '未發作' : `${getSeverityLabel(log.severity)} (${log.severity})`}
+                      {getSeverityLabel(log.severity)}
                     </span>
                     <button
                       type="button"
