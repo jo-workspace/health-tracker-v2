@@ -31,9 +31,30 @@ export const WEEKDAY_OPTIONS = [
 
 export const TIME_SLOT_OPTIONS = ['早上起床', '隨餐', '晚餐時', '睡前'];
 
-export const DEFAULT_CATEGORY = '其他';
+export const DEFAULT_CATEGORY = 'Other';
 /** 分類顯示順序，未列在此清單中的分類會排在最後 */
-export const CATEGORY_ORDER = ['維他命', 'Mineral', '礦物質', '護眼健康', DEFAULT_CATEGORY];
+export const CATEGORY_ORDER = ['Vitamin', 'Mineral', 'Eye Health', DEFAULT_CATEGORY];
+
+/** 將中英各版本分類名稱標準化為統一方針的英文名稱 */
+export function normalizeSupplementCategory(cat?: string): string {
+  if (!cat) return DEFAULT_CATEGORY;
+  const c = cat.trim();
+  const lower = c.toLowerCase();
+
+  if (c === '維他命' || lower === 'vitamin' || lower === 'vitamins') {
+    return 'Vitamin';
+  }
+  if (c === '礦物質' || lower === 'mineral' || lower === 'minerals') {
+    return 'Mineral';
+  }
+  if (c === '護眼健康' || lower === 'eye health' || lower === 'eye' || lower === 'vision') {
+    return 'Eye Health';
+  }
+  if (c === '其他' || lower === 'other' || lower === 'others') {
+    return 'Other';
+  }
+  return c;
+}
 
 /** 解析 time 字串為主要時段與頻率 */
 export function parseSupplementSchedule(timeStr: string): ParsedSchedule {
@@ -172,15 +193,15 @@ export function isBedtimeSupplement(timeStr: string, name?: string): boolean {
 }
 
 export const PREDEFINED_SUPPLEMENTS: Supplement[] = [
-  { id: '1', name: 'Avamys', time: '早上起床', taken: false, ignored: false, category: '其他' },
-  { id: '2', name: 'D3 (2000 IU)', time: '隨餐', taken: false, ignored: false, category: '維他命' },
+  { id: '1', name: 'Avamys', time: '早上起床', taken: false, ignored: false, category: 'Other' },
+  { id: '2', name: 'D3 (2000 IU)', time: '隨餐', taken: false, ignored: false, category: 'Vitamin' },
   { id: '3', name: '鋅', time: '隨餐', taken: false, ignored: false, category: 'Mineral' },
   { id: '4', name: '鐵', time: '隨餐', taken: false, ignored: false, category: 'Mineral' },
-  { id: '5', name: 'Q10', time: '隨餐', taken: false, ignored: false, category: '其他' },
-  { id: '6', name: 'PQQ', time: '隨餐', taken: false, ignored: false, category: '其他' },
-  { id: '7', name: '魚油', time: '周一~五', taken: false, ignored: false, category: '其他' },
-  { id: '8', name: '葉黃素', time: '周一~五', taken: false, ignored: false, category: '護眼健康' },
+  { id: '5', name: 'Q10', time: '隨餐', taken: false, ignored: false, category: 'Other' },
+  { id: '6', name: 'PQQ', time: '隨餐', taken: false, ignored: false, category: 'Other' },
+  { id: '7', name: '魚油', time: '周一~五', taken: false, ignored: false, category: 'Other' },
+  { id: '8', name: '葉黃素', time: '周一~五', taken: false, ignored: false, category: 'Eye Health' },
   { id: '9', name: '甘胺酸鎂', time: '睡前', taken: false, ignored: false, category: 'Mineral' },
-  { id: '10', name: '維他命 C', time: '晚餐時', taken: false, ignored: false, category: '維他命' },
+  { id: '10', name: '維他命 C', time: '晚餐時', taken: false, ignored: false, category: 'Vitamin' },
   { id: '11', name: '蘇糖酸鎂', time: '睡前', taken: false, ignored: false, category: 'Mineral' },
 ];

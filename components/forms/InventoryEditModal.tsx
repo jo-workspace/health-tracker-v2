@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { X, Check, Plus, Minus, Sparkles, Trash2, Archive } from 'lucide-react';
 import type { SupplementInventoryItem, SupplementSetting } from '@/lib/types';
-import { CATEGORY_ORDER, DEFAULT_CATEGORY } from '@/lib/supplements';
+import { CATEGORY_ORDER, DEFAULT_CATEGORY, normalizeSupplementCategory } from '@/lib/supplements';
 
 interface Props {
   isOpen: boolean;
@@ -24,7 +24,7 @@ function ModalContent({
 }: Omit<Props, 'isOpen'>) {
   const [name, setName] = useState(itemToEdit?.name || '');
   const [brand, setBrand] = useState(itemToEdit?.brand || '');
-  const [category, setCategory] = useState(itemToEdit?.category || DEFAULT_CATEGORY);
+  const [category, setCategory] = useState(normalizeSupplementCategory(itemToEdit?.category));
   const [openedCount, setOpenedCount] = useState(Number(itemToEdit?.openedCount) || 1);
   const [unopenedCount, setUnopenedCount] = useState(Number(itemToEdit?.unopenedCount) || 0);
   const [targetUsers, setTargetUsers] = useState(
@@ -49,7 +49,7 @@ function ModalContent({
       id: itemToEdit?.id,
       name: name.trim(),
       brand: brand.trim(),
-      category: category || DEFAULT_CATEGORY,
+      category: normalizeSupplementCategory(category),
       openedCount: Math.max(0, Number(openedCount) || 0),
       unopenedCount: Math.max(0, Number(unopenedCount) || 0),
       targetUsers,
@@ -70,7 +70,7 @@ function ModalContent({
   const handleQuickImport = (setting: SupplementSetting) => {
     setName(setting.name);
     if (setting.category) {
-      setCategory(setting.category);
+      setCategory(normalizeSupplementCategory(setting.category));
     }
   };
 

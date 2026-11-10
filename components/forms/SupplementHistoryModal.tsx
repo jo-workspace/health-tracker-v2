@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import { X, History } from 'lucide-react';
 import type { SupplementLog, SupplementSetting } from '@/lib/types';
-import { PREDEFINED_SUPPLEMENTS, isScheduledDay, CATEGORY_ORDER, DEFAULT_CATEGORY, type Supplement } from '@/lib/supplements';
+import { PREDEFINED_SUPPLEMENTS, isScheduledDay, CATEGORY_ORDER, DEFAULT_CATEGORY, normalizeSupplementCategory, type Supplement } from '@/lib/supplements';
 
 interface Props {
   isOpen: boolean;
@@ -29,9 +29,7 @@ export default function SupplementHistoryModal({ isOpen, onClose, data = [], set
   const activeLogs = data.filter(l => l.status !== 'deleted');
 
   const normalizeCategory = (cat?: string) => {
-    if (!cat) return DEFAULT_CATEGORY;
-    if (cat === '礦物質' || cat.toLowerCase() === 'mineral') return 'Mineral';
-    return cat;
+    return normalizeSupplementCategory(cat);
   };
 
   // 基底品項清單：確保包含所有正式常態品項（包含蘇糖酸鎂、甘胺酸鎂）

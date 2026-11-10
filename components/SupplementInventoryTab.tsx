@@ -9,7 +9,7 @@ import {
   Archive
 } from 'lucide-react';
 import type { SupplementInventoryItem, SupplementSetting, SyncPayload } from '@/lib/types';
-import { CATEGORY_ORDER, DEFAULT_CATEGORY } from '@/lib/supplements';
+import { CATEGORY_ORDER, DEFAULT_CATEGORY, normalizeSupplementCategory } from '@/lib/supplements';
 import InventoryEditModal from './forms/InventoryEditModal';
 
 interface Props {
@@ -78,8 +78,8 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
 
   // 排序函式：依分類順序 ➔ 同分類內依品名筆畫
   const sortByCategoryAndName = useCallback((a: SupplementInventoryItem, b: SupplementInventoryItem) => {
-    const catA = a.category || DEFAULT_CATEGORY;
-    const catB = b.category || DEFAULT_CATEGORY;
+    const catA = normalizeSupplementCategory(a.category);
+    const catB = normalizeSupplementCategory(b.category);
 
     const getCatRank = (cat: string) => {
       const idx = CATEGORY_ORDER.indexOf(cat);
@@ -156,7 +156,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
         id: `supp-inv-${timestamp}-${Math.random().toString(36).substring(2, 7)}`,
         name: itemData.name || '',
         brand: itemData.brand || '',
-        category: itemData.category || DEFAULT_CATEGORY,
+        category: normalizeSupplementCategory(itemData.category),
         openedCount: Number(itemData.openedCount) || 1,
         unopenedCount: Number(itemData.unopenedCount) || 0,
         targetUsers: itemData.targetUsers || '兩人共用',
@@ -271,7 +271,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
       id: `supp-inv-${timestamp}-${Math.random().toString(36).substring(2, 7)}`,
       name: s.name,
       brand: '',
-      category: s.category || DEFAULT_CATEGORY,
+      category: normalizeSupplementCategory(s.category),
       openedCount: 1,
       unopenedCount: 0,
       targetUsers: '兩人共用',
@@ -352,7 +352,7 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
             <div className="flex items-center gap-1 mt-0.5 text-[11px] text-stone-400 truncate">
               {item.brand && <span>{item.brand}</span>}
               {item.brand && item.category && <span>·</span>}
-              {item.category && <span>{item.category}</span>}
+              {item.category && <span>{normalizeSupplementCategory(item.category)}</span>}
               {item.notes && <span>· {item.notes}</span>}
             </div>
           )}
