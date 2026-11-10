@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { X, Check, Plus, Minus, Sparkles, Trash2 } from 'lucide-react';
+import { X, Check, Plus, Minus, Sparkles, Trash2, Archive } from 'lucide-react';
 import type { SupplementInventoryItem, SupplementSetting } from '@/lib/types';
 import { CATEGORY_ORDER, DEFAULT_CATEGORY } from '@/lib/supplements';
 
@@ -31,6 +31,7 @@ function ModalContent({
     itemToEdit?.targetUsers === '僅自己' ? '僅自己' : '兩人共用'
   );
   const [notes, setNotes] = useState(itemToEdit?.notes || '');
+  const [isArchived, setIsArchived] = useState<boolean>(Boolean(itemToEdit?.isArchived));
 
   // 找出還沒在庫存清單中的日常打卡品項，供快速匯入
   const existingNames = new Set(
@@ -53,6 +54,7 @@ function ModalContent({
       unopenedCount: Math.max(0, Number(unopenedCount) || 0),
       targetUsers,
       notes: notes.trim(),
+      isArchived,
     });
     onClose();
   };
@@ -237,6 +239,22 @@ function ModalContent({
             placeholder="例：隨餐吃、睡前吃、好市多買大罐"
             className="w-full text-sm px-3 py-2 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#52806b]/20 focus:border-[#52806b]"
           />
+        </div>
+
+        {/* 封存置底 */}
+        <div className="pt-0.5">
+          <label className="flex items-center justify-between px-3 py-2.5 bg-stone-50 hover:bg-stone-100/80 rounded-xl border border-stone-200/80 cursor-pointer select-none transition-colors">
+            <div className="flex items-center gap-2">
+              <Archive className="w-4 h-4 text-stone-500" />
+              <span className="text-xs font-semibold text-stone-700">封存</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={isArchived}
+              onChange={e => setIsArchived(e.target.checked)}
+              className="w-4 h-4 rounded text-[#52806b] focus:ring-[#52806b] border-stone-300"
+            />
+          </label>
         </div>
 
         {/* 底部動作列：刪除與儲存並排 */}

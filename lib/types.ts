@@ -163,6 +163,7 @@ export interface SupplementInventoryItem {
   targetUsers?: string;      // 服用對象 (兩人共用 / 僅自己 / 僅先生)
   location?: string;         // 存放地點 (客廳餐桌 / 儲藏櫃 / 抽屜)
   notes?: string;            // 備註
+  isArchived?: boolean;      // 是否封存或短期置底
   status: 'active' | 'deleted';
   lastUpdated: string;
 }

@@ -37,7 +37,7 @@ export default function Dashboard() {
   const zeroUnopenedCount = useMemo(() => {
     if (!inventoryList) return 0;
     return inventoryList.filter(
-      item => item.status !== 'deleted' && (item.unopenedCount || 0) === 0
+      item => item.status !== 'deleted' && !item.isArchived && (item.unopenedCount || 0) === 0
     ).length;
   }, [inventoryList]);
 
