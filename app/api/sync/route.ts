@@ -16,7 +16,21 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   illnessLogs: { name: "IllnessLogs", headers: ["id", "name", "category", "startDate", "recoveredDate", "severity", "temperature", "medicalCare", "medicationDaysTotal", "symptoms", "prescribedMedications", "medicationsTaken", "notes", "status", "lastUpdated", "history"] }
 };
 
-/** 自動處理 Google Sheets API 429 Rate Limit 之指數退避重試 */
+// 伺服器端記憶體快取：大幅壓低 Google Sheets API 讀取請求，防止 60 req/min 限流擊穿
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const serverLogsCache = new Map<string, CacheEntry<any[]>>();
+const SERVER_LOGS_CACHE_TTL = 60_000; // 讀取快取 60 秒
+
+let cachedDeletedIds: CacheEntry<Record<string, Set<string>>> | null = null;
+const DELETED_IDS_CACHE_TTL = 300_000; // 刪除 ID 記錄快取 5 分鐘
+
+const verifiedHeadersSheets = new Set<string>();
+
+/** 自動處理 Google Sheets API 429 / 503 等暫態錯誤之指數退避重試 */
 async function withApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
   let attempt = 0;
   while (true) {
@@ -24,10 +38,16 @@ async function withApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T>
       return await fn();
     } catch (err: any) {
       attempt++;
-      const is429 = err.message?.includes('429') || err.message?.includes('Quota exceeded');
-      if (is429 && attempt < maxRetries) {
-        const delay = attempt * 3000 + Math.floor(Math.random() * 1000);
-        console.warn(`[Google Sheets API 429] 觸發 60/min 限流，等待 ${delay}ms 後進行第 ${attempt}/${maxRetries} 次重試...`);
+      const msg = String(err?.message || '');
+      const isTransient =
+        msg.includes('429') ||
+        msg.includes('Quota exceeded') ||
+        msg.includes('503') ||
+        msg.includes('Service Unavailable');
+
+      if (isTransient && attempt < maxRetries) {
+        const delay = 1500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 500);
+        console.warn(`[Google Sheets API] 暫態限流 (429/503)，等待 ${delay}ms 進行第 ${attempt}/${maxRetries} 次重試...`);
         await new Promise(res => setTimeout(res, delay));
       } else {
         throw err;
@@ -50,6 +70,7 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]): Pro
   if (!sheet) {
     try {
       sheet = await withApiRetry(() => doc.addSheet({ title, headerValues: headers }));
+      verifiedHeadersSheets.add(title);
     } catch (err: any) {
       if (err.message?.includes('already exists') || err.message?.includes('Invalid requests[0].addSheet')) {
         await withApiRetry(() => doc.loadInfo());
@@ -65,12 +86,14 @@ const DELETED_IDS_SHEET_NAME = 'DeletedIds';
 const DELETED_IDS_HEADERS = ['sheetKey', 'id', 'deletedAt'];
 
 /**
- * 永久記錄已刪除的 id（獨立於主資料表之外）。
- * 手動在 Google Sheet 上刪除的列不會被記錄在這裡，
- * 因此只有透過 App 內建刪除（status: 'deleted'）才能真正阻止資料復活。
+ * 永久記錄已刪除的 id（支援內存快取）。
  */
 async function getDeletedIdsMap(doc: any): Promise<{ sheet: GoogleSpreadsheetWorksheet; map: Record<string, Set<string>> }> {
   const sheet = await getOrCreateSheet(doc, DELETED_IDS_SHEET_NAME, DELETED_IDS_HEADERS);
+
+  if (cachedDeletedIds && Date.now() - cachedDeletedIds.timestamp < DELETED_IDS_CACHE_TTL) {
+    return { sheet, map: cachedDeletedIds.data };
+  }
 
   const rows = await withApiRetry<any[]>(() => sheet.getRows());
   const map: Record<string, Set<string>> = {};
@@ -82,10 +105,11 @@ async function getDeletedIdsMap(doc: any): Promise<{ sheet: GoogleSpreadsheetWor
     map[sheetKey].add(String(id));
   });
 
+  cachedDeletedIds = { data: map, timestamp: Date.now() };
   return { sheet, map };
 }
 
-// 全域排程互斥鎖（Server Write Mutex Queue）：強制所有同步讀寫按順序執行，徹底消除並發時讀到空表導致的資料覆蓋問題
+// 全域排程互斥鎖（Server Write Mutex Queue）：強制所有同步讀寫按順序執行
 let syncQueue: Promise<any> = Promise.resolve();
 
 function enqueueSync<T>(operation: () => Promise<T>): Promise<T> {
@@ -104,8 +128,8 @@ export async function POST(request: NextRequest) {
       }
 
       const payload = await request.json();
+      // 使用快取的 doc 實例，避免每次 POST 重新 loadInfo 消耗 quota
       const doc = await withApiRetry(() => getGoogleSheet());
-      await withApiRetry(() => doc.loadInfo());
 
       const { sheet: deletedIdsSheet, map: deletedIdsByKey } = await getDeletedIdsMap(doc);
       const newDeletedIdRows: { sheetKey: string; id: string; deletedAt: string }[] = [];
@@ -118,21 +142,33 @@ export async function POST(request: NextRequest) {
 
       for (const key of keysToSync) {
         const config = sheetsConfig[key];
-        const sheet = await getOrCreateSheet(doc, config.name, config.headers);
-
+        const isMutating = Boolean(payload[key] && Array.isArray(payload[key]));
         const deletedSet = deletedIdsByKey[key] || (deletedIdsByKey[key] = new Set());
 
-        // 讀取伺服器上的資料（永久刪除的 id 一律排除，避免手動刪列後又被舊快取復活）
-        const rawServerLogs = await getLogsFromSheet(sheet, config.headers);
-        const serverLogs = rawServerLogs.filter(item => {
-          // 若缺乏 id 但有 date，賦予穩定 fallback id 避免被誤判或遺失
-          if (!item.id && item.date) {
-            item.id = `${key}-${item.date}`;
-          }
-          return item.id && !deletedSet.has(item.id);
-        });
+        let serverLogs: any[] = [];
+        let sheet: GoogleSpreadsheetWorksheet | null = null;
 
-        if (payload[key] && Array.isArray(payload[key])) {
+        // 若為純讀取且內存快取仍新鮮，直接使用快取資料，避免觸發 Google 60 req/min 限流
+        const cached = serverLogsCache.get(key);
+        if (!isMutating && cached && Date.now() - cached.timestamp < SERVER_LOGS_CACHE_TTL) {
+          serverLogs = cached.data;
+        } else {
+          sheet = await getOrCreateSheet(doc, config.name, config.headers);
+          const rawServerLogs = await getLogsFromSheet(sheet, config.headers);
+          serverLogs = rawServerLogs.filter(item => {
+            if (!item.id && item.date) {
+              item.id = `${key}-${item.date}`;
+            }
+            return item.id && !deletedSet.has(item.id);
+          });
+          serverLogsCache.set(key, { data: serverLogs, timestamp: Date.now() });
+        }
+
+        if (isMutating) {
+          if (!sheet) {
+            sheet = await getOrCreateSheet(doc, config.name, config.headers);
+          }
+
           const clientLogs = payload[key];
           const mergedMap: Record<string, any> = {};
 
@@ -159,13 +195,15 @@ export async function POST(request: NextRequest) {
           const mergedList = Object.values(mergedMap);
           const sheetList = mergedList.filter(item => item.status !== "deleted");
 
-          // 防禦性檢查：若伺服器原先有資料，但合併結果意外為 0 筆，禁止直接抹除雲端資料
+          // 防禦性檢查：若伺服器原先有資料，但合併結果意外為 0 筆，禁止抹除雲端資料
           if (sheetList.length === 0 && serverLogs.length > 0) {
             console.warn(`[Sync Safety] Aborted empty overwrite for ${config.name} (server had ${serverLogs.length} rows)`);
             responsePayload[key] = serverLogs;
           } else {
             // 寫入 Google Sheets
             await saveLogsToSheet(sheet, sheetList, config.headers);
+            // Write-through 更新內存快取
+            serverLogsCache.set(key, { data: sheetList, timestamp: Date.now() });
             responsePayload[key] = mergedList;
           }
         } else {
@@ -176,6 +214,15 @@ export async function POST(request: NextRequest) {
 
       if (newDeletedIdRows.length > 0) {
         await withApiRetry(() => deletedIdsSheet.addRows(newDeletedIdRows));
+        // 同步更新快取的 deletedIds
+        if (cachedDeletedIds) {
+          newDeletedIdRows.forEach(row => {
+            if (!cachedDeletedIds!.data[row.sheetKey]) {
+              cachedDeletedIds!.data[row.sheetKey] = new Set();
+            }
+            cachedDeletedIds!.data[row.sheetKey].add(row.id);
+          });
+        }
       }
 
       return NextResponse.json(responsePayload);
@@ -217,31 +264,33 @@ async function getLogsFromSheet(sheet: GoogleSpreadsheetWorksheet, headers: stri
 }
 
 async function saveLogsToSheet(sheet: GoogleSpreadsheetWorksheet, logs: any[], headers: string[]) {
-  // 若現有工作表缺少程式定義的欄位，在儲存前安全載入並補齊表頭
-  try {
-    let existingHeaders: string[] = [];
+  // 僅在尚未驗證過的工作表檢查表頭，避免每次存檔重複消耗 read quota
+  if (!verifiedHeadersSheets.has(sheet.title)) {
     try {
-      await withApiRetry(() => sheet.loadHeaderRow());
-      existingHeaders = sheet.headerValues || [];
-    } catch {
-      // 若工作表尚無表頭，直接設置完整表頭
-      if (headers.length > sheet.columnCount) {
-        await withApiRetry(() => sheet.resize({ rowCount: sheet.rowCount, columnCount: headers.length }));
+      let existingHeaders: string[] = [];
+      try {
+        await withApiRetry(() => sheet.loadHeaderRow());
+        existingHeaders = sheet.headerValues || [];
+      } catch {
+        if (headers.length > sheet.columnCount) {
+          await withApiRetry(() => sheet.resize({ rowCount: sheet.rowCount, columnCount: headers.length }));
+        }
+        await withApiRetry(() => sheet.setHeaderRow(headers));
+        existingHeaders = headers;
       }
-      await withApiRetry(() => sheet.setHeaderRow(headers));
-      existingHeaders = headers;
-    }
 
-    const missingHeaders = headers.filter(h => !existingHeaders.includes(h));
-    if (missingHeaders.length > 0) {
-      const newHeaders = [...existingHeaders, ...missingHeaders];
-      if (newHeaders.length > sheet.columnCount) {
-        await withApiRetry(() => sheet.resize({ rowCount: sheet.rowCount, columnCount: newHeaders.length }));
+      const missingHeaders = headers.filter(h => !existingHeaders.includes(h));
+      if (missingHeaders.length > 0) {
+        const newHeaders = [...existingHeaders, ...missingHeaders];
+        if (newHeaders.length > sheet.columnCount) {
+          await withApiRetry(() => sheet.resize({ rowCount: sheet.rowCount, columnCount: newHeaders.length }));
+        }
+        await withApiRetry(() => sheet.setHeaderRow(newHeaders));
       }
-      await withApiRetry(() => sheet.setHeaderRow(newHeaders));
+      verifiedHeadersSheets.add(sheet.title);
+    } catch (err) {
+      console.warn(`[Sync] Check/update header row failed for ${sheet.title}:`, err);
     }
-  } catch (err) {
-    console.warn(`[Sync] Check/update header row failed for ${sheet.title}:`, err);
   }
 
   const chunkSize = 100;

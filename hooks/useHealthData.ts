@@ -103,6 +103,15 @@ export function useHealthData() {
       if (payload.supplementSettings) {
         updated.supplementSettings = payload.supplementSettings as any;
       }
+      if (payload.supplementInventory) {
+        updated.supplementInventory = payload.supplementInventory as any;
+      }
+      if (payload.rainbowDietLogs) {
+        updated.rainbowDietLogs = payload.rainbowDietLogs as any;
+      }
+      if (payload.tmySymptomsLogs) {
+        updated.tmySymptomsLogs = payload.tmySymptomsLogs as any;
+      }
       if (payload.sleepLogs) {
         const existing = [...(prev.sleepLogs || [])];
         payload.sleepLogs.forEach(newLog => {
@@ -145,6 +154,7 @@ export function useHealthData() {
       if (payload.longTermLogs) {
         updated.longTermLogs = payload.longTermLogs as any;
       }
+      localStorage.setItem('health_data_cache', JSON.stringify(updated));
       return updated;
     });
 

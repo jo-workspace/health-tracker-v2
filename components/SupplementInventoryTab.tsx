@@ -90,6 +90,11 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
 
   // 儲存（新增或編輯）
   const handleSaveItem = useCallback((itemData: Partial<SupplementInventoryItem>) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+      isDebouncingRef.current = false;
+    }
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
     let updated: SupplementInventoryItem[];
@@ -187,6 +192,11 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
 
   // 刪除品項
   const handleDeleteItem = useCallback((itemId: string) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+      isDebouncingRef.current = false;
+    }
     const timestamp = Date.now();
     const nowStr = timestamp.toString();
     const updated = localInventory.map(item =>
@@ -208,6 +218,12 @@ export default function SupplementInventoryTab({ inventory = [], settings = [], 
 
     if (!confirm(`是否要自動建立 ${toImport.length} 個日常保健品品項至庫存（預設已開啟 1 罐、未開啟 0 罐）？`)) {
       return;
+    }
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+      isDebouncingRef.current = false;
     }
 
     const timestamp = Date.now();
