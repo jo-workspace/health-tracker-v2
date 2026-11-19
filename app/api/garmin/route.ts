@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import {
   obtainGarminBearerToken,
   fetchGarminSleepForDate,
@@ -17,6 +18,50 @@ import type {
 const DEFAULT_EXPIRES_AT = process.env.GARMIN_API_KEY_EXPIRES_AT || '2027-11-19';
 const GARMIN_CONFIG_SHEET_TITLE = 'GarminConfig';
 const GARMIN_CONFIG_HEADERS = ['apiKey', 'expiresAt', 'lastSyncDate', 'updatedAt'];
+
+function getEncryptionKeyBuffer(): Buffer {
+  const secret =
+    process.env.APP_PASSWORD ||
+    process.env.GOOGLE_PRIVATE_KEY ||
+    process.env.GOOGLE_CLIENT_EMAIL ||
+    'health-tracker-v2-garmin-secret';
+  return crypto.createHash('sha256').update(secret).digest();
+}
+
+function encryptApiKeyForSheet(plainKey: string): string {
+  const trimmed = plainKey.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('ENC:')) return trimmed;
+  const key = getEncryptionKeyBuffer();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(trimmed, 'utf8'), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return `ENC:${iv.toString('base64')}:${authTag.toString('base64')}:${encrypted.toString('base64')}`;
+}
+
+function decryptApiKeyFromSheet(storedValue: string): string {
+  const trimmed = storedValue.trim();
+  if (!trimmed) return '';
+  if (!trimmed.startsWith('ENC:')) {
+    return trimmed;
+  }
+  try {
+    const parts = trimmed.split(':');
+    if (parts.length !== 4) return '';
+    const iv = Buffer.from(parts[1], 'base64');
+    const authTag = Buffer.from(parts[2], 'base64');
+    const encrypted = Buffer.from(parts[3], 'base64');
+    const key = getEncryptionKeyBuffer();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch (err) {
+    console.warn('[GarminConfig] Failed to decrypt stored API key:', err);
+    return '';
+  }
+}
 
 const GARMIN_WELLNESS_SHEET_TITLE = 'GarminDailyWellness';
 const GARMIN_WELLNESS_HEADERS = [
@@ -151,9 +196,17 @@ async function getGarminConfigFromSheet(): Promise<{
     const rows = await sheet.getRows();
     if (rows.length === 0) return null;
     const latestRow = rows[rows.length - 1];
-    const apiKey = String(latestRow.get('apiKey') || '').trim();
+    const rawStoredKey = String(latestRow.get('apiKey') || '').trim();
+    const apiKey = decryptApiKeyFromSheet(rawStoredKey);
     const expiresAt = String(latestRow.get('expiresAt') || DEFAULT_EXPIRES_AT).trim();
     const lastSyncDate = String(latestRow.get('lastSyncDate') || '').trim();
+
+    // If an old plain-text key was stored, auto-upgrade it to encrypted in the sheet
+    if (apiKey && rawStoredKey && !rawStoredKey.startsWith('ENC:')) {
+      latestRow.set('apiKey', encryptApiKeyForSheet(apiKey));
+      await latestRow.save().catch(() => {});
+    }
+
     if (apiKey) {
       cachedSheetConfig = {
         apiKey,
@@ -185,8 +238,9 @@ async function saveGarminConfigToSheet(
   await sheet.clearRows();
 
   if (cleanKey) {
+    const encryptedKey = encryptApiKeyForSheet(cleanKey);
     await sheet.addRow({
-      apiKey: cleanKey,
+      apiKey: encryptedKey,
       expiresAt: cleanExp,
       lastSyncDate: cleanSyncDate,
       updatedAt: new Date().toISOString(),
