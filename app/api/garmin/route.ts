@@ -6,9 +6,12 @@ import {
   fetchGarminRunningActivities,
   fetchGarminMenstrualCycle,
 } from '@/lib/garmin';
+import { getGoogleSheet } from '@/lib/google-sheets';
 import type { GarminOverviewData } from '@/lib/types';
 
 const DEFAULT_EXPIRES_AT = process.env.GARMIN_API_KEY_EXPIRES_AT || '2027-11-19';
+const GARMIN_CONFIG_SHEET_TITLE = 'GarminConfig';
+const GARMIN_CONFIG_HEADERS = ['apiKey', 'expiresAt', 'updatedAt'];
 
 interface OverviewCache {
   keyHash: string;
@@ -16,8 +19,86 @@ interface OverviewCache {
   timestamp: number;
 }
 
+interface StoredConfigCache {
+  apiKey: string;
+  expiresAt: string;
+  timestamp: number;
+}
+
 let cachedOverview: OverviewCache | null = null;
 const OVERVIEW_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+
+let cachedSheetConfig: StoredConfigCache | null = null;
+const SHEET_CONFIG_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+
+async function getGarminConfigFromSheet(): Promise<{ apiKey: string; expiresAt: string } | null> {
+  if (
+    cachedSheetConfig &&
+    Date.now() - cachedSheetConfig.timestamp < SHEET_CONFIG_CACHE_TTL_MS
+  ) {
+    return {
+      apiKey: cachedSheetConfig.apiKey,
+      expiresAt: cachedSheetConfig.expiresAt,
+    };
+  }
+
+  try {
+    const doc = await getGoogleSheet();
+    const sheet = doc.sheetsByTitle[GARMIN_CONFIG_SHEET_TITLE];
+    if (!sheet) {
+      return null;
+    }
+    const rows = await sheet.getRows();
+    if (rows.length === 0) return null;
+    const latestRow = rows[rows.length - 1];
+    const apiKey = String(latestRow.get('apiKey') || '').trim();
+    const expiresAt = String(latestRow.get('expiresAt') || DEFAULT_EXPIRES_AT).trim();
+    if (apiKey) {
+      cachedSheetConfig = {
+        apiKey,
+        expiresAt,
+        timestamp: Date.now(),
+      };
+      return { apiKey, expiresAt };
+    }
+    return null;
+  } catch (err) {
+    console.warn('[GarminConfig] Failed to read from Google Sheets:', err);
+    return null;
+  }
+}
+
+async function saveGarminConfigToSheet(apiKey: string, expiresAt: string): Promise<void> {
+  const cleanKey = apiKey.trim();
+  const cleanExp = expiresAt.trim() || DEFAULT_EXPIRES_AT;
+
+  const doc = await getGoogleSheet();
+  let sheet = doc.sheetsByTitle[GARMIN_CONFIG_SHEET_TITLE];
+  if (!sheet) {
+    sheet = await doc.addSheet({
+      title: GARMIN_CONFIG_SHEET_TITLE,
+      headerValues: GARMIN_CONFIG_HEADERS,
+    });
+  } else {
+    await sheet.clearRows();
+  }
+
+  if (cleanKey) {
+    await sheet.addRow({
+      apiKey: cleanKey,
+      expiresAt: cleanExp,
+      updatedAt: new Date().toISOString(),
+    });
+    cachedSheetConfig = {
+      apiKey: cleanKey,
+      expiresAt: cleanExp,
+      timestamp: Date.now(),
+    };
+  } else {
+    cachedSheetConfig = null;
+  }
+  cachedOverview = null;
+}
 
 function getTaipeiDateStr(offsetDays = 0): string {
   const now = new Date(Date.now() + offsetDays * 86400 * 1000);
@@ -59,6 +140,39 @@ function computeExpiryInfo(expiresAtStr: string): {
   };
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    const expectedPassword = process.env.APP_PASSWORD;
+    if (expectedPassword && authHeader !== `Bearer ${expectedPassword}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const apiKey = String(body.apiKey || '').trim();
+    const expiresAt = String(body.expiresAt || DEFAULT_EXPIRES_AT).trim();
+
+    if (apiKey) {
+      // Verify the key can exchange for a Garmin bearer token before saving
+      await obtainGarminBearerToken(apiKey, true);
+    }
+
+    await saveGarminConfigToSheet(apiKey, expiresAt);
+
+    return NextResponse.json({
+      status: 'ok',
+      configured: Boolean(apiKey),
+      ...computeExpiryInfo(expiresAt),
+    });
+  } catch (error: any) {
+    console.error('[API/garmin POST] Error:', error);
+    return NextResponse.json(
+      { error: error?.message || '儲存 Garmin 金鑰至 Google Sheets 失敗' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -70,9 +184,26 @@ export async function GET(request: NextRequest) {
     const customApiKey = request.headers.get('x-garmin-api-key')?.trim();
     const customExpiresAt = request.headers.get('x-garmin-expires-at')?.trim();
 
-    const apiKey = customApiKey || process.env.GARMIN_PERSONAL_API_KEY || '';
-    const expiresAtStr = customExpiresAt || DEFAULT_EXPIRES_AT;
-    const expiryInfo = computeExpiryInfo(expiresAtStr);
+    let apiKey = customApiKey || process.env.GARMIN_PERSONAL_API_KEY || '';
+    let expiresAtStr = customExpiresAt || process.env.GARMIN_API_KEY_EXPIRES_AT || '';
+
+    // If neither header nor env var has the key, read from Google Sheets GarminConfig
+    if (!apiKey) {
+      const sheetConfig = await getGarminConfigFromSheet();
+      if (sheetConfig?.apiKey) {
+        apiKey = sheetConfig.apiKey;
+        if (!expiresAtStr && sheetConfig.expiresAt) {
+          expiresAtStr = sheetConfig.expiresAt;
+        }
+      }
+    }
+
+    // If custom header key was provided and not yet saved to Google Sheets, auto-persist it in background
+    if (customApiKey && (!cachedSheetConfig || cachedSheetConfig.apiKey !== customApiKey)) {
+      saveGarminConfigToSheet(customApiKey, expiresAtStr || DEFAULT_EXPIRES_AT).catch(() => {});
+    }
+
+    const expiryInfo = computeExpiryInfo(expiresAtStr || DEFAULT_EXPIRES_AT);
 
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode') || 'overview';
@@ -111,7 +242,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Overview mode
-    const keyHash = `${apiKey.slice(0, 16)}:${expiresAtStr}`;
+    const keyHash = `${apiKey.slice(0, 16)}:${expiryInfo.expiresAt}`;
     if (
       !forceRefresh &&
       cachedOverview &&

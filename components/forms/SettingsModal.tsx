@@ -14,6 +14,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import type { GarminOverviewData } from '@/lib/types';
+import { saveGarminConfig } from '@/lib/api';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export default function SettingsModal({
   const [garminExpiresAt, setGarminExpiresAt] = useState('2027-11-19');
   const [showKeyEditor, setShowKeyEditor] = useState(false);
   const [garminSaved, setGarminSaved] = useState(false);
+  const [garminSaving, setGarminSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -64,19 +66,28 @@ export default function SettingsModal({
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleSaveGarmin = () => {
-    if (garminKey.trim()) {
-      localStorage.setItem('garmin_api_key', garminKey.trim());
+  const handleSaveGarmin = async () => {
+    const cleanKey = garminKey.trim();
+    const cleanExp = garminExpiresAt.trim() || '2027-11-19';
+    if (cleanKey) {
+      localStorage.setItem('garmin_api_key', cleanKey);
     } else {
       localStorage.removeItem('garmin_api_key');
     }
-    if (garminExpiresAt.trim()) {
-      localStorage.setItem('garmin_api_expires_at', garminExpiresAt.trim());
-    }
-    setGarminSaved(true);
-    setTimeout(() => setGarminSaved(false), 2000);
-    if (onRefreshGarmin) {
-      onRefreshGarmin(true);
+    localStorage.setItem('garmin_api_expires_at', cleanExp);
+
+    setGarminSaving(true);
+    try {
+      await saveGarminConfig(cleanKey, cleanExp);
+      setGarminSaved(true);
+      setTimeout(() => setGarminSaved(false), 2000);
+      if (onRefreshGarmin) {
+        onRefreshGarmin(true);
+      }
+    } catch (err: any) {
+      alert('同步金鑰至雲端失敗：' + (err?.message || '請確認雲端同步密碼是否正確'));
+    } finally {
+      setGarminSaving(false);
     }
   };
 
@@ -239,20 +250,20 @@ export default function SettingsModal({
                     className="text-[11px] font-medium text-stone-500 hover:text-stone-700 flex items-center gap-1"
                   >
                     {showKeyEditor ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    <span>{showKeyEditor ? '收起金鑰設定' : '更新本地 API Key / 到期日'}</span>
+                    <span>{showKeyEditor ? '收起金鑰設定' : '更新雲端 API Key / 到期日'}</span>
                   </button>
 
                   {showKeyEditor && (
                     <div className="mt-2.5 p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
                       <div>
                         <label className="text-[10px] font-bold text-stone-500 block mb-1">
-                          Personal API Key (留空則使用伺服器預設值)
+                          Personal API Key (將自動加密同步至 Google Sheets，全設備共用)
                         </label>
                         <input
                           type="password"
                           value={garminKey}
                           onChange={e => setGarminKey(e.target.value)}
-                          placeholder="GCDC_..."
+                          placeholder={garminData?.configured ? '已設定於雲端 (貼入新金鑰即可覆蓋)' : 'GCDC_...'}
                           className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
                         />
                       </div>
@@ -271,9 +282,12 @@ export default function SettingsModal({
                         <button
                           type="button"
                           onClick={handleSaveGarmin}
-                          className="px-3 py-1.5 bg-stone-800 text-white text-xs font-bold rounded-lg hover:bg-stone-700 transition-colors flex items-center justify-center gap-1 h-[32px] shrink-0"
+                          disabled={garminSaving}
+                          className="px-3 py-1.5 bg-stone-800 text-white text-xs font-bold rounded-lg hover:bg-stone-700 transition-colors flex items-center justify-center gap-1 h-[32px] shrink-0 disabled:opacity-50"
                         >
-                          {garminSaved ? (
+                          {garminSaving ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-stone-300" />
+                          ) : garminSaved ? (
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                           ) : (
                             '套用'

@@ -42,6 +42,25 @@ export async function fetchGarminSleep(
   return data as { configured: boolean; sleep: GarminSleepData | null };
 }
 
+export async function saveGarminConfig(
+  apiKey: string,
+  expiresAt: string
+): Promise<{ status: string; configured: boolean; expiresAt: string; daysUntilExpiry: number }> {
+  const res = await fetch('/api/garmin', {
+    method: 'POST',
+    headers: {
+      ...getGarminHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ apiKey, expiresAt }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error || `儲存 Garmin 設定失敗 (${res.status})`);
+  }
+  return data;
+}
+
 /** 同步資料到 Google Sheets */
 export async function syncBatch(payload: SyncPayload): Promise<HealthData> {
   const password = typeof window !== 'undefined' ? localStorage.getItem('app_password') || '' : '';
