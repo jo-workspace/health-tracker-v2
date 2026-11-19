@@ -147,6 +147,16 @@ let cachedOverview: OverviewCache | null = null;
 let cachedSheetConfig: StoredConfigCache | null = null;
 const SHEET_CONFIG_CACHE_TTL_MS = 10 * 60 * 1000;
 
+let garminSheetQueue: Promise<any> = Promise.resolve();
+function enqueueGarminSheetOp<T>(op: () => Promise<T>): Promise<T> {
+  const res = garminSheetQueue.then(op, op);
+  garminSheetQueue = res.then(
+    () => {},
+    () => {}
+  );
+  return res;
+}
+
 async function getOrCreateSheet(doc: any, title: string, headers: string[]) {
   let sheet = doc.sheetsByTitle[title];
   if (!sheet) {
@@ -189,38 +199,46 @@ async function getGarminConfigFromSheet(): Promise<{
     };
   }
 
-  try {
-    const doc = await getGoogleSheet();
-    const sheet = doc.sheetsByTitle[GARMIN_CONFIG_SHEET_TITLE];
-    if (!sheet) return null;
-    const rows = await sheet.getRows();
-    if (rows.length === 0) return null;
-    const latestRow = rows[rows.length - 1];
-    const rawStoredKey = String(latestRow.get('apiKey') || '').trim();
-    const apiKey = decryptApiKeyFromSheet(rawStoredKey);
-    const expiresAt = String(latestRow.get('expiresAt') || DEFAULT_EXPIRES_AT).trim();
-    const lastSyncDate = String(latestRow.get('lastSyncDate') || '').trim();
+  return enqueueGarminSheetOp(async () => {
+    try {
+      const doc = await getGoogleSheet();
+      const sheet = doc.sheetsByTitle[GARMIN_CONFIG_SHEET_TITLE];
+      if (!sheet) return null;
+      const rows = await sheet.getRows();
+      if (rows.length === 0) return null;
+      const latestRow = rows[rows.length - 1];
+      const rawStoredKey = String(latestRow.get('apiKey') || '').trim();
+      const apiKey = decryptApiKeyFromSheet(rawStoredKey);
+      const expiresAt = String(latestRow.get('expiresAt') || DEFAULT_EXPIRES_AT).trim();
+      const lastSyncDate = String(latestRow.get('lastSyncDate') || '').trim();
 
-    // If an old plain-text key was stored, auto-upgrade it to encrypted in the sheet
-    if (apiKey && rawStoredKey && !rawStoredKey.startsWith('ENC:')) {
-      latestRow.set('apiKey', encryptApiKeyForSheet(apiKey));
-      await latestRow.save().catch(() => {});
-    }
+      // If multiple duplicate rows exist or plain-text key was stored, clean up to a single encrypted row
+      if (apiKey && (rows.length > 1 || (rawStoredKey && !rawStoredKey.startsWith('ENC:')))) {
+        const encryptedKey = encryptApiKeyForSheet(apiKey);
+        await sheet.clearRows();
+        await sheet.addRow({
+          apiKey: encryptedKey,
+          expiresAt,
+          lastSyncDate,
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
-    if (apiKey) {
-      cachedSheetConfig = {
-        apiKey,
-        expiresAt,
-        lastSyncDate,
-        timestamp: Date.now(),
-      };
-      return { apiKey, expiresAt, lastSyncDate };
+      if (apiKey) {
+        cachedSheetConfig = {
+          apiKey,
+          expiresAt,
+          lastSyncDate,
+          timestamp: Date.now(),
+        };
+        return { apiKey, expiresAt, lastSyncDate };
+      }
+      return null;
+    } catch (err) {
+      console.warn('[GarminConfig] Failed to read from Google Sheets:', err);
+      return null;
     }
-    return null;
-  } catch (err) {
-    console.warn('[GarminConfig] Failed to read from Google Sheets:', err);
-    return null;
-  }
+  });
 }
 
 async function saveGarminConfigToSheet(
@@ -233,18 +251,7 @@ async function saveGarminConfigToSheet(
   const cleanSyncDate =
     lastSyncDate !== undefined ? lastSyncDate : cachedSheetConfig?.lastSyncDate || '';
 
-  const doc = await getGoogleSheet();
-  const sheet = await getOrCreateSheet(doc, GARMIN_CONFIG_SHEET_TITLE, GARMIN_CONFIG_HEADERS);
-  await sheet.clearRows();
-
   if (cleanKey) {
-    const encryptedKey = encryptApiKeyForSheet(cleanKey);
-    await sheet.addRow({
-      apiKey: encryptedKey,
-      expiresAt: cleanExp,
-      lastSyncDate: cleanSyncDate,
-      updatedAt: new Date().toISOString(),
-    });
     cachedSheetConfig = {
       apiKey: cleanKey,
       expiresAt: cleanExp,
@@ -254,6 +261,36 @@ async function saveGarminConfigToSheet(
   } else {
     cachedSheetConfig = null;
   }
+
+  return enqueueGarminSheetOp(async () => {
+    const doc = await getGoogleSheet();
+    const sheet = await getOrCreateSheet(doc, GARMIN_CONFIG_SHEET_TITLE, GARMIN_CONFIG_HEADERS);
+    const rows = await sheet.getRows();
+
+    if (!cleanKey) {
+      if (rows.length > 0) await sheet.clearRows();
+      return;
+    }
+
+    const encryptedKey = encryptApiKeyForSheet(cleanKey);
+    const nowIso = new Date().toISOString();
+
+    if (rows.length === 1) {
+      rows[0].set('apiKey', encryptedKey);
+      rows[0].set('expiresAt', cleanExp);
+      rows[0].set('lastSyncDate', cleanSyncDate);
+      rows[0].set('updatedAt', nowIso);
+      await rows[0].save();
+    } else {
+      if (rows.length > 0) await sheet.clearRows();
+      await sheet.addRow({
+        apiKey: encryptedKey,
+        expiresAt: cleanExp,
+        lastSyncDate: cleanSyncDate,
+        updatedAt: nowIso,
+      });
+    }
+  });
 }
 
 /**
