@@ -2,7 +2,17 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Moon, Plus, PenLine, Laugh, Smile, Frown, Coffee } from 'lucide-react';
-import type { SleepLog, AllergyLog, SupplementLog, BiteSplintLog, SyncPayload, SupplementSetting } from '@/lib/types';
+import type {
+  SleepLog,
+  AllergyLog,
+  SupplementLog,
+  BiteSplintLog,
+  SyncPayload,
+  SupplementSetting,
+  GarminSleepData,
+  GarminRunningActivity,
+  GarminMenstrualCycle,
+} from '@/lib/types';
 import { isBedtimeSupplement, isScheduledDay, PREDEFINED_SUPPLEMENTS } from '@/lib/supplements';
 import SleepDetailModal from './SleepDetailModal';
 import SleepFormModal from './forms/SleepFormModal';
@@ -15,12 +25,28 @@ interface Props {
   supplementLogs?: SupplementLog[];
   supplementSettings?: SupplementSetting[];
   splintLogs?: BiteSplintLog[];
+  garminSleepMap?: Record<string, GarminSleepData>;
+  runningActivities?: GarminRunningActivity[];
+  cycle?: GarminMenstrualCycle | null;
   updateData: (payload: SyncPayload) => void;
   forceSync?: () => Promise<void>;
   initialSynced?: boolean;
   syncing?: boolean;
 }
-export default function SleepCard({ data = [], allergyLogs = [], supplementLogs = [], supplementSettings = [], splintLogs = [], updateData, forceSync, initialSynced = false, syncing = false }: Props) {
+export default function SleepCard({
+  data = [],
+  allergyLogs = [],
+  supplementLogs = [],
+  supplementSettings = [],
+  splintLogs = [],
+  garminSleepMap = {},
+  runningActivities = [],
+  cycle = null,
+  updateData,
+  forceSync,
+  initialSynced = false,
+  syncing = false,
+}: Props) {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingLog, setEditingLog] = useState<SleepLog | null>(null);
@@ -121,9 +147,30 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
     .filter(log => log.type === 'night')
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const latestNightSleep = sortedNightLogs[0];
+  const latestGarminSleep = latestNightSleep
+    ? garminSleepMap[latestNightSleep.date]
+    : garminSleepMap[todayStr];
 
   const sleepHours = latestNightSleep ? Number(latestNightSleep.sleepDuration) : 0;
   const feelingKey = latestNightSleep?.feeling || 'normal';
+
+  const latestSleepScore =
+    latestNightSleep?.sleepScore ||
+    (latestGarminSleep?.sleepScore !== undefined ? String(latestGarminSleep.sleepScore) : '');
+  const latestHrv =
+    latestNightSleep?.hrv ||
+    (latestGarminSleep?.hrv !== undefined ? String(latestGarminSleep.hrv) : '');
+  const latestRhr =
+    latestNightSleep?.restingHeartRate ||
+    (latestGarminSleep?.restingHeartRate !== undefined
+      ? String(latestGarminSleep.restingHeartRate)
+      : '');
+  const latestDeep =
+    latestNightSleep?.deepSleep ||
+    (latestGarminSleep?.deepSleepHours ? String(latestGarminSleep.deepSleepHours) : '');
+  const latestRem =
+    latestNightSleep?.remSleep ||
+    (latestGarminSleep?.remSleepHours ? String(latestGarminSleep.remSleepHours) : '');
 
   // 小睡統計 (計算今天的)
   const todayNaps = activeLogs.filter(log => log.date === todayStr && log.type === 'nap');
@@ -173,10 +220,20 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
               <Moon size={18} strokeWidth={2.5} />
               <h3 className="font-bold text-stone-700 text-base">睡眠追蹤</h3>
               
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 {displayTotalHours >= 7 && (
                   <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-[#eaf5ef] text-[#3e7256] border border-[#d8ece1]">
                     達標 7h
+                  </span>
+                )}
+                {latestSleepScore && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-stone-100 text-stone-600 border border-stone-200">
+                    {latestSleepScore} 分
+                  </span>
+                )}
+                {latestHrv && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-stone-100/80 text-stone-500">
+                    HRV {latestHrv}
                   </span>
                 )}
               </div>
@@ -224,9 +281,20 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
             </div>
           </div>
 
-          <div className="flex justify-between items-center text-xs text-stone-500 font-medium border-t border-stone-100 pt-2">
-            <div>
-              入睡：{formatTo12Hour(latestNightSleep?.bedtime)}
+          <div className="flex justify-between items-center text-xs text-stone-500 font-medium border-t border-stone-100 pt-2 flex-wrap gap-y-1">
+            <div className="flex items-center gap-2">
+              <span>入睡：{formatTo12Hour(latestNightSleep?.bedtime)}</span>
+              {(latestDeep || latestRem || latestRhr) && (
+                <span className="text-[11px] text-stone-400 font-normal">
+                  {[
+                    latestDeep ? `深 ${Number(latestDeep).toFixed(1)}h` : '',
+                    latestRem ? `REM ${Number(latestRem).toFixed(1)}h` : '',
+                    latestRhr ? `RHR ${latestRhr}` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              )}
             </div>
             <div>
               小睡：{napHours > 0 ? `${napHours.toFixed(1)}h` : '無'}
@@ -269,6 +337,9 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
         allergyLogs={allergyLogs}
         supplementLogs={supplementLogs}
         splintLogs={splintLogs}
+        garminSleepMap={garminSleepMap}
+        runningActivities={runningActivities}
+        cycle={cycle}
         onEditDay={(dateStr) => {
           setIsDetailModalOpen(false);
           const existing = activeLogs.find(l => l.date === dateStr && l.type === 'night');
@@ -342,6 +413,7 @@ export default function SleepCard({ data = [], allergyLogs = [], supplementLogs 
         sleepLogs={activeLogs}
         defaultDate={defaultDate}
         defaultType={defaultType}
+        garminSleepMap={garminSleepMap}
         onSave={(logData, hasBiteSplint, hasBedtimeSupplements) => {
           let newLogs = [...data];
 

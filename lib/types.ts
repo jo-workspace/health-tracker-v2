@@ -12,6 +12,7 @@ export interface SleepLog {
   feeling: string;
   hrv: string;
   restingHeartRate: string;
+  sleepScore?: string;
   notes: string;
   status: string; // 'active' | 'deleted'
   lastUpdated: string;
@@ -196,5 +197,81 @@ export interface SyncPayload {
   illnessLogs?: IllnessLog[];
   clientTimestamp: number;
 }
+
+export interface GarminSleepData {
+  date: string;
+  bedtime12h: string;        // e.g. "10:34 PM"
+  bedtimeTime: string;       // e.g. "10:34"
+  bedtimePeriod: 'AM' | 'PM';
+  wakeupTime24h: string;     // e.g. "06:21"
+  sleepDurationHours: number; // e.g. 7.51
+  durationHoursPart: number;  // e.g. 7
+  durationMinutesPart: number;// e.g. 31
+  deepSleepHours: number;     // e.g. 1.78
+  remSleepHours: number;      // e.g. 1.7
+  lightSleepHours: number;    // e.g. 4.03
+  napMinutes: number;         // e.g. 45
+  sleepScore?: number;        // e.g. 84
+  sleepScoreQualifier?: string; // e.g. "GOOD"
+  sleepStress?: number;       // e.g. 19
+  hrv?: number;               // e.g. 48
+  hrvStatus?: string;         // e.g. "UNBALANCED" | "BALANCED"
+  restingHeartRate?: number;  // e.g. 44
+}
+
+export interface GarminRunningActivity {
+  activityId: number;
+  name: string;
+  cleanName: string;
+  date: string;              // YYYY-MM-DD
+  startTimeLocal: string;    // YYYY-MM-DD HH:mm:ss
+  distanceKm: number;        // e.g. 8.8
+  durationSeconds: number;   // e.g. 3614
+  durationFormatted: string; // e.g. "1h 00m" or "48m"
+  paceFormatted: string;     // e.g. "6'50\"/km"
+  averageHR?: number;
+  maxHR?: number;
+  avgPower?: number;
+  normPower?: number;
+  cadence?: number;
+  strideLengthCm?: number;
+  groundContactTimeMs?: number;
+  verticalOscillationCm?: number;
+  verticalRatioPct?: number;
+  aerobicTE?: number;
+  anaerobicTE?: number;
+  trainingLoad?: number;
+  trainingEffectLabel?: string;
+  calories?: number;
+}
+
+export interface GarminMenstrualCycle {
+  startDate: string;
+  dayInCycle: number;
+  periodLength: number;
+  currentPhase: number;
+  phaseName: string;         // '經期' | '濾泡期' | '排卵期' | '黃體期'
+  lengthOfCurrentPhase: number;
+  daysUntilNextPhase: number;
+  predictedCycleLength: number;
+}
+
+export interface GarminOverviewData {
+  configured: boolean;
+  expiresAt: string;         // YYYY-MM-DD
+  daysUntilExpiry: number;
+  isExpiringSoon: boolean;   // <= 14 days
+  cycle: GarminMenstrualCycle | null;
+  running: {
+    weeklyRuns: number;
+    weeklyDistanceKm: number;
+    weeklyDurationSeconds: number;
+    weeklyTrainingLoad: number;
+    recentActivities: GarminRunningActivity[];
+  };
+  recentSleepMap: Record<string, GarminSleepData>;
+  fetchedAt: number;
+}
+
 
 
