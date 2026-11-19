@@ -111,10 +111,12 @@ export default function SleepDetailModal({
     const dayNaps = dayLogs.filter(log => log.type === 'nap');
     const garminSleep = garminSleepMap[dateStr];
 
-    const nightHours = nightLog ? Number(nightLog.sleepDuration) : 0;
+    const nightHours = nightLog
+      ? Number(nightLog.sleepDuration)
+      : garminSleep?.sleepDurationHours || 0;
     const napHours = dayNaps.reduce((sum, n) => sum + Number(n.sleepDuration), 0);
     const totalHours = nightHours + napHours;
-    const bedtime = nightLog?.bedtime || '';
+    const bedtime = nightLog?.bedtime || garminSleep?.bedtime12h || '';
 
     const sleepScore =
       nightLog?.sleepScore ||

@@ -164,6 +164,7 @@ export default function Dashboard() {
                   garminSleepMap={garminData?.recentSleepMap}
                   runningActivities={garminData?.running?.recentActivities}
                   cycle={garminData?.cycle}
+                  garminLoading={garminLoading}
                   updateData={updateData}
                   forceSync={forceSync}
                   initialSynced={initialSynced}

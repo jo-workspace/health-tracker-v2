@@ -205,11 +205,15 @@ export async function fetchGarminSleepForDate(
   return parseGarminSleepObject(sleepRes, hrvRes?.hrvSummary, rhr);
 }
 
-export async function fetchGarminRecentSleepMap(
+export async function fetchGarminWellnessRange(
   token: string,
   startDate: string,
-  endDate: string
-): Promise<Record<string, GarminSleepData>> {
+  endDate: string,
+  currentCycle?: GarminMenstrualCycle | null
+): Promise<{
+  sleepMap: Record<string, GarminSleepData>;
+  dailyWellnessList: import('./types').GarminDailyWellnessLog[];
+}> {
   const [sleepList, hrvData, summaryData] = await Promise.all([
     garminGet<any[]>(
       token,
@@ -229,16 +233,20 @@ export async function fetchGarminRecentSleepMap(
     });
   }
 
+  const summaryByDate: Record<string, any> = {};
   const rhrByDate: Record<string, number> = {};
   if (Array.isArray(summaryData?.data)) {
     summaryData.data.forEach((d: any) => {
-      if (d?.calendarDate && typeof d?.heartRate?.restingValue === 'number') {
-        rhrByDate[d.calendarDate] = d.heartRate.restingValue;
+      if (d?.calendarDate) {
+        summaryByDate[d.calendarDate] = d;
+        if (typeof d?.heartRate?.restingValue === 'number') {
+          rhrByDate[d.calendarDate] = d.heartRate.restingValue;
+        }
       }
     });
   }
 
-  const map: Record<string, GarminSleepData> = {};
+  const sleepMap: Record<string, GarminSleepData> = {};
   if (Array.isArray(sleepList)) {
     sleepList.forEach(item => {
       const parsed = parseGarminSleepObject(
@@ -247,12 +255,89 @@ export async function fetchGarminRecentSleepMap(
         rhrByDate[item?.calendarDate]
       );
       if (parsed) {
-        map[parsed.date] = parsed;
+        sleepMap[parsed.date] = parsed;
       }
     });
   }
 
-  return map;
+  const allDates = new Set<string>([
+    ...Object.keys(sleepMap),
+    ...Object.keys(summaryByDate),
+    ...Object.keys(hrvByDate),
+  ]);
+
+  const nowStr = new Date().toISOString();
+  const dailyWellnessList: import('./types').GarminDailyWellnessLog[] = [];
+
+  Array.from(allDates)
+    .sort()
+    .forEach(dateStr => {
+      const s = sleepMap[dateStr];
+      const sum = summaryByDate[dateStr];
+      const h = hrvByDate[dateStr];
+
+      // Estimate cycle day & phase if date >= currentCycle.startDate
+      let cycleDay: number | string = '';
+      let cyclePhase = '';
+      let cycleStartDate = '';
+      if (currentCycle?.startDate && dateStr >= currentCycle.startDate) {
+        const [cy, cm, cd] = currentCycle.startDate.split('-').map(Number);
+        const [dy, dm, dd] = dateStr.split('-').map(Number);
+        const diffDays =
+          Math.round(
+            (Date.UTC(dy, dm - 1, dd) - Date.UTC(cy, cm - 1, cd)) / (1000 * 60 * 60 * 24)
+          ) + 1;
+        if (diffDays >= 1 && diffDays <= 45) {
+          cycleDay = diffDays;
+          cycleStartDate = currentCycle.startDate;
+          const pLen = currentCycle.periodLength || 7;
+          if (diffDays <= pLen) cyclePhase = '經期';
+          else if (diffDays <= 11) cyclePhase = '濾泡期';
+          else if (diffDays <= 18) cyclePhase = '排卵期';
+          else cyclePhase = '黃體期';
+        }
+      }
+
+      dailyWellnessList.push({
+        date: dateStr,
+        sleepScore: s?.sleepScore ?? '',
+        sleepHours: s?.sleepDurationHours ?? '',
+        deepSleepHours: s?.deepSleepHours ?? '',
+        remSleepHours: s?.remSleepHours ?? '',
+        bedtime: s?.bedtime12h ?? '',
+        wakeupTime: s?.wakeupTime24h ?? '',
+        hrv: s?.hrv ?? h?.lastNightAvg ?? '',
+        hrvStatus: s?.hrvStatus ?? h?.status ?? '',
+        restingHeartRate: s?.restingHeartRate ?? rhrByDate[dateStr] ?? '',
+        avgStress:
+          typeof sum?.stress?.avgLevel === 'number' && sum.stress.avgLevel >= 0
+            ? sum.stress.avgLevel
+            : '',
+        bodyBatteryHigh:
+          typeof sum?.bodyBattery?.maxValue === 'number' ? sum.bodyBattery.maxValue : '',
+        bodyBatteryLow:
+          typeof sum?.bodyBattery?.minValue === 'number' ? sum.bodyBattery.minValue : '',
+        totalSteps:
+          typeof sum?.movement?.steps?.value === 'number' ? sum.movement.steps.value : '',
+        activeCalories:
+          typeof sum?.calories?.burnedActive === 'number' ? sum.calories.burnedActive : '',
+        cycleDay,
+        cyclePhase,
+        cycleStartDate,
+        lastUpdated: nowStr,
+      });
+    });
+
+  return { sleepMap, dailyWellnessList };
+}
+
+export async function fetchGarminRecentSleepMap(
+  token: string,
+  startDate: string,
+  endDate: string
+): Promise<Record<string, GarminSleepData>> {
+  const { sleepMap } = await fetchGarminWellnessRange(token, startDate, endDate);
+  return sleepMap;
 }
 
 function formatPacePerKm(distanceMeters: number, durationSec: number): string {

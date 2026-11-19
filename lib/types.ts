@@ -256,11 +256,35 @@ export interface GarminMenstrualCycle {
   predictedCycleLength: number;
 }
 
+export interface GarminDailyWellnessLog {
+  date: string;
+  sleepScore?: number | string;
+  sleepHours?: number | string;
+  deepSleepHours?: number | string;
+  remSleepHours?: number | string;
+  bedtime?: string;
+  wakeupTime?: string;
+  hrv?: number | string;
+  hrvStatus?: string;
+  restingHeartRate?: number | string;
+  avgStress?: number | string;
+  bodyBatteryHigh?: number | string;
+  bodyBatteryLow?: number | string;
+  totalSteps?: number | string;
+  activeCalories?: number | string;
+  cycleDay?: number | string;
+  cyclePhase?: string;
+  cycleStartDate?: string;
+  lastUpdated: string;
+}
+
 export interface GarminOverviewData {
   configured: boolean;
   expiresAt: string;         // YYYY-MM-DD
   daysUntilExpiry: number;
   isExpiringSoon: boolean;   // <= 14 days
+  lastSyncDate?: string;     // YYYY-MM-DD of last daily sync to Google Sheets
+  syncedToday?: boolean;
   cycle: GarminMenstrualCycle | null;
   running: {
     weeklyRuns: number;
