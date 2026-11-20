@@ -40,6 +40,117 @@ const FEELING_CHOICES = [
   { id: 'bad', label: '差', icon: Frown, activeColor: 'hover:bg-[#f9f1f1] hover:border-[#e6cece] hover:text-[#a06d6e]' },
 ] as const;
 
+function getHrvStatus(hrvVal?: number | string): {
+  label: string;
+  pillColor: string;
+  detail: string;
+} | null {
+  if (hrvVal === undefined || hrvVal === null || hrvVal === '') return null;
+  const num = Number(hrvVal);
+  if (isNaN(num) || num <= 0) return null;
+  if (num >= 42) {
+    return {
+      label: 'HRV 良好',
+      pillColor: 'bg-[#eaf5ef] text-[#3e7256] border-[#d8ece1]',
+      detail: `HRV ${num} · 自律神經恢復充沛`,
+    };
+  }
+  if (num >= 35) {
+    return {
+      label: 'HRV 平穩',
+      pillColor: 'bg-stone-100 text-stone-600 border-stone-200',
+      detail: `HRV ${num} · 恢復持平`,
+    };
+  }
+  return {
+    label: 'HRV 偏低',
+    pillColor: 'bg-amber-50 text-amber-800 border-amber-200',
+    detail: `HRV ${num} · 疲勞累積需多休息`,
+  };
+}
+
+function getRecoveryStatusBadges(params: {
+  deepHours?: number | string;
+  remHours?: number | string;
+  rhr?: number | string;
+}): {
+  items: { text: string; title: string; color: string }[];
+} {
+  const { deepHours, remHours, rhr } = params;
+  const items: { text: string; title: string; color: string }[] = [];
+
+  const d = deepHours !== undefined && deepHours !== '' ? Number(deepHours) : NaN;
+  if (!isNaN(d) && d > 0) {
+    if (d >= 1.5) {
+      items.push({
+        text: '深眠充足',
+        title: `深層睡眠 ${d.toFixed(1)}h · 肌肉組織修復佳`,
+        color: 'text-[#3e7256] font-bold',
+      });
+    } else if (d >= 1.0) {
+      items.push({
+        text: '深眠適中',
+        title: `深層睡眠 ${d.toFixed(1)}h · 肌肉修復正常`,
+        color: 'text-stone-600 font-medium',
+      });
+    } else {
+      items.push({
+        text: '深眠偏少',
+        title: `深層睡眠 ${d.toFixed(1)}h · 肌肉易感疲倦`,
+        color: 'text-amber-700 font-medium',
+      });
+    }
+  }
+
+  const r = remHours !== undefined && remHours !== '' ? Number(remHours) : NaN;
+  if (!isNaN(r) && r > 0) {
+    if (r >= 1.2) {
+      items.push({
+        text: '腦力修復佳',
+        title: `快速動眼期 REM ${r.toFixed(1)}h · 思緒清晰`,
+        color: 'text-[#3e7256] font-bold',
+      });
+    } else if (r >= 0.8) {
+      items.push({
+        text: '腦力修復正常',
+        title: `快速動眼期 REM ${r.toFixed(1)}h`,
+        color: 'text-stone-600 font-medium',
+      });
+    } else {
+      items.push({
+        text: 'REM 偏少',
+        title: `快速動眼期 REM ${r.toFixed(1)}h · 易感昏沉`,
+        color: 'text-stone-400 font-normal',
+      });
+    }
+  }
+
+  const hr = rhr !== undefined && rhr !== '' ? Number(rhr) : NaN;
+  if (!isNaN(hr) && hr > 0) {
+    if (hr <= 50) {
+      items.push({
+        text: '心率平穩',
+        title: `夜間靜止心率 ${hr} bpm · 心血管恢復極佳`,
+        color: 'text-stone-500 font-medium',
+      });
+    } else if (hr <= 60) {
+      items.push({
+        text: `靜心 ${hr}`,
+        title: `夜間靜止心率 ${hr} bpm`,
+        color: 'text-stone-500 font-normal',
+      });
+    } else {
+      items.push({
+        text: `靜心偏高 (${hr})`,
+        title: `夜間靜止心率 ${hr} bpm · 可能微發炎或代謝活躍`,
+        color: 'text-amber-700 font-medium',
+      });
+    }
+  }
+
+  return { items };
+}
+
 interface Props {
   data?: SleepLog[];
   allergyLogs?: AllergyLog[];
@@ -539,11 +650,18 @@ export default function SleepCard({
                     {latestSleepScore} 分
                   </span>
                 )}
-                {latestHrv && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-stone-100/80 text-stone-500">
-                    HRV {latestHrv}
-                  </span>
-                )}
+                {latestHrv && (() => {
+                  const hrvInfo = getHrvStatus(latestHrv);
+                  if (!hrvInfo) return null;
+                  return (
+                    <span
+                      title={hrvInfo.detail}
+                      className={`px-1.5 py-0.5 text-[10px] font-medium rounded border ${hrvInfo.pillColor}`}
+                    >
+                      {hrvInfo.label}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
@@ -597,23 +715,39 @@ export default function SleepCard({
             </div>
           </div>
 
-          <div className="flex justify-between items-center text-xs text-stone-500 font-medium border-t border-stone-100 pt-2 flex-wrap gap-y-1">
-            <div className="flex items-center gap-2">
-              <span>入睡：{formatTo12Hour(latestBedtime)}</span>
-              {(latestDeep || latestRem || latestRhr) && (
-                <span className="text-[11px] text-stone-400 font-normal">
-                  {[
-                    latestDeep ? `深 ${Number(latestDeep).toFixed(1)}h` : '',
-                    latestRem ? `REM ${Number(latestRem).toFixed(1)}h` : '',
-                    latestRhr ? `RHR ${latestRhr}` : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-              )}
-            </div>
-            <div>小睡：{napHours > 0 ? `${napHours.toFixed(1)}h` : '無'}</div>
-          </div>
+          {/* 底部數據與恢復狀態解讀 */}
+          {(() => {
+            const recovery = getRecoveryStatusBadges({
+              deepHours: latestDeep,
+              remHours: latestRem,
+              rhr: latestRhr,
+            });
+
+            return (
+              <div className="flex justify-between items-center text-xs text-stone-500 font-medium border-t border-stone-100 pt-2 flex-wrap gap-y-1">
+                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                  <span className="shrink-0">入睡 {formatTo12Hour(latestBedtime)}</span>
+                  {recovery.items.length > 0 && (
+                    <>
+                      <span className="text-stone-300">·</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {recovery.items.map((item, idx) => (
+                          <span
+                            key={idx}
+                            title={item.title}
+                            className={`text-[11px] ${item.color}`}
+                          >
+                            {item.text}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="shrink-0">小睡：{napHours > 0 ? `${napHours.toFixed(1)}h` : '無'}</div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* 浮動新增按鈕組 (小睡 & 主睡眠) */}
@@ -695,7 +829,8 @@ export default function SleepCard({
                       promptBedtime ? `${formatTo12Hour(promptBedtime)} 入睡` : '',
                       `${promptDurationHours.toFixed(1)}h`,
                       promptScore ? `${promptScore} 分` : '',
-                      promptHrv ? `HRV ${promptHrv}` : '',
+                      promptHrv ? (Number(promptHrv) >= 40 ? 'HRV 良好' : Number(promptHrv) >= 35 ? 'HRV 平穩' : 'HRV 偏低') : '',
+                      todayGarminSleep?.deepSleepHours && todayGarminSleep.deepSleepHours >= 1.5 ? '深眠充足' : '',
                     ]
                       .filter(Boolean)
                       .join(' · ')}
