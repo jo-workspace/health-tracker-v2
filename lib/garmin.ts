@@ -478,3 +478,87 @@ export async function fetchGarminMenstrualCycle(
     predictedCycleLength: Number(data.predictedCycleLength) || 0,
   };
 }
+
+export async function fetchGarminCalendarWorkouts(
+  icsUrl: string
+): Promise<import('./types').GarminScheduledWorkout[]> {
+  const cleanUrl = icsUrl.trim();
+  if (!cleanUrl || !cleanUrl.startsWith('http')) return [];
+
+  try {
+    const res = await fetch(cleanUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; HealthTracker/2.0)',
+        Accept: 'text/calendar, text/plain, */*',
+      },
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      console.warn(`[Garmin Calendar] Failed to fetch iCal (${res.status})`);
+      return [];
+    }
+
+    const rawText = await res.text();
+    if (!rawText.includes('BEGIN:VCALENDAR')) return [];
+
+    // Unfold multi-line RFC5545 lines (CRLF + space/tab)
+    const unfolded = rawText.replace(/\r?\n[ \t]/g, '');
+    const blocks = unfolded.split('BEGIN:VEVENT').slice(1);
+    const byDate = new Map<string, import('./types').GarminScheduledWorkout>();
+
+    for (const block of blocks) {
+      const endIdx = block.indexOf('END:VEVENT');
+      const content = endIdx >= 0 ? block.slice(0, endIdx) : block;
+      const lines = content.split(/\r?\n/);
+
+      let summary = '';
+      let dateStr = '';
+      let uid = '';
+
+      for (const line of lines) {
+        if (line.startsWith('SUMMARY:')) {
+          summary = line
+            .slice('SUMMARY:'.length)
+            .replace(/\\,/g, ',')
+            .replace(/\\;/g, ';')
+            .replace(/\\n/g, ' ')
+            .trim();
+        } else if (line.startsWith('DTSTART')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx > 0) {
+            const val = line.slice(colonIdx + 1).trim();
+            if (/^\d{8}/.test(val)) {
+              dateStr = `${val.slice(0, 4)}-${val.slice(4, 6)}-${val.slice(6, 8)}`;
+            }
+          }
+        } else if (line.startsWith('UID:')) {
+          uid = line.slice('UID:'.length).trim();
+        }
+      }
+
+      if (dateStr && summary) {
+        const isRestDay = /^rest\b/i.test(summary) || summary.includes('休息');
+        const existing = byDate.get(dateStr);
+        // If multiple events on the same day, combine non-duplicate summaries
+        if (existing && existing.summary !== summary) {
+          existing.summary = `${existing.summary} / ${summary}`;
+          existing.isRestDay = existing.isRestDay && isRestDay;
+        } else {
+          byDate.set(dateStr, {
+            date: dateStr,
+            summary,
+            isRestDay,
+            uid,
+          });
+        }
+      }
+    }
+
+    return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+  } catch (err) {
+    console.warn('[Garmin Calendar] Error fetching/parsing iCal:', err);
+    return [];
+  }
+}

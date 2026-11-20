@@ -183,6 +183,7 @@ export default function Dashboard() {
                     weeklyDurationSeconds={garminData?.running?.weeklyDurationSeconds}
                     weeklyTrainingLoad={garminData?.running?.weeklyTrainingLoad}
                     activities={garminData?.running?.recentActivities}
+                    scheduledWorkouts={garminData?.running?.scheduledWorkouts}
                     loading={garminLoading}
                     refreshing={garminRefreshing}
                     onRefresh={() => refreshGarmin(true)}

@@ -40,6 +40,7 @@ export default function SettingsModal({
 
   const [garminKey, setGarminKey] = useState('');
   const [garminExpiresAt, setGarminExpiresAt] = useState('2027-11-19');
+  const [garminCalendarIcs, setGarminCalendarIcs] = useState('');
   const [showKeyEditor, setShowKeyEditor] = useState(false);
   const [garminSaved, setGarminSaved] = useState(false);
   const [garminSaving, setGarminSaving] = useState(false);
@@ -53,6 +54,7 @@ export default function SettingsModal({
           garminData?.expiresAt ||
           '2027-11-19'
       );
+      setGarminCalendarIcs(localStorage.getItem('garmin_calendar_ics_url') || '');
       setSaved(false);
       setGarminSaved(false);
     }
@@ -69,16 +71,22 @@ export default function SettingsModal({
   const handleSaveGarmin = async () => {
     const cleanKey = garminKey.trim();
     const cleanExp = garminExpiresAt.trim() || '2027-11-19';
+    const cleanIcs = garminCalendarIcs.trim();
     if (cleanKey) {
       localStorage.setItem('garmin_api_key', cleanKey);
     } else {
       localStorage.removeItem('garmin_api_key');
     }
     localStorage.setItem('garmin_api_expires_at', cleanExp);
+    if (cleanIcs) {
+      localStorage.setItem('garmin_calendar_ics_url', cleanIcs);
+    } else {
+      localStorage.removeItem('garmin_calendar_ics_url');
+    }
 
     setGarminSaving(true);
     try {
-      await saveGarminConfig(cleanKey, cleanExp);
+      await saveGarminConfig(cleanKey, cleanExp, cleanIcs || undefined);
       setGarminSaved(true);
       setTimeout(() => setGarminSaved(false), 2000);
       if (onRefreshGarmin) {
@@ -250,20 +258,36 @@ export default function SettingsModal({
                     className="text-[11px] font-medium text-stone-500 hover:text-stone-700 flex items-center gap-1"
                   >
                     {showKeyEditor ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    <span>{showKeyEditor ? '收起金鑰設定' : '更新雲端 API Key / 到期日'}</span>
+                    <span>{showKeyEditor ? '收起金鑰與課表設定' : '更新雲端 API Key / 課表行事曆'}</span>
                   </button>
 
                   {showKeyEditor && (
                     <div className="mt-2.5 p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
                       <div>
                         <label className="text-[10px] font-bold text-stone-500 block mb-1">
-                          Personal API Key (將自動加密同步至 Google Sheets，全設備共用)
+                          Personal API Key (自動加密同步至 Google Sheets)
                         </label>
                         <input
                           type="password"
                           value={garminKey}
                           onChange={e => setGarminKey(e.target.value)}
                           placeholder={garminData?.configured ? '已設定於雲端 (貼入新金鑰即可覆蓋)' : 'GCDC_...'}
+                          className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-stone-500 block mb-1">
+                          Garmin 課表行事曆連結 (iCal 匯出網址，自動加密保存)
+                        </label>
+                        <input
+                          type="password"
+                          value={garminCalendarIcs}
+                          onChange={e => setGarminCalendarIcs(e.target.value)}
+                          placeholder={
+                            garminData?.calendarIcsConfigured
+                              ? '已綁定 Garmin 課表行事曆 (貼入新網址即可更新)'
+                              : 'https://connect.garmin.com/modern/calendar/export/...'
+                          }
                           className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs text-stone-700 focus:outline-none focus:ring-1 focus:ring-stone-400"
                         />
                       </div>

@@ -1,7 +1,7 @@
 'use client';
 import { createPortal } from 'react-dom';
-import { X, Footprints, RefreshCw, Activity, Zap, Heart } from 'lucide-react';
-import type { GarminRunningActivity } from '@/lib/types';
+import { X, Footprints, RefreshCw, Activity, Zap, Heart, CalendarClock } from 'lucide-react';
+import type { GarminRunningActivity, GarminScheduledWorkout } from '@/lib/types';
 
 interface Props {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface Props {
   weeklyDurationSeconds: number;
   weeklyTrainingLoad: number;
   activities: GarminRunningActivity[];
+  scheduledWorkouts?: GarminScheduledWorkout[];
   onRefresh?: () => void;
   refreshing?: boolean;
 }
@@ -23,6 +24,17 @@ function formatTotalHoursMinutes(sec: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+const WEEKDAY_NAMES = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+
+function formatDateWithWeekday(dateStr: string, todayStr: string, tomorrowStr: string): string {
+  const shortDate = dateStr.slice(5).replace('-', '/');
+  if (dateStr === todayStr) return `${shortDate} 今日`;
+  if (dateStr === tomorrowStr) return `${shortDate} 明日`;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  return `${shortDate} ${WEEKDAY_NAMES[dt.getUTCDay()]}`;
+}
+
 export default function RunningDetailModal({
   isOpen,
   onClose,
@@ -31,10 +43,21 @@ export default function RunningDetailModal({
   weeklyDurationSeconds,
   weeklyTrainingLoad,
   activities = [],
+  scheduledWorkouts = [],
   onRefresh,
   refreshing = false,
 }: Props) {
   if (!isOpen) return null;
+
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const nowMs = Date.now();
+  const todayStr = fmt.format(new Date(nowMs));
+  const tomorrowStr = fmt.format(new Date(nowMs + 86400 * 1000));
 
   const totalRecentKm = +activities
     .reduce((sum, a) => sum + (a.distanceKm || 0), 0)
@@ -61,7 +84,7 @@ export default function RunningDetailModal({
                     type="button"
                     onClick={onRefresh}
                     disabled={refreshing}
-                    title="同步最新 Garmin 運動紀錄"
+                    title="同步最新 Garmin 運動紀錄与課表"
                     className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-50 text-stone-500 hover:bg-stone-200 hover:text-stone-700 transition-colors disabled:opacity-50"
                   >
                     <RefreshCw size={14} className={refreshing ? 'animate-spin text-[#5b8c74]' : ''} />
@@ -112,10 +135,56 @@ export default function RunningDetailModal({
                 </div>
               </div>
 
+              {/* 接下來預定課表 (Garmin Calendar / RunningQuotient) */}
+              {scheduledWorkouts.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-0.5">
+                    <span className="text-[11px] font-bold text-stone-500 flex items-center gap-1.5">
+                      <CalendarClock size={13} className="text-[#4b7861]" />
+                      接下來預定課表
+                    </span>
+                    <span className="text-[10px] text-stone-400">
+                      Garmin 行事曆同步
+                    </span>
+                  </div>
+
+                  <div className="bg-[#f7faf8] border border-[#dce8e1] rounded-xl divide-y divide-[#e6efe9] overflow-hidden">
+                    {scheduledWorkouts.map(item => {
+                      const isToday = item.date === todayStr;
+                      return (
+                        <div
+                          key={item.date}
+                          className={`px-3 py-2 flex items-center justify-between gap-2.5 text-xs ${
+                            isToday ? 'bg-[#eef6f1]' : ''
+                          }`}
+                        >
+                          <span
+                            className={`text-[11px] font-bold shrink-0 px-1.5 py-0.5 rounded ${
+                              isToday
+                                ? 'bg-[#3e7256] text-white'
+                                : 'bg-white text-stone-600 border border-stone-200/80'
+                            }`}
+                          >
+                            {formatDateWithWeekday(item.date, todayStr, tomorrowStr)}
+                          </span>
+                          <span
+                            className={`font-bold text-right truncate ${
+                              item.isRestDay ? 'text-stone-400 font-medium' : 'text-stone-700'
+                            }`}
+                          >
+                            {item.summary}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* 課表清單 */}
               <div className="space-y-2.5">
                 <span className="text-[11px] font-bold text-stone-400 px-0.5 block">
-                  近期課表與跑步動態
+                  已完成課表與跑步動態
                 </span>
 
                 {activities.length === 0 ? (

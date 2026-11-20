@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { Footprints, ChevronRight } from 'lucide-react';
-import type { GarminRunningActivity } from '@/lib/types';
+import { Footprints, ChevronRight, CalendarClock } from 'lucide-react';
+import type { GarminRunningActivity, GarminScheduledWorkout } from '@/lib/types';
 import RunningDetailModal from './RunningDetailModal';
 
 interface Props {
@@ -10,9 +10,24 @@ interface Props {
   weeklyDurationSeconds?: number;
   weeklyTrainingLoad?: number;
   activities?: GarminRunningActivity[];
+  scheduledWorkouts?: GarminScheduledWorkout[];
   loading?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void;
+}
+
+function getLocalTodayAndTomorrow(): { todayStr: string; tomorrowStr: string } {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const now = Date.now();
+  return {
+    todayStr: fmt.format(new Date(now)),
+    tomorrowStr: fmt.format(new Date(now + 86400 * 1000)),
+  };
 }
 
 export default function RunningCard({
@@ -21,6 +36,7 @@ export default function RunningCard({
   weeklyDurationSeconds = 0,
   weeklyTrainingLoad = 0,
   activities = [],
+  scheduledWorkouts = [],
   loading = false,
   refreshing = false,
   onRefresh,
@@ -29,6 +45,18 @@ export default function RunningCard({
 
   const latestRun = activities[0];
   const shortDate = latestRun ? latestRun.date.slice(5).replace('-', '/') : '';
+
+  const { todayStr, tomorrowStr } = getLocalTodayAndTomorrow();
+  const todayWorkout = scheduledWorkouts.find(w => w.date === todayStr);
+  const nextActiveWorkout = scheduledWorkouts.find(
+    w => w.date > todayStr && (!w.isRestDay || !todayWorkout)
+  ) || scheduledWorkouts.find(w => w.date > todayStr);
+
+  const formatShortDayLabel = (dt: string) => {
+    if (dt === todayStr) return '今日課表';
+    if (dt === tomorrowStr) return '明日預定';
+    return `${dt.slice(5).replace('-', '/')} 預定`;
+  };
 
   return (
     <>
@@ -67,6 +95,49 @@ export default function RunningCard({
               />
             </div>
           </div>
+
+          {/* Upcoming Scheduled Workouts Banner (RQ -> Garmin Calendar) */}
+          {(todayWorkout || nextActiveWorkout) && (
+            <div className="mb-2 px-2.5 py-2 rounded-lg bg-[#f5f8f6] border border-[#dce8e1] flex flex-col gap-1">
+              {todayWorkout && (
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <CalendarClock size={13} className="text-[#4b7861] shrink-0" />
+                    <span className="text-[11px] font-bold text-[#3e7256] shrink-0">
+                      今日課表
+                    </span>
+                    <span
+                      className={`font-bold truncate ${
+                        todayWorkout.isRestDay ? 'text-stone-500' : 'text-stone-700'
+                      }`}
+                    >
+                      {todayWorkout.summary}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {nextActiveWorkout && (
+                <div className="flex items-center justify-between gap-2 text-[11px] text-stone-600">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {!todayWorkout && (
+                      <CalendarClock size={13} className="text-[#4b7861] shrink-0" />
+                    )}
+                    <span
+                      className={`font-bold shrink-0 ${
+                        todayWorkout ? 'text-stone-400 pl-[19px]' : 'text-[#3e7256]'
+                      }`}
+                    >
+                      {formatShortDayLabel(nextActiveWorkout.date)}
+                    </span>
+                    <span className="font-medium text-stone-600 truncate">
+                      {nextActiveWorkout.summary}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Latest Workout Row */}
           {loading && !latestRun ? (
@@ -123,6 +194,7 @@ export default function RunningCard({
         weeklyDurationSeconds={weeklyDurationSeconds}
         weeklyTrainingLoad={weeklyTrainingLoad}
         activities={activities}
+        scheduledWorkouts={scheduledWorkouts}
         onRefresh={onRefresh}
         refreshing={refreshing}
       />

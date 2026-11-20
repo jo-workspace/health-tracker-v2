@@ -5,11 +5,13 @@ function getGarminHeaders(): Record<string, string> {
   const password = localStorage.getItem('app_password') || '';
   const customKey = localStorage.getItem('garmin_api_key') || '';
   const customExp = localStorage.getItem('garmin_api_expires_at') || '';
+  const customIcs = localStorage.getItem('garmin_calendar_ics_url') || '';
   const headers: Record<string, string> = {
     Authorization: `Bearer ${password}`,
   };
   if (customKey.trim()) headers['x-garmin-api-key'] = customKey.trim();
   if (customExp.trim()) headers['x-garmin-expires-at'] = customExp.trim();
+  if (customIcs.trim()) headers['x-garmin-calendar-ics'] = customIcs.trim();
   return headers;
 }
 
@@ -44,15 +46,22 @@ export async function fetchGarminSleep(
 
 export async function saveGarminConfig(
   apiKey: string,
-  expiresAt: string
-): Promise<{ status: string; configured: boolean; expiresAt: string; daysUntilExpiry: number }> {
+  expiresAt: string,
+  calendarIcsUrl?: string
+): Promise<{
+  status: string;
+  configured: boolean;
+  calendarIcsConfigured?: boolean;
+  expiresAt: string;
+  daysUntilExpiry: number;
+}> {
   const res = await fetch('/api/garmin', {
     method: 'POST',
     headers: {
       ...getGarminHeaders(),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ apiKey, expiresAt }),
+    body: JSON.stringify({ apiKey, expiresAt, calendarIcsUrl }),
   });
   const data = await res.json();
   if (!res.ok || data.error) {

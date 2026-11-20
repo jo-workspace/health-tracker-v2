@@ -256,6 +256,13 @@ export interface GarminMenstrualCycle {
   predictedCycleLength: number;
 }
 
+export interface GarminScheduledWorkout {
+  date: string;              // YYYY-MM-DD
+  summary: string;           // e.g. "Easy 20min+HMP 15min x3+Strides 20s x4"
+  isRestDay: boolean;        // true if "REST..."
+  uid?: string;
+}
+
 export interface GarminDailyWellnessLog {
   date: string;
   sleepScore?: number | string;
@@ -275,6 +282,7 @@ export interface GarminDailyWellnessLog {
   cycleDay?: number | string;
   cyclePhase?: string;
   cycleStartDate?: string;
+  scheduledWorkout?: string;
   lastUpdated: string;
 }
 
@@ -283,6 +291,7 @@ export interface GarminOverviewData {
   expiresAt: string;         // YYYY-MM-DD
   daysUntilExpiry: number;
   isExpiringSoon: boolean;   // <= 14 days
+  calendarIcsConfigured?: boolean;
   lastSyncDate?: string;     // YYYY-MM-DD of last daily sync to Google Sheets
   syncedToday?: boolean;
   cycle: GarminMenstrualCycle | null;
@@ -292,6 +301,7 @@ export interface GarminOverviewData {
     weeklyDurationSeconds: number;
     weeklyTrainingLoad: number;
     recentActivities: GarminRunningActivity[];
+    scheduledWorkouts: GarminScheduledWorkout[];
   };
   recentSleepMap: Record<string, GarminSleepData>;
   fetchedAt: number;

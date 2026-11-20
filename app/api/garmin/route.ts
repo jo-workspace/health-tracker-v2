@@ -6,6 +6,7 @@ import {
   fetchGarminWellnessRange,
   fetchGarminRunningActivities,
   fetchGarminMenstrualCycle,
+  fetchGarminCalendarWorkouts,
 } from '@/lib/garmin';
 import { getGoogleSheet } from '@/lib/google-sheets';
 import type {
@@ -13,11 +14,22 @@ import type {
   GarminSleepData,
   GarminRunningActivity,
   GarminDailyWellnessLog,
+  GarminScheduledWorkout,
 } from '@/lib/types';
 
 const DEFAULT_EXPIRES_AT = process.env.GARMIN_API_KEY_EXPIRES_AT || '2027-11-19';
+const DEFAULT_CALENDAR_ICS_URL =
+  process.env.GARMIN_CALENDAR_ICS_URL ||
+  'https://connect.garmin.com/modern/calendar/export/b36fa1affbd1426cbdd9e8a920c8a2bc';
+
 const GARMIN_CONFIG_SHEET_TITLE = 'GarminConfig';
-const GARMIN_CONFIG_HEADERS = ['apiKey', 'expiresAt', 'lastSyncDate', 'updatedAt'];
+const GARMIN_CONFIG_HEADERS = [
+  'apiKey',
+  'expiresAt',
+  'calendarIcsUrl',
+  'lastSyncDate',
+  'updatedAt',
+];
 
 function getEncryptionKeyBuffer(): Buffer {
   const secret =
@@ -28,8 +40,8 @@ function getEncryptionKeyBuffer(): Buffer {
   return crypto.createHash('sha256').update(secret).digest();
 }
 
-function encryptApiKeyForSheet(plainKey: string): string {
-  const trimmed = plainKey.trim();
+function encryptSecretForSheet(plainText: string): string {
+  const trimmed = plainText.trim();
   if (!trimmed) return '';
   if (trimmed.startsWith('ENC:')) return trimmed;
   const key = getEncryptionKeyBuffer();
@@ -40,7 +52,7 @@ function encryptApiKeyForSheet(plainKey: string): string {
   return `ENC:${iv.toString('base64')}:${authTag.toString('base64')}:${encrypted.toString('base64')}`;
 }
 
-function decryptApiKeyFromSheet(storedValue: string): string {
+function decryptSecretFromSheet(storedValue: string): string {
   const trimmed = storedValue.trim();
   if (!trimmed) return '';
   if (!trimmed.startsWith('ENC:')) {
@@ -58,7 +70,7 @@ function decryptApiKeyFromSheet(storedValue: string): string {
     const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
     return decrypted.toString('utf8');
   } catch (err) {
-    console.warn('[GarminConfig] Failed to decrypt stored API key:', err);
+    console.warn('[GarminConfig] Failed to decrypt stored secret:', err);
     return '';
   }
 }
@@ -83,8 +95,12 @@ const GARMIN_WELLNESS_HEADERS = [
   'cycleDay',
   'cyclePhase',
   'cycleStartDate',
+  'scheduledWorkout',
   'lastUpdated',
 ];
+
+const GARMIN_SCHEDULED_SHEET_TITLE = 'GarminScheduledWorkouts';
+const GARMIN_SCHEDULED_HEADERS = ['date', 'summary', 'isRestDay', 'lastUpdated'];
 
 const GARMIN_RUNNING_SHEET_TITLE = 'GarminRunningLogs';
 const GARMIN_RUNNING_HEADERS = [
@@ -139,6 +155,7 @@ interface OverviewCache {
 interface StoredConfigCache {
   apiKey: string;
   expiresAt: string;
+  calendarIcsUrl: string;
   lastSyncDate: string;
   timestamp: number;
 }
@@ -186,6 +203,7 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]) {
 async function getGarminConfigFromSheet(): Promise<{
   apiKey: string;
   expiresAt: string;
+  calendarIcsUrl: string;
   lastSyncDate: string;
 } | null> {
   if (
@@ -195,6 +213,7 @@ async function getGarminConfigFromSheet(): Promise<{
     return {
       apiKey: cachedSheetConfig.apiKey,
       expiresAt: cachedSheetConfig.expiresAt,
+      calendarIcsUrl: cachedSheetConfig.calendarIcsUrl,
       lastSyncDate: cachedSheetConfig.lastSyncDate,
     };
   }
@@ -202,23 +221,30 @@ async function getGarminConfigFromSheet(): Promise<{
   return enqueueGarminSheetOp(async () => {
     try {
       const doc = await getGoogleSheet();
-      const sheet = doc.sheetsByTitle[GARMIN_CONFIG_SHEET_TITLE];
+      const sheet = await getOrCreateSheet(doc, GARMIN_CONFIG_SHEET_TITLE, GARMIN_CONFIG_HEADERS);
       if (!sheet) return null;
       const rows = await sheet.getRows();
       if (rows.length === 0) return null;
       const latestRow = rows[rows.length - 1];
       const rawStoredKey = String(latestRow.get('apiKey') || '').trim();
-      const apiKey = decryptApiKeyFromSheet(rawStoredKey);
+      const rawStoredIcs = String(latestRow.get('calendarIcsUrl') || '').trim();
+      const apiKey = decryptSecretFromSheet(rawStoredKey);
+      const calendarIcsUrl =
+        decryptSecretFromSheet(rawStoredIcs) || DEFAULT_CALENDAR_ICS_URL;
       const expiresAt = String(latestRow.get('expiresAt') || DEFAULT_EXPIRES_AT).trim();
       const lastSyncDate = String(latestRow.get('lastSyncDate') || '').trim();
 
-      // If multiple duplicate rows exist or plain-text key was stored, clean up to a single encrypted row
-      if (apiKey && (rows.length > 1 || (rawStoredKey && !rawStoredKey.startsWith('ENC:')))) {
-        const encryptedKey = encryptApiKeyForSheet(apiKey);
+      // If multiple duplicate rows exist or plain-text secret was stored, clean up to a single encrypted row
+      const needsKeyEnc = rawStoredKey && !rawStoredKey.startsWith('ENC:');
+      const needsIcsEnc = !rawStoredIcs || !rawStoredIcs.startsWith('ENC:');
+      if (apiKey && (rows.length > 1 || needsKeyEnc || needsIcsEnc)) {
+        const encryptedKey = encryptSecretForSheet(apiKey);
+        const encryptedIcs = encryptSecretForSheet(calendarIcsUrl);
         await sheet.clearRows();
         await sheet.addRow({
           apiKey: encryptedKey,
           expiresAt,
+          calendarIcsUrl: encryptedIcs,
           lastSyncDate,
           updatedAt: new Date().toISOString(),
         });
@@ -228,10 +254,11 @@ async function getGarminConfigFromSheet(): Promise<{
         cachedSheetConfig = {
           apiKey,
           expiresAt,
+          calendarIcsUrl,
           lastSyncDate,
           timestamp: Date.now(),
         };
-        return { apiKey, expiresAt, lastSyncDate };
+        return { apiKey, expiresAt, calendarIcsUrl, lastSyncDate };
       }
       return null;
     } catch (err) {
@@ -244,10 +271,15 @@ async function getGarminConfigFromSheet(): Promise<{
 async function saveGarminConfigToSheet(
   apiKey: string,
   expiresAt: string,
-  lastSyncDate?: string
+  lastSyncDate?: string,
+  calendarIcsUrl?: string
 ): Promise<void> {
   const cleanKey = apiKey.trim();
   const cleanExp = expiresAt.trim() || DEFAULT_EXPIRES_AT;
+  const cleanIcs =
+    (calendarIcsUrl !== undefined
+      ? calendarIcsUrl.trim()
+      : cachedSheetConfig?.calendarIcsUrl) || DEFAULT_CALENDAR_ICS_URL;
   const cleanSyncDate =
     lastSyncDate !== undefined ? lastSyncDate : cachedSheetConfig?.lastSyncDate || '';
 
@@ -255,6 +287,7 @@ async function saveGarminConfigToSheet(
     cachedSheetConfig = {
       apiKey: cleanKey,
       expiresAt: cleanExp,
+      calendarIcsUrl: cleanIcs,
       lastSyncDate: cleanSyncDate,
       timestamp: Date.now(),
     };
@@ -272,12 +305,14 @@ async function saveGarminConfigToSheet(
       return;
     }
 
-    const encryptedKey = encryptApiKeyForSheet(cleanKey);
+    const encryptedKey = encryptSecretForSheet(cleanKey);
+    const encryptedIcs = encryptSecretForSheet(cleanIcs);
     const nowIso = new Date().toISOString();
 
     if (rows.length === 1) {
       rows[0].set('apiKey', encryptedKey);
       rows[0].set('expiresAt', cleanExp);
+      rows[0].set('calendarIcsUrl', encryptedIcs);
       rows[0].set('lastSyncDate', cleanSyncDate);
       rows[0].set('updatedAt', nowIso);
       await rows[0].save();
@@ -286,6 +321,7 @@ async function saveGarminConfigToSheet(
       await sheet.addRow({
         apiKey: encryptedKey,
         expiresAt: cleanExp,
+        calendarIcsUrl: encryptedIcs,
         lastSyncDate: cleanSyncDate,
         updatedAt: nowIso,
       });
@@ -294,19 +330,36 @@ async function saveGarminConfigToSheet(
 }
 
 /**
- * Syncs Garmin Daily Wellness, Running Activities, and SleepLogs into Google Sheets.
- * Also returns whether any existing Google Sheets data was already present (to decide 30-day backfill vs 7-day update).
+ * Syncs Garmin Daily Wellness, Scheduled Workouts, Running Activities, and SleepLogs into Google Sheets.
  */
 async function syncGarminDataToGoogleSheets(params: {
   dailyWellnessList: GarminDailyWellnessLog[];
   sleepMap: Record<string, GarminSleepData>;
   activities: GarminRunningActivity[];
+  scheduledWorkouts: GarminScheduledWorkout[];
   apiKey: string;
   expiresAt: string;
+  calendarIcsUrl: string;
   todayStr: string;
 }): Promise<void> {
-  const { dailyWellnessList, sleepMap, activities, apiKey, expiresAt, todayStr } = params;
+  const {
+    dailyWellnessList,
+    sleepMap,
+    activities,
+    scheduledWorkouts,
+    apiKey,
+    expiresAt,
+    calendarIcsUrl,
+    todayStr,
+  } = params;
   const doc = await getGoogleSheet();
+
+  const workoutByDate = new Map<string, string>();
+  scheduledWorkouts.forEach(w => {
+    if (w.date && w.summary) {
+      workoutByDate.set(w.date, w.summary);
+    }
+  });
 
   // 1. Upsert GarminDailyWellness
   const wellnessSheet = await getOrCreateSheet(
@@ -324,19 +377,24 @@ async function syncGarminDataToGoogleSheets(params: {
     GARMIN_WELLNESS_HEADERS.forEach(h => {
       obj[h] = r.get(h) ?? '';
     });
+    if (workoutByDate.has(dt)) {
+      obj.scheduledWorkout = workoutByDate.get(dt);
+    }
     wellnessMap.set(dt, obj);
   });
 
   dailyWellnessList.forEach(item => {
     const prev = wellnessMap.get(item.date) || {};
+    const scheduled =
+      workoutByDate.get(item.date) || item.scheduledWorkout || prev.scheduledWorkout || '';
     wellnessMap.set(item.date, {
       ...prev,
       ...item,
-      // Keep previous cycleDay/cyclePhase if current item didn't compute one
       cycleDay: item.cycleDay !== '' ? item.cycleDay : prev.cycleDay || '',
       cyclePhase: item.cyclePhase !== '' ? item.cyclePhase : prev.cyclePhase || '',
       cycleStartDate:
         item.cycleStartDate !== '' ? item.cycleStartDate : prev.cycleStartDate || '',
+      scheduledWorkout: scheduled,
     });
   });
 
@@ -348,7 +406,45 @@ async function syncGarminDataToGoogleSheets(params: {
     await wellnessSheet.addRows(sortedWellness);
   }
 
-  // 2. Upsert GarminRunningLogs
+  // 2. Upsert GarminScheduledWorkouts (so Gemini NotebookLM can inspect upcoming schedule)
+  const scheduledSheet = await getOrCreateSheet(
+    doc,
+    GARMIN_SCHEDULED_SHEET_TITLE,
+    GARMIN_SCHEDULED_HEADERS
+  );
+  const existingScheduledRows = await scheduledSheet.getRows();
+  const scheduledMap = new Map<string, any>();
+
+  existingScheduledRows.forEach((r: any) => {
+    const dt = String(r.get('date') || '').trim();
+    if (!dt) return;
+    scheduledMap.set(dt, {
+      date: dt,
+      summary: String(r.get('summary') || ''),
+      isRestDay: String(r.get('isRestDay') || 'false'),
+      lastUpdated: String(r.get('lastUpdated') || ''),
+    });
+  });
+
+  const nowIso = new Date().toISOString();
+  scheduledWorkouts.forEach(w => {
+    scheduledMap.set(w.date, {
+      date: w.date,
+      summary: w.summary,
+      isRestDay: w.isRestDay ? 'true' : 'false',
+      lastUpdated: nowIso,
+    });
+  });
+
+  const sortedScheduled = Array.from(scheduledMap.values()).sort((a, b) =>
+    String(a.date).localeCompare(String(b.date))
+  );
+  if (sortedScheduled.length > 0) {
+    await scheduledSheet.clearRows();
+    await scheduledSheet.addRows(sortedScheduled);
+  }
+
+  // 3. Upsert GarminRunningLogs
   const runningSheet = await getOrCreateSheet(
     doc,
     GARMIN_RUNNING_SHEET_TITLE,
@@ -367,7 +463,6 @@ async function syncGarminDataToGoogleSheets(params: {
     runMap.set(id, obj);
   });
 
-  const nowIso = new Date().toISOString();
   activities.forEach(act => {
     const id = String(act.activityId);
     runMap.set(id, {
@@ -400,7 +495,7 @@ async function syncGarminDataToGoogleSheets(params: {
     await runningSheet.addRows(sortedRuns);
   }
 
-  // 3. Auto-populate SleepLogs so the user doesn't have to wait or manually load sleep
+  // 4. Auto-populate SleepLogs so the user doesn't have to wait or manually load sleep
   const sleepSheet = await getOrCreateSheet(doc, SLEEP_LOGS_SHEET_TITLE, SLEEP_LOGS_HEADERS);
   const existingSleepRows = await sleepSheet.getRows();
   let sleepModified = false;
@@ -420,7 +515,6 @@ async function syncGarminDataToGoogleSheets(params: {
     if (!gSleep || gSleep.sleepDurationHours <= 0) continue;
     const existingRow = existingNightRowByDate.get(dateStr);
     if (!existingRow) {
-      // Auto-create night sleep row with feeling = '' (pending 1-tap feeling check-in on today)
       newSleepRowsToAdd.push({
         id: `sleep-garmin-${dateStr}`,
         date: dateStr,
@@ -432,7 +526,7 @@ async function syncGarminDataToGoogleSheets(params: {
         deepSleep: gSleep.deepSleepHours > 0 ? String(gSleep.deepSleepHours) : '',
         remSleep: gSleep.remSleepHours > 0 ? String(gSleep.remSleepHours) : '',
         stress: gSleep.sleepStress !== undefined ? String(gSleep.sleepStress) : '',
-        feeling: '', // Empty so today's 1-tap feeling prompt triggers!
+        feeling: '',
         hrv: gSleep.hrv !== undefined ? String(gSleep.hrv) : '',
         restingHeartRate:
           gSleep.restingHeartRate !== undefined ? String(gSleep.restingHeartRate) : '',
@@ -443,7 +537,6 @@ async function syncGarminDataToGoogleSheets(params: {
       });
       sleepModified = true;
     } else {
-      // Backfill missing objective fields (like sleepScore, hrv, deepSleep) on existing row without touching user's feeling/bedtime
       let rowChanged = false;
       if (!existingRow.get('sleepScore') && gSleep.sleepScore !== undefined) {
         existingRow.set('sleepScore', String(gSleep.sleepScore));
@@ -475,8 +568,8 @@ async function syncGarminDataToGoogleSheets(params: {
     await sleepSheet.addRows(newSleepRowsToAdd);
   }
 
-  // 4. Record todayStr as lastSyncDate in GarminConfig
-  await saveGarminConfigToSheet(apiKey, expiresAt, todayStr);
+  // 5. Record todayStr as lastSyncDate in GarminConfig
+  await saveGarminConfigToSheet(apiKey, expiresAt, todayStr, calendarIcsUrl);
 }
 
 /**
@@ -487,16 +580,19 @@ async function readOverviewFromGoogleSheets(params: {
   todayStr: string;
   expiryInfo: { expiresAt: string; daysUntilExpiry: number; isExpiringSoon: boolean };
   lastSyncDate: string;
+  calendarIcsUrl: string;
 }): Promise<GarminOverviewData | null> {
   try {
     const doc = await getGoogleSheet();
     const wellnessSheet = doc.sheetsByTitle[GARMIN_WELLNESS_SHEET_TITLE];
     const runningSheet = doc.sheetsByTitle[GARMIN_RUNNING_SHEET_TITLE];
+    const scheduledSheet = doc.sheetsByTitle[GARMIN_SCHEDULED_SHEET_TITLE];
     if (!wellnessSheet || !runningSheet) return null;
 
-    const [wRows, rRows] = await Promise.all([
+    const [wRows, rRows, sRows] = await Promise.all([
       wellnessSheet.getRows(),
       runningSheet.getRows(),
+      scheduledSheet ? scheduledSheet.getRows() : Promise.resolve([]),
     ]);
     if (wRows.length === 0) return null;
 
@@ -579,12 +675,29 @@ async function readOverviewFromGoogleSheets(params: {
       };
     });
 
+    let scheduledWorkouts: GarminScheduledWorkout[] = sRows
+      .map((r: any) => ({
+        date: String(r.get('date') || '').trim(),
+        summary: String(r.get('summary') || '').trim(),
+        isRestDay: String(r.get('isRestDay') || '').toLowerCase() === 'true',
+      }))
+      .filter((w: GarminScheduledWorkout) => Boolean(w.date && w.summary))
+      .sort((a: GarminScheduledWorkout, b: GarminScheduledWorkout) =>
+        a.date.localeCompare(b.date)
+      );
+
+    // If GarminScheduledWorkouts sheet wasn't populated yet, fetch once from iCal URL
+    if (scheduledWorkouts.length === 0 && params.calendarIcsUrl) {
+      scheduledWorkouts = await fetchGarminCalendarWorkouts(params.calendarIcsUrl);
+    }
+
     const mondayStr = getMondayOfCurrentWeekTaipei(params.todayStr);
     const thisWeekRuns = activities.filter(a => a.date >= mondayStr);
 
     return {
       configured: true,
       ...params.expiryInfo,
+      calendarIcsConfigured: Boolean(params.calendarIcsUrl),
       lastSyncDate: params.lastSyncDate,
       syncedToday: true,
       cycle: latestCycle,
@@ -601,6 +714,7 @@ async function readOverviewFromGoogleSheets(params: {
           thisWeekRuns.reduce((sum, a) => sum + (a.trainingLoad || 0), 0)
         ),
         recentActivities: activities.slice(0, 15),
+        scheduledWorkouts: scheduledWorkouts.filter(w => w.date >= params.todayStr),
       },
       recentSleepMap,
       fetchedAt: Date.now(),
@@ -660,20 +774,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const apiKey = String(body.apiKey || '').trim();
-    const expiresAt = String(body.expiresAt || DEFAULT_EXPIRES_AT).trim();
+    const sheetConfig = await getGarminConfigFromSheet();
+
+    const rawInputKey = String(body.apiKey || '').trim();
+    const apiKey = rawInputKey || sheetConfig?.apiKey || process.env.GARMIN_PERSONAL_API_KEY || '';
+    const expiresAt = String(body.expiresAt || sheetConfig?.expiresAt || DEFAULT_EXPIRES_AT).trim();
+    const calendarIcsUrl =
+      body.calendarIcsUrl !== undefined
+        ? String(body.calendarIcsUrl).trim() || DEFAULT_CALENDAR_ICS_URL
+        : sheetConfig?.calendarIcsUrl || DEFAULT_CALENDAR_ICS_URL;
 
     if (apiKey) {
       await obtainGarminBearerToken(apiKey, true);
     }
 
-    // Reset lastSyncDate to empty when key is updated so next GET immediately runs a full 30-day sync
-    await saveGarminConfigToSheet(apiKey, expiresAt, '');
+    // Reset lastSyncDate to empty when config is updated so next GET immediately runs a full sync
+    await saveGarminConfigToSheet(apiKey, expiresAt, '', calendarIcsUrl);
     cachedOverview = null;
 
     return NextResponse.json({
       status: 'ok',
       configured: Boolean(apiKey),
+      calendarIcsConfigured: Boolean(calendarIcsUrl),
       ...computeExpiryInfo(expiresAt),
     });
   } catch (error: any) {
@@ -706,6 +828,7 @@ export async function GET(request: NextRequest) {
 
     const customApiKey = request.headers.get('x-garmin-api-key')?.trim();
     const customExpiresAt = request.headers.get('x-garmin-expires-at')?.trim();
+    const customCalendarIcs = request.headers.get('x-garmin-calendar-ics')?.trim();
 
     const sheetConfig = await getGarminConfigFromSheet();
 
@@ -716,6 +839,10 @@ export async function GET(request: NextRequest) {
       process.env.GARMIN_API_KEY_EXPIRES_AT ||
       sheetConfig?.expiresAt ||
       DEFAULT_EXPIRES_AT;
+    const calendarIcsUrl =
+      customCalendarIcs ||
+      sheetConfig?.calendarIcsUrl ||
+      DEFAULT_CALENDAR_ICS_URL;
     const lastSyncDate = sheetConfig?.lastSyncDate || '';
 
     const expiryInfo = computeExpiryInfo(expiresAtStr);
@@ -728,6 +855,7 @@ export async function GET(request: NextRequest) {
       const emptyOverview: GarminOverviewData = {
         configured: false,
         ...expiryInfo,
+        calendarIcsConfigured: Boolean(calendarIcsUrl),
         cycle: null,
         running: {
           weeklyRuns: 0,
@@ -735,6 +863,7 @@ export async function GET(request: NextRequest) {
           weeklyDurationSeconds: 0,
           weeklyTrainingLoad: 0,
           recentActivities: [],
+          scheduledWorkouts: [],
         },
         recentSleepMap: {},
         fetchedAt: Date.now(),
@@ -752,7 +881,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const keyHash = `${apiKey.slice(0, 16)}:${expiryInfo.expiresAt}`;
+    const keyHash = `${apiKey.slice(0, 16)}:${expiryInfo.expiresAt}:${calendarIcsUrl.slice(-12)}`;
 
     // Daily Gatekeeper: If already synced today and not forced, return in-memory or Google Sheets snapshot without calling Garmin API!
     if (!forceRefresh) {
@@ -769,9 +898,14 @@ export async function GET(request: NextRequest) {
           todayStr,
           expiryInfo,
           lastSyncDate,
+          calendarIcsUrl,
         });
-        // Ensure today's sleep was already captured; if user opened app at 5am before waking up, and now opens at 8am, allow re-sync if today's sleep is missing
-        if (sheetOverview && sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours) {
+        // Ensure today's sleep AND scheduled workouts were captured
+        if (
+          sheetOverview &&
+          sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours &&
+          sheetOverview.running.scheduledWorkouts.length > 0
+        ) {
           cachedOverview = {
             keyHash,
             dateStr: todayStr,
@@ -784,24 +918,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Perform the once-a-day Garmin fetch & Google Sheets sync!
-    // If never synced before (lastSyncDate is empty), backfill 30 days; otherwise fetch last 10 days.
     const lookbackDays = !lastSyncDate ? -29 : -9;
     const startDate = getTaipeiDateStr(lookbackDays);
 
     const token = await obtainGarminBearerToken(apiKey, forceRefresh);
     const cycle = await fetchGarminMenstrualCycle(token, todayStr);
-    const [{ sleepMap, dailyWellnessList }, activities] = await Promise.all([
+    const [{ sleepMap, dailyWellnessList }, activities, allScheduledWorkouts] = await Promise.all([
       fetchGarminWellnessRange(token, startDate, todayStr, cycle),
       fetchGarminRunningActivities(token, !lastSyncDate ? 35 : 20),
+      fetchGarminCalendarWorkouts(calendarIcsUrl),
     ]);
 
-    // Sync to Google Sheets (GarminDailyWellness, GarminRunningLogs, SleepLogs)
+    // Sync to Google Sheets (GarminDailyWellness, GarminScheduledWorkouts, GarminRunningLogs, SleepLogs)
     await syncGarminDataToGoogleSheets({
       dailyWellnessList,
       sleepMap,
       activities,
+      scheduledWorkouts: allScheduledWorkouts,
       apiKey,
       expiresAt: expiryInfo.expiresAt,
+      calendarIcsUrl,
       todayStr,
     }).catch(err => {
       console.warn('[Garmin] Failed to sync to Google Sheets:', err);
@@ -809,10 +945,12 @@ export async function GET(request: NextRequest) {
 
     const mondayStr = getMondayOfCurrentWeekTaipei(todayStr);
     const thisWeekRuns = activities.filter(a => a.date >= mondayStr);
+    const upcomingScheduled = allScheduledWorkouts.filter(w => w.date >= todayStr);
 
     const overviewData: GarminOverviewData = {
       configured: true,
       ...expiryInfo,
+      calendarIcsConfigured: Boolean(calendarIcsUrl),
       lastSyncDate: todayStr,
       syncedToday: true,
       cycle,
@@ -829,6 +967,7 @@ export async function GET(request: NextRequest) {
           thisWeekRuns.reduce((sum, a) => sum + (a.trainingLoad || 0), 0)
         ),
         recentActivities: activities.slice(0, 15),
+        scheduledWorkouts: upcomingScheduled,
       },
       recentSleepMap: sleepMap,
       fetchedAt: Date.now(),
