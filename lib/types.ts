@@ -254,6 +254,7 @@ export interface GarminMenstrualCycle {
   lengthOfCurrentPhase: number;
   daysUntilNextPhase: number;
   predictedCycleLength: number;
+  predictedNextPeriodDate?: string; // e.g. "2026-12-02"
 }
 
 export interface GarminScheduledWorkout {

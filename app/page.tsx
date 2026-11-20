@@ -107,18 +107,34 @@ export default function Dashboard() {
         {/* 生理週期狀態膠囊 & API 到期提醒膠囊 */}
         {(cycle || isApiKeyExpiringSoon) && (
           <div className="flex flex-wrap items-center gap-1.5">
-            {cycle && (
-              <span
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#f6f1f1] text-[#8c5e60] border border-[#e6dada] shadow-2xs"
-                title={`本次週期起點：${cycle.startDate}（預測週期 ${cycle.predictedCycleLength} 天）`}
-              >
-                <Heart size={11} className="text-[#a07072]" />
-                <span>
-                  週期 D{cycle.dayInCycle} · {cycle.phaseName}
-                  {cycle.daysUntilNextPhase > 0 ? ` · 剩 ${cycle.daysUntilNextPhase} 天` : ''}
+            {cycle && (() => {
+              let nextPeriodDisplay = '';
+              if (cycle.predictedNextPeriodDate) {
+                const parts = cycle.predictedNextPeriodDate.split('-');
+                if (parts.length === 3) {
+                  nextPeriodDisplay = `${Number(parts[1])}/${Number(parts[2])}`;
+                }
+              } else if (cycle.startDate && cycle.predictedCycleLength > 0) {
+                const [y, m, d] = cycle.startDate.split('-').map(Number);
+                const dt = new Date(Date.UTC(y, m - 1, d + cycle.predictedCycleLength));
+                nextPeriodDisplay = `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}`;
+              }
+
+              return (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#f6f1f1] text-[#8c5e60] border border-[#e6dada] shadow-2xs"
+                  title={`本次週期起點：${cycle.startDate}（預測週期 ${cycle.predictedCycleLength} 天${
+                    nextPeriodDisplay ? ` · 預計月經 ${nextPeriodDisplay}` : ''
+                  }）`}
+                >
+                  <Heart size={11} className="text-[#a07072]" />
+                  <span>
+                    週期 D{cycle.dayInCycle} · {cycle.phaseName}
+                    {nextPeriodDisplay ? ` · 預計月經 ${nextPeriodDisplay}` : ''}
+                  </span>
                 </span>
-              </span>
-            )}
+              );
+            })()}
 
             {isApiKeyExpiringSoon && (
               <button

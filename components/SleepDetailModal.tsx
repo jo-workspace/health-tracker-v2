@@ -220,14 +220,29 @@ export default function SleepDetailModal({
               <div className="flex items-center gap-2">
                 <Moon size={18} className="text-stone-700" />
                 <h2 className="text-base font-bold text-stone-800">睡眠趨勢</h2>
-                {cycle && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f6f1f1] text-[#8c5e60] border border-[#eadede]">
-                    <Heart size={10} />
-                    <span>
-                      週期 D{cycle.dayInCycle} · {cycle.phaseName}
+                {cycle && (() => {
+                  let nextPeriodDisplay = '';
+                  if (cycle.predictedNextPeriodDate) {
+                    const parts = cycle.predictedNextPeriodDate.split('-');
+                    if (parts.length === 3) {
+                      nextPeriodDisplay = `${Number(parts[1])}/${Number(parts[2])}`;
+                    }
+                  } else if (cycle.startDate && cycle.predictedCycleLength > 0) {
+                    const [y, m, d] = cycle.startDate.split('-').map(Number);
+                    const dt = new Date(Date.UTC(y, m - 1, d + cycle.predictedCycleLength));
+                    nextPeriodDisplay = `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}`;
+                  }
+
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f6f1f1] text-[#8c5e60] border border-[#eadede]">
+                      <Heart size={10} />
+                      <span>
+                        週期 D{cycle.dayInCycle} · {cycle.phaseName}
+                        {nextPeriodDisplay ? ` · 預計月經 ${nextPeriodDisplay}` : ''}
+                      </span>
                     </span>
-                  </span>
-                )}
+                  );
+                })()}
               </div>
               <div className="flex items-center gap-2">
                 <button

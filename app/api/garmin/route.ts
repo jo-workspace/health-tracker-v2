@@ -631,8 +631,15 @@ async function readOverviewFromGoogleSheets(params: {
       const cDay = Number(r.get('cycleDay'));
       const cPhase = String(r.get('cyclePhase') || '');
       if (cDay > 0 && cPhase) {
+        const cStart = String(r.get('cycleStartDate') || '');
+        let predictedNextPeriodDate: string | undefined;
+        if (cStart && /^\d{4}-\d{2}-\d{2}$/.test(cStart)) {
+          const [cy, cm, cd] = cStart.split('-').map(Number);
+          const pDt = new Date(Date.UTC(cy, cm - 1, cd + 29));
+          predictedNextPeriodDate = pDt.toISOString().slice(0, 10);
+        }
         latestCycle = {
-          startDate: String(r.get('cycleStartDate') || ''),
+          startDate: cStart,
           dayInCycle: cDay,
           periodLength: 7,
           currentPhase: 0,
@@ -640,6 +647,7 @@ async function readOverviewFromGoogleSheets(params: {
           lengthOfCurrentPhase: 0,
           daysUntilNextPhase: Math.max(0, 29 - cDay),
           predictedCycleLength: 29,
+          predictedNextPeriodDate,
         };
       }
     });

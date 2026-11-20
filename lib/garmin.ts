@@ -467,15 +467,26 @@ export async function fetchGarminMenstrualCycle(
   if (!data || typeof data.dayInCycle !== 'number') return null;
 
   const phaseNum = Number(data.currentPhase) || 0;
+  const startDateStr = String(data.startDate || '');
+  const predictedCycleLength = Number(data.predictedCycleLength) || 29;
+
+  let predictedNextPeriodDate: string | undefined;
+  if (startDateStr && /^\d{4}-\d{2}-\d{2}$/.test(startDateStr) && predictedCycleLength > 0) {
+    const [y, m, d] = startDateStr.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + predictedCycleLength));
+    predictedNextPeriodDate = dt.toISOString().slice(0, 10);
+  }
+
   return {
-    startDate: String(data.startDate || ''),
+    startDate: startDateStr,
     dayInCycle: data.dayInCycle,
     periodLength: Number(data.periodLength) || 0,
     currentPhase: phaseNum,
     phaseName: PHASE_NAMES[phaseNum] || `階段 ${phaseNum}`,
     lengthOfCurrentPhase: Number(data.lengthOfCurrentPhase) || 0,
     daysUntilNextPhase: Number(data.daysUntilNextPhase) || 0,
-    predictedCycleLength: Number(data.predictedCycleLength) || 0,
+    predictedCycleLength,
+    predictedNextPeriodDate,
   };
 }
 
