@@ -599,7 +599,12 @@ async function readOverviewFromGoogleSheets(params: {
     const recentSleepMap: Record<string, GarminSleepData> = {};
     let latestCycle: any = null;
 
-    wRows.forEach((r: any) => {
+    // Sort rows by date ascending so latestCycle is guaranteed to be the most recent day
+    const sortedWRows = [...wRows].sort((a, b) =>
+      String(a.get('date') || '').localeCompare(String(b.get('date') || ''))
+    );
+
+    sortedWRows.forEach((r: any) => {
       const dt = String(r.get('date') || '').trim();
       if (!dt) return;
       const dur = Number(r.get('sleepHours')) || 0;
@@ -892,6 +897,7 @@ export async function GET(request: NextRequest) {
     const keyHash = `${apiKey.slice(0, 16)}:${expiryInfo.expiresAt}:${calendarIcsUrl.slice(-12)}`;
 
     // Daily Gatekeeper: If already synced today and not forced, return in-memory or Google Sheets snapshot without calling Garmin API!
+    // In daily cache mode, also ensure cycle is kept fresh if possible
     if (!forceRefresh) {
       if (
         cachedOverview &&
@@ -914,6 +920,15 @@ export async function GET(request: NextRequest) {
           sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours &&
           sheetOverview.running.scheduledWorkouts.length > 0
         ) {
+          // Keep cycle strictly synchronized with Garmin's live periodic service
+          try {
+            const token = await obtainGarminBearerToken(apiKey, false);
+            const liveCycle = await fetchGarminMenstrualCycle(token, todayStr);
+            if (liveCycle) {
+              sheetOverview.cycle = liveCycle;
+            }
+          } catch {}
+
           cachedOverview = {
             keyHash,
             dateStr: todayStr,
