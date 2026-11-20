@@ -15,6 +15,7 @@ import type {
   GarminRunningActivity,
   GarminDailyWellnessLog,
   GarminScheduledWorkout,
+  GarminMenstrualCycle,
 } from '@/lib/types';
 
 const DEFAULT_EXPIRES_AT = process.env.GARMIN_API_KEY_EXPIRES_AT || '2027-11-19';
@@ -337,6 +338,7 @@ async function syncGarminDataToGoogleSheets(params: {
   sleepMap: Record<string, GarminSleepData>;
   activities: GarminRunningActivity[];
   scheduledWorkouts: GarminScheduledWorkout[];
+  cycle: GarminMenstrualCycle | null;
   apiKey: string;
   expiresAt: string;
   calendarIcsUrl: string;
@@ -347,6 +349,7 @@ async function syncGarminDataToGoogleSheets(params: {
     sleepMap,
     activities,
     scheduledWorkouts,
+    cycle,
     apiKey,
     expiresAt,
     calendarIcsUrl,
@@ -380,6 +383,12 @@ async function syncGarminDataToGoogleSheets(params: {
     if (workoutByDate.has(dt)) {
       obj.scheduledWorkout = workoutByDate.get(dt);
     }
+    // If user updated their cycle start date in Garmin, clear stale cycle info for dates before new cycle
+    if (cycle?.startDate && dt < cycle.startDate) {
+      obj.cycleDay = '';
+      obj.cyclePhase = '';
+      obj.cycleStartDate = '';
+    }
     wellnessMap.set(dt, obj);
   });
 
@@ -390,10 +399,11 @@ async function syncGarminDataToGoogleSheets(params: {
     wellnessMap.set(item.date, {
       ...prev,
       ...item,
-      cycleDay: item.cycleDay !== '' ? item.cycleDay : prev.cycleDay || '',
-      cyclePhase: item.cyclePhase !== '' ? item.cyclePhase : prev.cyclePhase || '',
+      // When cycle is provided, use the freshly calculated cycle fields
+      cycleDay: item.cycleDay !== '' ? item.cycleDay : (dtBefore(item.date, cycle?.startDate) ? '' : prev.cycleDay || ''),
+      cyclePhase: item.cyclePhase !== '' ? item.cyclePhase : (dtBefore(item.date, cycle?.startDate) ? '' : prev.cyclePhase || ''),
       cycleStartDate:
-        item.cycleStartDate !== '' ? item.cycleStartDate : prev.cycleStartDate || '',
+        item.cycleStartDate !== '' ? item.cycleStartDate : (dtBefore(item.date, cycle?.startDate) ? '' : prev.cycleStartDate || ''),
       scheduledWorkout: scheduled,
     });
   });
@@ -738,6 +748,11 @@ async function readOverviewFromGoogleSheets(params: {
   }
 }
 
+function dtBefore(dateA?: string, dateB?: string): boolean {
+  if (!dateA || !dateB) return false;
+  return dateA < dateB;
+}
+
 function getTaipeiDateStr(offsetDays = 0): string {
   const now = new Date(Date.now() + offsetDays * 86400 * 1000);
   return new Intl.DateTimeFormat('en-CA', {
@@ -897,7 +912,6 @@ export async function GET(request: NextRequest) {
     const keyHash = `${apiKey.slice(0, 16)}:${expiryInfo.expiresAt}:${calendarIcsUrl.slice(-12)}`;
 
     // Daily Gatekeeper: If already synced today and not forced, return in-memory or Google Sheets snapshot without calling Garmin API!
-    // In daily cache mode, also ensure cycle is kept fresh if possible
     if (!forceRefresh) {
       if (
         cachedOverview &&
@@ -920,15 +934,6 @@ export async function GET(request: NextRequest) {
           sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours &&
           sheetOverview.running.scheduledWorkouts.length > 0
         ) {
-          // Keep cycle strictly synchronized with Garmin's live periodic service
-          try {
-            const token = await obtainGarminBearerToken(apiKey, false);
-            const liveCycle = await fetchGarminMenstrualCycle(token, todayStr);
-            if (liveCycle) {
-              sheetOverview.cycle = liveCycle;
-            }
-          } catch {}
-
           cachedOverview = {
             keyHash,
             dateStr: todayStr,
@@ -958,6 +963,7 @@ export async function GET(request: NextRequest) {
       sleepMap,
       activities,
       scheduledWorkouts: allScheduledWorkouts,
+      cycle,
       apiKey,
       expiresAt: expiryInfo.expiresAt,
       calendarIcsUrl,
