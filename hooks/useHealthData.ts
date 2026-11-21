@@ -107,7 +107,13 @@ export function useHealthData() {
         updated.supplementInventory = payload.supplementInventory as any;
       }
       if (payload.rainbowDietLogs) {
-        updated.rainbowDietLogs = payload.rainbowDietLogs as any;
+        const existing = [...(prev.rainbowDietLogs || [])];
+        payload.rainbowDietLogs.forEach(newLog => {
+          const idx = existing.findIndex(l => l.id === newLog.id);
+          if (idx >= 0) existing[idx] = { ...existing[idx], ...newLog };
+          else existing.push(newLog as any);
+        });
+        updated.rainbowDietLogs = existing;
       }
       if (payload.tmySymptomsLogs) {
         updated.tmySymptomsLogs = payload.tmySymptomsLogs as any;

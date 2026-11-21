@@ -61,6 +61,7 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
   const [analyzeError, setAnalyzeError] = useState('');
   const [retrySeconds, setRetrySeconds] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // 429 冷卻倒數，倒數歸零後才開放重試
   useEffect(() => {
@@ -298,6 +299,8 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
     } else {
       setInputValue('');
     }
+
+    inputRef.current?.blur();
   };
 
   const handleSelectPendingColor = (color: string) => {
@@ -370,8 +373,8 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <form onSubmit={handleFormSubmit} className="relative">
               <input 
+                ref={inputRef}
                 type="text" 
-                list="diet-suggestions"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => {
@@ -380,14 +383,9 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
                     handleFormSubmit(e);
                   }
                 }}
-                placeholder="輸入食材 (可用逗號分隔) 或📷拍照辨識..."
+                placeholder="輸入食材 (可用逗號分隔) 或拍照辨識..."
                 className="w-full bg-stone-50 border border-stone-200 rounded-lg pl-3 pr-16 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#6ba388]/30 transition-shadow"
               />
-              <datalist id="diet-suggestions">
-                {Array.from(new Set([...Object.keys(COLOR_MAPPING), ...historicalColorMap.keys()])).map(plant => (
-                  <option key={plant} value={plant} />
-                ))}
-              </datalist>
 
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 <button
