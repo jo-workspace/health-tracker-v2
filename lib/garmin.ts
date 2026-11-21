@@ -209,17 +209,20 @@ export async function fetchGarminWellnessRange(
   token: string,
   startDate: string,
   endDate: string,
-  currentCycle?: GarminMenstrualCycle | null
+  currentCycle?: GarminMenstrualCycle | null,
+  hrvStartDate?: string
 ): Promise<{
   sleepMap: Record<string, GarminSleepData>;
   dailyWellnessList: import('./types').GarminDailyWellnessLog[];
+  hrvByDate: Record<string, any>;
 }> {
+  const actualHrvStart = hrvStartDate && hrvStartDate < startDate ? hrvStartDate : startDate;
   const [sleepList, hrvData, summaryData] = await Promise.all([
     garminGet<any[]>(
       token,
       `/sleep-service/sleep/dailySleepSummariesByDate?startDate=${startDate}&endDate=${endDate}`
     ).catch(() => []),
-    garminGet<any>(token, `/hrv-service/hrv/daily/${startDate}/${endDate}`).catch(() => null),
+    garminGet<any>(token, `/hrv-service/hrv/daily/${actualHrvStart}/${endDate}`).catch(() => null),
     garminGet<any>(
       token,
       `/usersummary-service/v2/dailysummaries?startDate=${startDate}&endDate=${endDate}`
@@ -328,7 +331,7 @@ export async function fetchGarminWellnessRange(
       });
     });
 
-  return { sleepMap, dailyWellnessList };
+  return { sleepMap, dailyWellnessList, hrvByDate };
 }
 
 export async function fetchGarminRecentSleepMap(

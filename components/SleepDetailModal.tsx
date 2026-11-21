@@ -123,6 +123,7 @@ export default function SleepDetailModal({
       (garminSleep?.sleepScore !== undefined ? String(garminSleep.sleepScore) : '');
     const hrv =
       nightLog?.hrv || (garminSleep?.hrv !== undefined ? String(garminSleep.hrv) : '');
+    const hrvStatus = garminSleep?.hrvStatus || nightLog?.hrvStatus || '';
 
     const nightColor = nightHours > 0 ? '#5c697b' : '#e5e7eb';
 
@@ -156,6 +157,7 @@ export default function SleepDetailModal({
       bedtime,
       sleepScore,
       hrv,
+      hrvStatus,
       allergyImpact: worstAllergyImpact,
       hasMagnesium,
       magnesiumName,
@@ -377,7 +379,27 @@ export default function SleepDetailModal({
                         {d.sleepScore ? (
                           <span
                             className="text-[9px] font-bold text-[#3e7256] mt-0.5"
-                            title={d.hrv ? `睡眠分數 ${d.sleepScore} · HRV ${d.hrv}` : `睡眠分數 ${d.sleepScore}`}
+                            title={
+                              d.hrv
+                                ? `睡眠分數 ${d.sleepScore} · HRV ${d.hrv}${
+                                    d.hrvStatus
+                                      ? ` (${
+                                          d.hrvStatus === 'BALANCED'
+                                            ? '平衡'
+                                            : d.hrvStatus === 'UNBALANCED'
+                                            ? '不平衡'
+                                            : d.hrvStatus === 'LOW'
+                                            ? '偏低'
+                                            : d.hrvStatus === 'POOR'
+                                            ? '不良'
+                                            : d.hrvStatus === 'NONE'
+                                            ? '基準建立中'
+                                            : d.hrvStatus
+                                        })`
+                                      : ''
+                                  }`
+                                : `睡眠分數 ${d.sleepScore}`
+                            }
                           >
                             {d.sleepScore}分
                           </span>

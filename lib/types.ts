@@ -11,6 +11,7 @@ export interface SleepLog {
   stress: string;
   feeling: string;
   hrv: string;
+  hrvStatus?: string;
   restingHeartRate: string;
   sleepScore?: string;
   notes: string;

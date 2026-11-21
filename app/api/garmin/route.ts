@@ -336,6 +336,7 @@ async function saveGarminConfigToSheet(
 async function syncGarminDataToGoogleSheets(params: {
   dailyWellnessList: GarminDailyWellnessLog[];
   sleepMap: Record<string, GarminSleepData>;
+  hrvByDate?: Record<string, any>;
   activities: GarminRunningActivity[];
   scheduledWorkouts: GarminScheduledWorkout[];
   cycle: GarminMenstrualCycle | null;
@@ -347,6 +348,7 @@ async function syncGarminDataToGoogleSheets(params: {
   const {
     dailyWellnessList,
     sleepMap,
+    hrvByDate = {},
     activities,
     scheduledWorkouts,
     cycle,
@@ -570,6 +572,18 @@ async function syncGarminDataToGoogleSheets(params: {
       }
       if (rowChanged) {
         await existingRow.save();
+      }
+    }
+  }
+
+  // 💡 關鍵回補：遍歷所有既有的主睡眠紀錄，若 hrv 缺漏或為空，而 Garmin 歷史 hrvByDate 有數據，立即回補存檔！
+  for (const [dt, row] of existingNightRowByDate.entries()) {
+    const currentHrv = String(row.get('hrv') || '').trim();
+    if (!currentHrv || currentHrv === '0') {
+      const hrvObj = hrvByDate[dt];
+      if (hrvObj && typeof hrvObj.lastNightAvg === 'number') {
+        row.set('hrv', String(hrvObj.lastNightAvg));
+        await row.save().catch(() => {});
       }
     }
   }
@@ -928,11 +942,12 @@ export async function GET(request: NextRequest) {
           lastSyncDate,
           calendarIcsUrl,
         });
-        // Ensure today's sleep AND scheduled workouts were captured
+        // Ensure today's sleep AND scheduled workouts were captured AND wellness has been backfilled (>= 30 days)
         if (
           sheetOverview &&
           sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours &&
-          sheetOverview.running.scheduledWorkouts.length > 0
+          sheetOverview.running.scheduledWorkouts.length > 0 &&
+          Object.keys(sheetOverview.recentSleepMap).length >= 30
         ) {
           cachedOverview = {
             keyHash,
@@ -948,11 +963,12 @@ export async function GET(request: NextRequest) {
     // Perform the once-a-day Garmin fetch & Google Sheets sync!
     const lookbackDays = !lastSyncDate ? -29 : -9;
     const startDate = getTaipeiDateStr(lookbackDays);
+    const hrvStartDate = getTaipeiDateStr(-180); // 回補過去 180 天的 HRV 歷史數據
 
     const token = await obtainGarminBearerToken(apiKey, forceRefresh);
     const cycle = await fetchGarminMenstrualCycle(token, todayStr);
-    const [{ sleepMap, dailyWellnessList }, activities, allScheduledWorkouts] = await Promise.all([
-      fetchGarminWellnessRange(token, startDate, todayStr, cycle),
+    const [{ sleepMap, dailyWellnessList, hrvByDate }, activities, allScheduledWorkouts] = await Promise.all([
+      fetchGarminWellnessRange(token, startDate, todayStr, cycle, hrvStartDate),
       fetchGarminRunningActivities(token, !lastSyncDate ? 35 : 20),
       fetchGarminCalendarWorkouts(calendarIcsUrl),
     ]);
@@ -961,6 +977,7 @@ export async function GET(request: NextRequest) {
     await syncGarminDataToGoogleSheets({
       dailyWellnessList,
       sleepMap,
+      hrvByDate,
       activities,
       scheduledWorkouts: allScheduledWorkouts,
       cycle,

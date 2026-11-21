@@ -40,7 +40,10 @@ const FEELING_CHOICES = [
   { id: 'bad', label: '差', icon: Frown, activeColor: 'hover:bg-[#f9f1f1] hover:border-[#e6cece] hover:text-[#a06d6e]' },
 ] as const;
 
-function getHrvStatus(hrvVal?: number | string): {
+function getHrvStatus(
+  hrvVal?: number | string,
+  rawStatus?: string
+): {
   label: string;
   pillColor: string;
   detail: string;
@@ -48,24 +51,50 @@ function getHrvStatus(hrvVal?: number | string): {
   if (hrvVal === undefined || hrvVal === null || hrvVal === '') return null;
   const num = Number(hrvVal);
   if (isNaN(num) || num <= 0) return null;
-  if (num >= 42) {
+
+  const status = (rawStatus || '').trim().toUpperCase();
+
+  if (status === 'BALANCED') {
     return {
-      label: 'HRV 良好',
+      label: 'HRV 平衡',
       pillColor: 'bg-[#eaf5ef] text-[#3e7256] border-[#d8ece1]',
-      detail: `HRV ${num} · 自律神經恢復充沛`,
+      detail: `HRV ${num} · 自律神經平衡`,
     };
   }
-  if (num >= 35) {
+  if (status === 'UNBALANCED') {
     return {
-      label: 'HRV 平穩',
-      pillColor: 'bg-stone-100 text-stone-600 border-stone-200',
-      detail: `HRV ${num} · 恢復持平`,
+      label: 'HRV 不平衡',
+      pillColor: 'bg-amber-50 text-amber-800 border-amber-200',
+      detail: `HRV ${num} · 偏離常態`,
     };
   }
+  if (status === 'LOW') {
+    return {
+      label: 'HRV 偏低',
+      pillColor: 'bg-[#fdf2f2] text-[#9b4a4a] border-[#f5d0d0]',
+      detail: `HRV ${num} · 疲勞累積需多休息`,
+    };
+  }
+  if (status === 'POOR') {
+    return {
+      label: 'HRV 不良',
+      pillColor: 'bg-[#fdf2f2] text-[#9b4a4a] border-[#f5d0d0]',
+      detail: `HRV ${num} · 自律神經顯著低落`,
+    };
+  }
+  if (status === 'NONE') {
+    return {
+      label: 'HRV 基準建立中',
+      pillColor: 'bg-stone-100 text-stone-600 border-stone-200',
+      detail: `HRV ${num} · 尚在建立基準線`,
+    };
+  }
+
+  // 若無 Garmin status，純客觀呈現數值，不作任何主觀好壞推估
   return {
-    label: 'HRV 偏低',
-    pillColor: 'bg-amber-50 text-amber-800 border-amber-200',
-    detail: `HRV ${num} · 疲勞累積需多休息`,
+    label: `HRV ${num}`,
+    pillColor: 'bg-stone-100 text-stone-600 border-stone-200',
+    detail: `HRV ${num}`,
   };
 }
 
@@ -651,7 +680,7 @@ export default function SleepCard({
                   </span>
                 )}
                 {latestHrv && (() => {
-                  const hrvInfo = getHrvStatus(latestHrv);
+                  const hrvInfo = getHrvStatus(latestHrv, latestGarminSleep?.hrvStatus);
                   if (!hrvInfo) return null;
                   return (
                     <span
@@ -829,7 +858,12 @@ export default function SleepCard({
                       promptBedtime ? `${formatTo12Hour(promptBedtime)} 入睡` : '',
                       `${promptDurationHours.toFixed(1)}h`,
                       promptScore ? `${promptScore} 分` : '',
-                      promptHrv ? (Number(promptHrv) >= 40 ? 'HRV 良好' : Number(promptHrv) >= 35 ? 'HRV 平穩' : 'HRV 偏低') : '',
+                      promptHrv
+                        ? (() => {
+                            const info = getHrvStatus(promptHrv, todayGarminSleep?.hrvStatus);
+                            return info ? info.label : `HRV ${promptHrv}`;
+                          })()
+                        : '',
                       todayGarminSleep?.deepSleepHours && todayGarminSleep.deepSleepHours >= 1.5 ? '深眠充足' : '',
                     ]
                       .filter(Boolean)
