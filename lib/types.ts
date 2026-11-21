@@ -6,6 +6,7 @@ export interface SleepLog {
   fallAsleepTime: string;
   wakeupTime: string;
   sleepDuration: string;
+  napMinutes?: string | number;
   deepSleep: string;
   remSleep: string;
   stress: string;
@@ -13,6 +14,16 @@ export interface SleepLog {
   hrv: string;
   hrvStatus?: string;
   restingHeartRate: string;
+  avgRespiration?: string | number;
+  avgStress?: string | number;
+  bodyBatteryHigh?: string | number;
+  bodyBatteryLow?: string | number;
+  totalSteps?: string | number;
+  activeCalories?: string | number;
+  cycleDay?: string | number;
+  cyclePhase?: string;
+  cycleStartDate?: string;
+  scheduledWorkout?: string;
   sleepScore?: string;
   notes: string;
   status: string; // 'active' | 'deleted'
@@ -218,6 +229,7 @@ export interface GarminSleepData {
   hrv?: number;               // e.g. 48
   hrvStatus?: string;         // e.g. "UNBALANCED" | "BALANCED"
   restingHeartRate?: number;  // e.g. 44
+  avgRespiration?: number;    // e.g. 14.5
 }
 
 export interface GarminRunningActivity {
@@ -271,11 +283,13 @@ export interface GarminDailyWellnessLog {
   sleepHours?: number | string;
   deepSleepHours?: number | string;
   remSleepHours?: number | string;
+  napMinutes?: number | string;
   bedtime?: string;
   wakeupTime?: string;
   hrv?: number | string;
   hrvStatus?: string;
   restingHeartRate?: number | string;
+  avgRespiration?: number | string;
   avgStress?: number | string;
   bodyBatteryHigh?: number | string;
   bodyBatteryLow?: number | string;

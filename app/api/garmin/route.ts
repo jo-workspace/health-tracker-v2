@@ -134,12 +134,24 @@ const SLEEP_LOGS_HEADERS = [
   'fallAsleepTime',
   'wakeupTime',
   'sleepDuration',
+  'napMinutes',
   'deepSleep',
   'remSleep',
   'stress',
   'feeling',
   'hrv',
+  'hrvStatus',
   'restingHeartRate',
+  'avgRespiration',
+  'avgStress',
+  'bodyBatteryHigh',
+  'bodyBatteryLow',
+  'totalSteps',
+  'activeCalories',
+  'cycleDay',
+  'cyclePhase',
+  'cycleStartDate',
+  'scheduledWorkout',
   'sleepScore',
   'notes',
   'status',
@@ -366,59 +378,7 @@ async function syncGarminDataToGoogleSheets(params: {
     }
   });
 
-  // 1. Upsert GarminDailyWellness
-  const wellnessSheet = await getOrCreateSheet(
-    doc,
-    GARMIN_WELLNESS_SHEET_TITLE,
-    GARMIN_WELLNESS_HEADERS
-  );
-  const existingWellnessRows = await wellnessSheet.getRows();
-  const wellnessMap = new Map<string, any>();
-
-  existingWellnessRows.forEach((r: any) => {
-    const dt = String(r.get('date') || '').trim();
-    if (!dt) return;
-    const obj: any = {};
-    GARMIN_WELLNESS_HEADERS.forEach(h => {
-      obj[h] = r.get(h) ?? '';
-    });
-    if (workoutByDate.has(dt)) {
-      obj.scheduledWorkout = workoutByDate.get(dt);
-    }
-    // If user updated their cycle start date in Garmin, clear stale cycle info for dates before new cycle
-    if (cycle?.startDate && dt < cycle.startDate) {
-      obj.cycleDay = '';
-      obj.cyclePhase = '';
-      obj.cycleStartDate = '';
-    }
-    wellnessMap.set(dt, obj);
-  });
-
-  dailyWellnessList.forEach(item => {
-    const prev = wellnessMap.get(item.date) || {};
-    const scheduled =
-      workoutByDate.get(item.date) || item.scheduledWorkout || prev.scheduledWorkout || '';
-    wellnessMap.set(item.date, {
-      ...prev,
-      ...item,
-      // When cycle is provided, use the freshly calculated cycle fields
-      cycleDay: item.cycleDay !== '' ? item.cycleDay : (dtBefore(item.date, cycle?.startDate) ? '' : prev.cycleDay || ''),
-      cyclePhase: item.cyclePhase !== '' ? item.cyclePhase : (dtBefore(item.date, cycle?.startDate) ? '' : prev.cyclePhase || ''),
-      cycleStartDate:
-        item.cycleStartDate !== '' ? item.cycleStartDate : (dtBefore(item.date, cycle?.startDate) ? '' : prev.cycleStartDate || ''),
-      scheduledWorkout: scheduled,
-    });
-  });
-
-  const sortedWellness = Array.from(wellnessMap.values()).sort((a, b) =>
-    String(a.date).localeCompare(String(b.date))
-  );
-  if (sortedWellness.length > 0) {
-    await wellnessSheet.clearRows();
-    await wellnessSheet.addRows(sortedWellness);
-  }
-
-  // 2. Upsert GarminScheduledWorkouts (so Gemini NotebookLM can inspect upcoming schedule)
+  // 1. Upsert GarminScheduledWorkouts (so Gemini NotebookLM can inspect upcoming schedule)
   const scheduledSheet = await getOrCreateSheet(
     doc,
     GARMIN_SCHEDULED_SHEET_TITLE,
@@ -456,7 +416,7 @@ async function syncGarminDataToGoogleSheets(params: {
     await scheduledSheet.addRows(sortedScheduled);
   }
 
-  // 3. Upsert GarminRunningLogs
+  // 2. Upsert GarminRunningLogs
   const runningSheet = await getOrCreateSheet(
     doc,
     GARMIN_RUNNING_SHEET_TITLE,
@@ -507,92 +467,153 @@ async function syncGarminDataToGoogleSheets(params: {
     await runningSheet.addRows(sortedRuns);
   }
 
-  // 4. Auto-populate SleepLogs so the user doesn't have to wait or manually load sleep
+  // 3. Upsert unified SleepLogs (1 Day = 1 Row, merge legacy naps, 180-day backfill)
   const sleepSheet = await getOrCreateSheet(doc, SLEEP_LOGS_SHEET_TITLE, SLEEP_LOGS_HEADERS);
   const existingSleepRows = await sleepSheet.getRows();
-  let sleepModified = false;
 
-  const existingNightRowByDate = new Map<string, any>();
+  const existingMap = new Map<string, any>();
+  const legacyNapMinutesByDate = new Map<string, number>();
+
   existingSleepRows.forEach((row: any) => {
     const dt = String(row.get('date') || '').trim();
-    const tp = String(row.get('type') || 'night').trim();
+    if (!dt) return;
+    const type = String(row.get('type') || 'night').trim();
     const st = String(row.get('status') || 'active').trim();
-    if (dt && tp === 'night' && st !== 'deleted') {
-      existingNightRowByDate.set(dt, row);
+    if (type === 'nap') {
+      const durHours = Number(row.get('sleepDuration')) || 0;
+      const mins = Math.round(durHours * 60);
+      if (mins > 0) {
+        legacyNapMinutesByDate.set(dt, (legacyNapMinutesByDate.get(dt) || 0) + mins);
+      }
+      return; // Do not preserve standalone nap rows
+    }
+    const existing = existingMap.get(dt);
+    if (!existing || st !== 'deleted') {
+      existingMap.set(dt, {
+        id: String(row.get('id') || `sleep-garmin-${dt}`),
+        date: dt,
+        type: 'night',
+        bedtime: String(row.get('bedtime') || ''),
+        fallAsleepTime: String(row.get('fallAsleepTime') || ''),
+        wakeupTime: String(row.get('wakeupTime') || ''),
+        sleepDuration: String(row.get('sleepDuration') || ''),
+        napMinutes: String(row.get('napMinutes') || ''),
+        deepSleep: String(row.get('deepSleep') || ''),
+        remSleep: String(row.get('remSleep') || ''),
+        stress: String(row.get('stress') || ''),
+        feeling: String(row.get('feeling') || ''),
+        hrv: String(row.get('hrv') || ''),
+        hrvStatus: String(row.get('hrvStatus') || ''),
+        restingHeartRate: String(row.get('restingHeartRate') || ''),
+        avgRespiration: String(row.get('avgRespiration') || ''),
+        avgStress: String(row.get('avgStress') || ''),
+        bodyBatteryHigh: String(row.get('bodyBatteryHigh') || ''),
+        bodyBatteryLow: String(row.get('bodyBatteryLow') || ''),
+        totalSteps: String(row.get('totalSteps') || ''),
+        activeCalories: String(row.get('activeCalories') || ''),
+        cycleDay: String(row.get('cycleDay') || ''),
+        cyclePhase: String(row.get('cyclePhase') || ''),
+        cycleStartDate: String(row.get('cycleStartDate') || ''),
+        scheduledWorkout: String(row.get('scheduledWorkout') || ''),
+        sleepScore: String(row.get('sleepScore') || ''),
+        notes: String(row.get('notes') || ''),
+        status: st,
+        lastUpdated: String(row.get('lastUpdated') || ''),
+      });
     }
   });
 
-  const newSleepRowsToAdd: any[] = [];
-  for (const [dateStr, gSleep] of Object.entries(sleepMap)) {
-    if (!gSleep || gSleep.sleepDurationHours <= 0) continue;
-    const existingRow = existingNightRowByDate.get(dateStr);
-    if (!existingRow) {
-      newSleepRowsToAdd.push({
-        id: `sleep-garmin-${dateStr}`,
-        date: dateStr,
-        type: 'night',
-        bedtime: gSleep.bedtime12h,
-        fallAsleepTime: gSleep.bedtime12h,
-        wakeupTime: gSleep.wakeupTime24h,
-        sleepDuration: String(gSleep.sleepDurationHours),
-        deepSleep: gSleep.deepSleepHours > 0 ? String(gSleep.deepSleepHours) : '',
-        remSleep: gSleep.remSleepHours > 0 ? String(gSleep.remSleepHours) : '',
-        stress: gSleep.sleepStress !== undefined ? String(gSleep.sleepStress) : '',
-        feeling: '',
-        hrv: gSleep.hrv !== undefined ? String(gSleep.hrv) : '',
-        restingHeartRate:
-          gSleep.restingHeartRate !== undefined ? String(gSleep.restingHeartRate) : '',
-        sleepScore: gSleep.sleepScore !== undefined ? String(gSleep.sleepScore) : '',
-        notes: '',
-        status: 'active',
-        lastUpdated: String(Date.now()),
-      });
-      sleepModified = true;
-    } else {
-      let rowChanged = false;
-      if (!existingRow.get('sleepScore') && gSleep.sleepScore !== undefined) {
-        existingRow.set('sleepScore', String(gSleep.sleepScore));
-        rowChanged = true;
-      }
-      if (!existingRow.get('hrv') && gSleep.hrv !== undefined) {
-        existingRow.set('hrv', String(gSleep.hrv));
-        rowChanged = true;
-      }
-      if (!existingRow.get('restingHeartRate') && gSleep.restingHeartRate !== undefined) {
-        existingRow.set('restingHeartRate', String(gSleep.restingHeartRate));
-        rowChanged = true;
-      }
-      if (!existingRow.get('deepSleep') && gSleep.deepSleepHours > 0) {
-        existingRow.set('deepSleep', String(gSleep.deepSleepHours));
-        rowChanged = true;
-      }
-      if (!existingRow.get('remSleep') && gSleep.remSleepHours > 0) {
-        existingRow.set('remSleep', String(gSleep.remSleepHours));
-        rowChanged = true;
-      }
-      if (rowChanged) {
-        await existingRow.save();
-      }
-    }
+  dailyWellnessList.forEach(item => {
+    const dt = item.date;
+    if (!dt) return;
+    const prev = existingMap.get(dt);
+    const scheduled = workoutByDate.get(dt) || item.scheduledWorkout || prev?.scheduledWorkout || '';
+
+    // Fold legacy nap duration into napMinutes if present
+    const legacyNapMin = legacyNapMinutesByDate.get(dt) || 0;
+    const garminNapMin = item.napMinutes !== '' && item.napMinutes !== undefined ? Number(item.napMinutes) : 0;
+    const prevNapMin = prev?.napMinutes ? Number(prev.napMinutes) : 0;
+    const totalNapMin = garminNapMin > 0 ? garminNapMin : (legacyNapMin > 0 ? legacyNapMin : (prevNapMin > 0 ? prevNapMin : ''));
+
+    const mergedObj = {
+      id: prev?.id || `sleep-garmin-${dt}`,
+      date: dt,
+      type: 'night',
+      bedtime: item.bedtime || prev?.bedtime || '',
+      fallAsleepTime: prev?.fallAsleepTime || item.bedtime || prev?.bedtime || '',
+      wakeupTime: item.wakeupTime || prev?.wakeupTime || '',
+      sleepDuration: (item.sleepHours !== '' && item.sleepHours !== undefined && Number(item.sleepHours) > 0)
+        ? String(item.sleepHours)
+        : (prev?.sleepDuration || ''),
+      napMinutes: totalNapMin !== '' ? String(totalNapMin) : '',
+      deepSleep: (item.deepSleepHours !== '' && item.deepSleepHours !== undefined && Number(item.deepSleepHours) > 0)
+        ? String(item.deepSleepHours)
+        : (prev?.deepSleep || ''),
+      remSleep: (item.remSleepHours !== '' && item.remSleepHours !== undefined && Number(item.remSleepHours) > 0)
+        ? String(item.remSleepHours)
+        : (prev?.remSleep || ''),
+      stress: prev?.stress || '',
+      feeling: prev?.feeling || '',
+      hrv: (item.hrv !== '' && item.hrv !== undefined && Number(item.hrv) > 0)
+        ? String(item.hrv)
+        : (prev?.hrv || ''),
+      hrvStatus: item.hrvStatus || prev?.hrvStatus || '',
+      restingHeartRate: (item.restingHeartRate !== '' && item.restingHeartRate !== undefined && Number(item.restingHeartRate) > 0)
+        ? String(item.restingHeartRate)
+        : (prev?.restingHeartRate || ''),
+      avgRespiration: (item.avgRespiration !== '' && item.avgRespiration !== undefined)
+        ? String(item.avgRespiration)
+        : (prev?.avgRespiration || ''),
+      avgStress: (item.avgStress !== '' && item.avgStress !== undefined)
+        ? String(item.avgStress)
+        : (prev?.avgStress || ''),
+      bodyBatteryHigh: (item.bodyBatteryHigh !== '' && item.bodyBatteryHigh !== undefined)
+        ? String(item.bodyBatteryHigh)
+        : (prev?.bodyBatteryHigh || ''),
+      bodyBatteryLow: (item.bodyBatteryLow !== '' && item.bodyBatteryLow !== undefined)
+        ? String(item.bodyBatteryLow)
+        : (prev?.bodyBatteryLow || ''),
+      totalSteps: (item.totalSteps !== '' && item.totalSteps !== undefined)
+        ? String(item.totalSteps)
+        : (prev?.totalSteps || ''),
+      activeCalories: (item.activeCalories !== '' && item.activeCalories !== undefined)
+        ? String(item.activeCalories)
+        : (prev?.activeCalories || ''),
+      cycleDay: (item.cycleDay !== '' && item.cycleDay !== undefined)
+        ? String(item.cycleDay)
+        : (prev?.cycleDay || ''),
+      cyclePhase: item.cyclePhase || prev?.cyclePhase || '',
+      cycleStartDate: item.cycleStartDate || prev?.cycleStartDate || '',
+      scheduledWorkout: scheduled,
+      sleepScore: (item.sleepScore !== '' && item.sleepScore !== undefined && Number(item.sleepScore) > 0)
+        ? String(item.sleepScore)
+        : (prev?.sleepScore || ''),
+      notes: prev?.notes || '',
+      status: prev?.status || 'active',
+      lastUpdated: prev?.lastUpdated || String(Date.now()),
+    };
+
+    existingMap.set(dt, mergedObj);
+  });
+
+  const sortedSleepLogs = Array.from(existingMap.values()).sort((a, b) =>
+    String(a.date).localeCompare(String(b.date))
+  );
+
+  if (sortedSleepLogs.length > 0) {
+    await sleepSheet.clearRows();
+    await sleepSheet.addRows(sortedSleepLogs);
   }
 
-  // 💡 關鍵回補：遍歷所有既有的主睡眠紀錄，若 hrv 缺漏或為空，而 Garmin 歷史 hrvByDate 有數據，立即回補存檔！
-  for (const [dt, row] of existingNightRowByDate.entries()) {
-    const currentHrv = String(row.get('hrv') || '').trim();
-    if (!currentHrv || currentHrv === '0') {
-      const hrvObj = hrvByDate[dt];
-      if (hrvObj && typeof hrvObj.lastNightAvg === 'number') {
-        row.set('hrv', String(hrvObj.lastNightAvg));
-        await row.save().catch(() => {});
-      }
-    }
+  // Clear obsolete GarminDailyWellness sheet rows to complete migration
+  const oldWellnessSheet = doc.sheetsByTitle[GARMIN_WELLNESS_SHEET_TITLE];
+  if (oldWellnessSheet) {
+    try {
+      await oldWellnessSheet.clearRows();
+    } catch {}
   }
 
-  if (newSleepRowsToAdd.length > 0 && sleepModified) {
-    await sleepSheet.addRows(newSleepRowsToAdd);
-  }
-
-  // 5. Record todayStr as lastSyncDate in GarminConfig
+  // 4. Record todayStr as lastSyncDate in GarminConfig
   await saveGarminConfigToSheet(apiKey, expiresAt, todayStr, calendarIcsUrl);
 }
 
@@ -608,30 +629,32 @@ async function readOverviewFromGoogleSheets(params: {
 }): Promise<GarminOverviewData | null> {
   try {
     const doc = await getGoogleSheet();
-    const wellnessSheet = doc.sheetsByTitle[GARMIN_WELLNESS_SHEET_TITLE];
+    const sleepSheet = doc.sheetsByTitle[SLEEP_LOGS_SHEET_TITLE];
     const runningSheet = doc.sheetsByTitle[GARMIN_RUNNING_SHEET_TITLE];
     const scheduledSheet = doc.sheetsByTitle[GARMIN_SCHEDULED_SHEET_TITLE];
-    if (!wellnessSheet || !runningSheet) return null;
+    if (!sleepSheet || !runningSheet) return null;
 
-    const [wRows, rRows, sRows] = await Promise.all([
-      wellnessSheet.getRows(),
+    const [sRows, rRows, sSchedRows] = await Promise.all([
+      sleepSheet.getRows(),
       runningSheet.getRows(),
       scheduledSheet ? scheduledSheet.getRows() : Promise.resolve([]),
     ]);
-    if (wRows.length === 0) return null;
+    if (sRows.length === 0) return null;
 
     const recentSleepMap: Record<string, GarminSleepData> = {};
     let latestCycle: any = null;
 
-    // Sort rows by date ascending so latestCycle is guaranteed to be the most recent day
-    const sortedWRows = [...wRows].sort((a, b) =>
-      String(a.get('date') || '').localeCompare(String(b.get('date') || ''))
-    );
+    // Filter active night rows and sort rows by date ascending so latestCycle is guaranteed to be the most recent day
+    const sortedSleepRows = sRows
+      .filter((r: any) => String(r.get('status') || 'active') !== 'deleted' && String(r.get('type') || 'night') === 'night')
+      .sort((a, b) =>
+        String(a.get('date') || '').localeCompare(String(b.get('date') || ''))
+      );
 
-    sortedWRows.forEach((r: any) => {
+    sortedSleepRows.forEach((r: any) => {
       const dt = String(r.get('date') || '').trim();
       if (!dt) return;
-      const dur = Number(r.get('sleepHours')) || 0;
+      const dur = Number(r.get('sleepDuration')) || 0;
       const bedtime12h = String(r.get('bedtime') || '');
       const m = bedtime12h.match(/(\d{1,2}:\d{2})\s*(AM|PM)/i);
       const totalMin = Math.round(dur * 60);
@@ -645,15 +668,18 @@ async function readOverviewFromGoogleSheets(params: {
         sleepDurationHours: dur,
         durationHoursPart: Math.floor(totalMin / 60),
         durationMinutesPart: totalMin % 60,
-        deepSleepHours: Number(r.get('deepSleepHours')) || 0,
-        remSleepHours: Number(r.get('remSleepHours')) || 0,
+        deepSleepHours: Number(r.get('deepSleep')) || 0,
+        remSleepHours: Number(r.get('remSleepHours') || r.get('remSleep')) || 0,
         lightSleepHours: 0,
-        napMinutes: 0,
+        napMinutes: Number(r.get('napMinutes')) || 0,
         sleepScore: r.get('sleepScore') ? Number(r.get('sleepScore')) : undefined,
         hrv: r.get('hrv') ? Number(r.get('hrv')) : undefined,
         hrvStatus: String(r.get('hrvStatus') || '') || undefined,
         restingHeartRate: r.get('restingHeartRate')
           ? Number(r.get('restingHeartRate'))
+          : undefined,
+        avgRespiration: r.get('avgRespiration')
+          ? Number(r.get('avgRespiration'))
           : undefined,
       };
 
@@ -712,7 +738,7 @@ async function readOverviewFromGoogleSheets(params: {
       };
     });
 
-    let scheduledWorkouts: GarminScheduledWorkout[] = sRows
+    let scheduledWorkouts: GarminScheduledWorkout[] = sSchedRows
       .map((r: any) => ({
         date: String(r.get('date') || '').trim(),
         summary: String(r.get('summary') || '').trim(),
@@ -942,12 +968,15 @@ export async function GET(request: NextRequest) {
           lastSyncDate,
           calendarIcsUrl,
         });
-        // Ensure today's sleep AND scheduled workouts were captured AND wellness has been backfilled (>= 30 days)
+        const hasHrvStatus =
+          sheetOverview && Object.values(sheetOverview.recentSleepMap).some(s => Boolean(s.hrvStatus));
+        // Ensure today's sleep AND scheduled workouts were captured AND wellness has been backfilled (>= 30 days) AND HRV status present
         if (
           sheetOverview &&
           sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours &&
           sheetOverview.running.scheduledWorkouts.length > 0 &&
-          Object.keys(sheetOverview.recentSleepMap).length >= 30
+          Object.keys(sheetOverview.recentSleepMap).length >= 30 &&
+          hasHrvStatus
         ) {
           cachedOverview = {
             keyHash,

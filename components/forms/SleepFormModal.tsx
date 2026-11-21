@@ -491,6 +491,7 @@ export default function SleepFormModal({
 
     onSave(
       {
+        ...(existingLogForSelection || {}),
         id: existingLogForSelection?.id || crypto.randomUUID(),
         date,
         type,

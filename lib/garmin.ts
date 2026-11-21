@@ -161,6 +161,11 @@ function parseGarminSleepObject(
       ? Math.round(sleepObj.avgOvernightHrv)
       : undefined;
 
+  const avgRespiration =
+    typeof sleepObj.avgSleepRespiration === 'number'
+      ? +sleepObj.avgSleepRespiration.toFixed(1)
+      : undefined;
+
   return {
     date: sleepObj.calendarDate,
     bedtime12h: startFormatted.bedtime12h,
@@ -180,6 +185,7 @@ function parseGarminSleepObject(
     hrv,
     hrvStatus: hrvSummary?.status || undefined,
     restingHeartRate: rhrValue,
+    avgRespiration,
   };
 }
 
@@ -215,6 +221,7 @@ export async function fetchGarminWellnessRange(
   sleepMap: Record<string, GarminSleepData>;
   dailyWellnessList: import('./types').GarminDailyWellnessLog[];
   hrvByDate: Record<string, any>;
+  summaryByDate: Record<string, any>;
 }> {
   const actualHrvStart = hrvStartDate && hrvStartDate < startDate ? hrvStartDate : startDate;
   const [sleepList, hrvData, summaryData] = await Promise.all([
@@ -279,26 +286,31 @@ export async function fetchGarminWellnessRange(
       const sum = summaryByDate[dateStr];
       const h = hrvByDate[dateStr];
 
-      // Estimate cycle day & phase if date >= currentCycle.startDate
+      // Estimate cycle day & phase with full historical backwards & forwards projection
       let cycleDay: number | string = '';
       let cyclePhase = '';
       let cycleStartDate = '';
-      if (currentCycle?.startDate && dateStr >= currentCycle.startDate) {
+      if (currentCycle?.startDate) {
         const [cy, cm, cd] = currentCycle.startDate.split('-').map(Number);
         const [dy, dm, dd] = dateStr.split('-').map(Number);
-        const diffDays =
-          Math.round(
-            (Date.UTC(dy, dm - 1, dd) - Date.UTC(cy, cm - 1, cd)) / (1000 * 60 * 60 * 24)
-          ) + 1;
-        if (diffDays >= 1 && diffDays <= 45) {
-          cycleDay = diffDays;
-          cycleStartDate = currentCycle.startDate;
-          const pLen = currentCycle.periodLength || 7;
-          if (diffDays <= pLen) cyclePhase = '經期';
-          else if (diffDays <= 11) cyclePhase = '濾泡期';
-          else if (diffDays <= 18) cyclePhase = '排卵期';
-          else cyclePhase = '黃體期';
-        }
+        const diffDays = Math.round(
+          (Date.UTC(dy, dm - 1, dd) - Date.UTC(cy, cm - 1, cd)) / (1000 * 60 * 60 * 24)
+        );
+        const cycleLen = currentCycle.predictedCycleLength || 29;
+        const pLen = currentCycle.periodLength || 7;
+
+        // Calculate offset in cycle (0 to cycleLen - 1)
+        const offsetInCycle = ((diffDays % cycleLen) + cycleLen) % cycleLen;
+        const cDay = offsetInCycle + 1;
+        const cyclesOffset = Math.floor(diffDays / cycleLen);
+        const cycleStartMs = Date.UTC(cy, cm - 1, cd) + cyclesOffset * cycleLen * 86400 * 1000;
+        cycleStartDate = new Date(cycleStartMs).toISOString().slice(0, 10);
+        cycleDay = cDay;
+
+        if (cDay <= pLen) cyclePhase = '經期';
+        else if (cDay <= 11) cyclePhase = '濾泡期';
+        else if (cDay <= 18) cyclePhase = '排卵期';
+        else cyclePhase = '黃體期';
       }
 
       dailyWellnessList.push({
@@ -307,11 +319,17 @@ export async function fetchGarminWellnessRange(
         sleepHours: s?.sleepDurationHours ?? '',
         deepSleepHours: s?.deepSleepHours ?? '',
         remSleepHours: s?.remSleepHours ?? '',
+        napMinutes: s?.napMinutes ?? '',
         bedtime: s?.bedtime12h ?? '',
         wakeupTime: s?.wakeupTime24h ?? '',
         hrv: s?.hrv ?? h?.lastNightAvg ?? '',
         hrvStatus: s?.hrvStatus ?? h?.status ?? '',
         restingHeartRate: s?.restingHeartRate ?? rhrByDate[dateStr] ?? '',
+        avgRespiration:
+          s?.avgRespiration ??
+          (typeof sum?.respiration?.avgValue === 'number'
+            ? +sum.respiration.avgValue.toFixed(1)
+            : ''),
         avgStress:
           typeof sum?.stress?.avgLevel === 'number' && sum.stress.avgLevel >= 0
             ? sum.stress.avgLevel
@@ -331,7 +349,7 @@ export async function fetchGarminWellnessRange(
       });
     });
 
-  return { sleepMap, dailyWellnessList, hrvByDate };
+  return { sleepMap, dailyWellnessList, hrvByDate, summaryByDate };
 }
 
 export async function fetchGarminRecentSleepMap(

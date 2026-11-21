@@ -603,7 +603,9 @@ export default function SleepCard({
 
   // 小睡統計 (計算今天的)
   const todayNaps = activeLogs.filter(log => log.date === todayStr && log.type === 'nap');
-  const napHours = todayNaps.reduce((sum, n) => sum + Number(n.sleepDuration), 0);
+  const separateNapHours = todayNaps.reduce((sum, n) => sum + Number(n.sleepDuration), 0);
+  const embeddedNapHours = Number(latestNightSleep?.napMinutes || latestGarminSleep?.napMinutes || 0) / 60;
+  const napHours = separateNapHours > 0 ? separateNapHours : embeddedNapHours;
 
   const displayTotalHours = sleepHours + napHours;
 

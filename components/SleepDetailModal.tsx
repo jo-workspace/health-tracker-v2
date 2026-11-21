@@ -114,7 +114,9 @@ export default function SleepDetailModal({
     const nightHours = nightLog
       ? Number(nightLog.sleepDuration)
       : garminSleep?.sleepDurationHours || 0;
-    const napHours = dayNaps.reduce((sum, n) => sum + Number(n.sleepDuration), 0);
+    const separateNapHours = dayNaps.reduce((sum, n) => sum + Number(n.sleepDuration), 0);
+    const embeddedNapHours = Number(nightLog?.napMinutes ?? garminSleep?.napMinutes ?? 0) / 60;
+    const napHours = separateNapHours > 0 ? separateNapHours : embeddedNapHours;
     const totalHours = nightHours + napHours;
     const bedtime = nightLog?.bedtime || garminSleep?.bedtime12h || '';
 

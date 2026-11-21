@@ -8,7 +8,7 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   biteSplintLogs: { name: "BiteSplintLogs", headers: ["id", "date", "status", "lastUpdated"] },
   tmySymptomsLogs: { name: "TMJSymptomsLogs", headers: ["id", "date", "symptoms", "medication", "status", "lastUpdated", "side"] },
   allergyLogs: { name: "AllergyLogs", headers: ["id", "date", "timeSlot", "time", "locations", "severity", "trigger", "medication", "notes", "status", "lastUpdated", "sleepImpact"] },
-  sleepLogs: { name: "SleepLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "deepSleep", "remSleep", "stress", "feeling", "hrv", "restingHeartRate", "sleepScore", "notes", "status", "lastUpdated"] },
+  sleepLogs: { name: "SleepLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "napMinutes", "deepSleep", "remSleep", "stress", "feeling", "hrv", "hrvStatus", "restingHeartRate", "avgRespiration", "avgStress", "bodyBatteryHigh", "bodyBatteryLow", "totalSteps", "activeCalories", "cycleDay", "cyclePhase", "cycleStartDate", "scheduledWorkout", "sleepScore", "notes", "status", "lastUpdated"] },
   rainbowDietLogs: { name: "RainbowDietLogs", headers: ["id", "date", "plantName", "color", "status", "lastUpdated"] },
   supplementLogs: { name: "SupplementLogs", headers: ["id", "date", "items", "status", "lastUpdated"] },
   supplementSettings: { name: "SupplementSettings", headers: ["id", "name", "time", "targetAmount", "status", "lastUpdated", "category", "rotationGroup"] },
@@ -78,6 +78,20 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]): Pro
       }
       if (!sheet) throw err;
     }
+  } else if (!verifiedHeadersSheets.has(title)) {
+    try {
+      await sheet.loadHeaderRow();
+      const existing = sheet.headerValues || [];
+      const missing = headers.filter(h => !existing.includes(h));
+      if (missing.length > 0) {
+        const merged = [...existing, ...missing];
+        if (merged.length > sheet.columnCount) {
+          await sheet.resize({ rowCount: sheet.rowCount, columnCount: merged.length });
+        }
+        await sheet.setHeaderRow(merged);
+      }
+      verifiedHeadersSheets.add(title);
+    } catch {}
   }
   return sheet;
 }
