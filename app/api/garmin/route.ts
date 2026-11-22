@@ -214,12 +214,18 @@ async function withGarminApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Prom
 }
 
 async function getOrCreateSheet(doc: any, title: string, headers: string[]) {
+  const normTitle = title.trim().toLowerCase().replace(/[\s_-]+/g, '');
   const findSheet = () => {
     if (doc.sheetsByTitle[title]) return doc.sheetsByTitle[title];
-    const normalized = title.trim().toLowerCase();
-    return Object.values(doc.sheetsByTitle).find(
-      (s: any) => s.title && s.title.trim().toLowerCase() === normalized
-    ) as any;
+    return Object.values(doc.sheetsByTitle).find((s: any) => {
+      if (!s.title) return false;
+      const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
+      if (sNorm === normTitle) return true;
+      if ((normTitle === 'sleeplogs' || normTitle === 'sleeplog') && (sNorm === 'sleeplogs' || sNorm === 'sleeplog')) {
+        return true;
+      }
+      return false;
+    }) as any;
   };
 
   let sheet = findSheet();
@@ -231,6 +237,17 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]) {
       sheet = findSheet();
     }
   } else {
+    // Automatically rename sheet tab if legacy spaced name is used (e.g. "sleep log" -> "SleepLogs")
+    if (sheet.title !== title) {
+      try {
+        console.log(`[getOrCreateSheet] Renaming sheet '${sheet.title}' to '${title}'...`);
+        await withGarminApiRetry(() => sheet.updateProperties({ title }));
+        console.log(`[getOrCreateSheet] Successfully renamed sheet '${sheet.title}' to '${title}'.`);
+      } catch (err) {
+        console.warn(`[getOrCreateSheet] Could not rename sheet '${sheet.title}' to '${title}':`, err);
+      }
+    }
+
     try {
       await withGarminApiRetry(() => sheet.loadHeaderRow());
       const existing = sheet.headerValues || [];
@@ -654,16 +671,24 @@ async function syncGarminDataToGoogleSheets(params: {
     }
   }
 
-  // Clear obsolete GarminDailyWellness sheet rows to complete migration
-  const normalizedWellnessTitle = GARMIN_WELLNESS_SHEET_TITLE.trim().toLowerCase();
-  const oldWellnessSheet = Object.values(doc.sheetsByTitle).find(
-    (s: any) => s.title && s.title.trim().toLowerCase() === normalizedWellnessTitle
-  ) as any;
+  // Automatically delete obsolete GarminDailyWellness / Daily Wellness sheet tab to complete migration
+  const oldWellnessSheet = Object.values(doc.sheetsByTitle).find((s: any) => {
+    if (!s.title) return false;
+    const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
+    return sNorm === 'garmindailywellness' || sNorm === 'dailywellness';
+  }) as any;
   if (oldWellnessSheet) {
     try {
-      await withGarminApiRetry(() => oldWellnessSheet.clearRows());
+      console.log(`[Garmin] Deleting obsolete worksheet '${oldWellnessSheet.title}' (ID: ${oldWellnessSheet.sheetId})...`);
+      await withGarminApiRetry(() => oldWellnessSheet.delete());
+      console.log(`[Garmin] Successfully deleted obsolete worksheet '${oldWellnessSheet.title}'.`);
     } catch (err) {
-      console.warn('[Garmin] Failed to clear obsolete GarminDailyWellness rows:', err);
+      console.warn('[Garmin] Failed to delete obsolete GarminDailyWellness sheet, falling back to clearRows:', err);
+      try {
+        await withGarminApiRetry(() => oldWellnessSheet.clearRows());
+      } catch (e) {
+        console.warn('[Garmin] Failed to clear rows:', e);
+      }
     }
   }
 
@@ -685,10 +710,16 @@ async function readOverviewFromGoogleSheets(params: {
     const doc = await getGoogleSheet();
     const findSheet = (name: string) => {
       if (doc.sheetsByTitle[name]) return doc.sheetsByTitle[name];
-      const norm = name.trim().toLowerCase();
-      return Object.values(doc.sheetsByTitle).find(
-        (s: any) => s.title && s.title.trim().toLowerCase() === norm
-      ) as any;
+      const norm = name.trim().toLowerCase().replace(/[\s_-]+/g, '');
+      return Object.values(doc.sheetsByTitle).find((s: any) => {
+        if (!s.title) return false;
+        const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
+        if (sNorm === norm) return true;
+        if ((norm === 'sleeplogs' || norm === 'sleeplog') && (sNorm === 'sleeplogs' || sNorm === 'sleeplog')) {
+          return true;
+        }
+        return false;
+      }) as any;
     };
     const sleepSheet = findSheet(SLEEP_LOGS_SHEET_TITLE);
     const runningSheet = findSheet(GARMIN_RUNNING_SHEET_TITLE);

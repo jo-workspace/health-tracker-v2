@@ -58,12 +58,18 @@ async function withApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T>
 
 /** 安全取得或建立工作表，防止並行請求或重試時觸發 Google API 400 "already exists" 錯誤 */
 async function getOrCreateSheet(doc: any, title: string, headers: string[]): Promise<GoogleSpreadsheetWorksheet> {
+  const normTitle = title.trim().toLowerCase().replace(/[\s_-]+/g, '');
   const findSheet = () => {
     if (doc.sheetsByTitle[title]) return doc.sheetsByTitle[title];
-    const normalized = title.trim().toLowerCase();
-    return Object.values(doc.sheetsByTitle).find(
-      (s: any) => s.title && s.title.trim().toLowerCase() === normalized
-    ) as GoogleSpreadsheetWorksheet | undefined;
+    return Object.values(doc.sheetsByTitle).find((s: any) => {
+      if (!s.title) return false;
+      const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
+      if (sNorm === normTitle) return true;
+      if ((normTitle === 'sleeplogs' || normTitle === 'sleeplog') && (sNorm === 'sleeplogs' || sNorm === 'sleeplog')) {
+        return true;
+      }
+      return false;
+    }) as GoogleSpreadsheetWorksheet | undefined;
   };
 
   let sheet = findSheet();
@@ -78,22 +84,53 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]): Pro
       }
       if (!sheet) throw err;
     }
-  } else if (!verifiedHeadersSheets.has(title)) {
-    try {
-      await sheet.loadHeaderRow();
-      const existing = sheet.headerValues || [];
-      const missing = headers.filter(h => !existing.includes(h));
-      if (missing.length > 0) {
-        const merged = [...existing, ...missing];
-        if (merged.length > sheet.columnCount) {
-          await sheet.resize({ rowCount: sheet.rowCount, columnCount: merged.length });
-        }
-        await sheet.setHeaderRow(merged);
+  } else {
+    // Automatically rename sheet tab if legacy spaced name is used (e.g. "sleep log" -> "SleepLogs")
+    if (sheet.title !== title) {
+      try {
+        console.log(`[getOrCreateSheet] Renaming sheet '${sheet.title}' to '${title}'...`);
+        await withApiRetry(() => sheet!.updateProperties({ title }));
+        console.log(`[getOrCreateSheet] Successfully renamed sheet '${sheet.title}' to '${title}'.`);
+      } catch (err) {
+        console.warn(`[getOrCreateSheet] Could not rename sheet '${sheet.title}' to '${title}':`, err);
       }
-      verifiedHeadersSheets.add(title);
-    } catch {}
+    }
+
+    if (!verifiedHeadersSheets.has(title)) {
+      try {
+        await sheet.loadHeaderRow();
+        const existing = sheet.headerValues || [];
+        const missing = headers.filter(h => !existing.includes(h));
+        if (missing.length > 0) {
+          const merged = [...existing, ...missing];
+          if (merged.length > sheet.columnCount) {
+            await sheet.resize({ rowCount: sheet.rowCount, columnCount: merged.length });
+          }
+          await sheet.setHeaderRow(merged);
+        }
+        verifiedHeadersSheets.add(title);
+      } catch {}
+    }
   }
   return sheet;
+}
+
+/** 清理已被合併之過時工作表（如 Daily Wellness / GarminDailyWellness） */
+async function cleanupObsoleteSheets(doc: any): Promise<void> {
+  try {
+    const obsoleteSheet = Object.values(doc.sheetsByTitle).find((s: any) => {
+      if (!s.title) return false;
+      const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
+      return sNorm === 'garmindailywellness' || sNorm === 'dailywellness';
+    }) as any;
+    if (obsoleteSheet) {
+      console.log(`[cleanupObsoleteSheets] Deleting obsolete sheet '${obsoleteSheet.title}' (ID: ${obsoleteSheet.sheetId})...`);
+      await withApiRetry(() => obsoleteSheet.delete());
+      console.log(`[cleanupObsoleteSheets] Successfully deleted obsolete sheet '${obsoleteSheet.title}'.`);
+    }
+  } catch (err) {
+    console.warn('[cleanupObsoleteSheets] Failed to delete obsolete sheet:', err);
+  }
 }
 
 const DELETED_IDS_SHEET_NAME = 'DeletedIds';
@@ -144,6 +181,9 @@ export async function POST(request: NextRequest) {
       const payload = await request.json();
       // 使用快取的 doc 實例，避免每次 POST 重新 loadInfo 消耗 quota
       const doc = await withApiRetry(() => getGoogleSheet());
+
+      // 自動清理已被合併進 SleepLogs 之過時工作表（如 Daily Wellness）
+      await cleanupObsoleteSheets(doc);
 
       const { sheet: deletedIdsSheet, map: deletedIdsByKey } = await getDeletedIdsMap(doc);
       const newDeletedIdRows: { sheetKey: string; id: string; deletedAt: string }[] = [];
