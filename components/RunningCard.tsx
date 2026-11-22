@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Footprints, ChevronRight, CalendarClock } from 'lucide-react';
+import { Footprints, ChevronRight, CalendarClock, Check } from 'lucide-react';
 import type { GarminRunningActivity, GarminScheduledWorkout } from '@/lib/types';
 import RunningDetailModal from './RunningDetailModal';
 
@@ -51,6 +51,7 @@ export default function RunningCard({
   const nextActiveWorkout = scheduledWorkouts.find(
     w => w.date > todayStr && (!w.isRestDay || !todayWorkout)
   ) || scheduledWorkouts.find(w => w.date > todayStr);
+  const hasCompletedRunToday = activities.some(a => a.date === todayStr);
 
   const formatShortDayLabel = (dt: string) => {
     if (dt === todayStr) return '今日課表';
@@ -106,9 +107,19 @@ export default function RunningCard({
                     <span className="text-[11px] font-bold text-[#3e7256] shrink-0">
                       今日課表
                     </span>
+                    {hasCompletedRunToday && (
+                      <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-[#e8f3ec] text-[#2d5c43] border border-[#cbe4d4] shrink-0 flex items-center gap-0.5">
+                        <Check size={10} strokeWidth={2.5} />
+                        已完成
+                      </span>
+                    )}
                     <span
-                      className={`font-bold truncate ${
-                        todayWorkout.isRestDay ? 'text-stone-500' : 'text-stone-700'
+                      className={`truncate ${
+                        hasCompletedRunToday
+                          ? 'text-stone-500 font-medium'
+                          : todayWorkout.isRestDay
+                          ? 'text-stone-500 font-bold'
+                          : 'text-stone-700 font-bold'
                       }`}
                     >
                       {todayWorkout.summary}

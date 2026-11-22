@@ -1,6 +1,6 @@
 'use client';
 import { createPortal } from 'react-dom';
-import { X, Footprints, RefreshCw, Activity, Zap, Heart, CalendarClock } from 'lucide-react';
+import { X, Footprints, RefreshCw, Activity, Zap, Heart, CalendarClock, Check } from 'lucide-react';
 import type { GarminRunningActivity, GarminScheduledWorkout } from '@/lib/types';
 
 interface Props {
@@ -151,25 +151,38 @@ export default function RunningDetailModal({
                   <div className="bg-[#f7faf8] border border-[#dce8e1] rounded-xl divide-y divide-[#e6efe9] overflow-hidden">
                     {scheduledWorkouts.map(item => {
                       const isToday = item.date === todayStr;
+                      const isTodayDone = isToday && activities.some(a => a.date === todayStr);
                       return (
                         <div
                           key={item.date}
                           className={`px-3 py-2 flex items-center justify-between gap-2.5 text-xs ${
-                            isToday ? 'bg-[#eef6f1]' : ''
+                            isToday ? (isTodayDone ? 'bg-[#f4f8f5]' : 'bg-[#eef6f1]') : ''
                           }`}
                         >
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`text-[11px] font-bold px-1.5 py-0.5 rounded ${
+                                isToday
+                                  ? 'bg-[#3e7256] text-white'
+                                  : 'bg-white text-stone-600 border border-stone-200/80'
+                              }`}
+                            >
+                              {formatDateWithWeekday(item.date, todayStr, tomorrowStr)}
+                            </span>
+                            {isTodayDone && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-[#e8f3ec] text-[#2d5c43] border border-[#cbe4d4] flex items-center gap-0.5">
+                                <Check size={10} strokeWidth={2.5} />
+                                已完成
+                              </span>
+                            )}
+                          </div>
                           <span
-                            className={`text-[11px] font-bold shrink-0 px-1.5 py-0.5 rounded ${
-                              isToday
-                                ? 'bg-[#3e7256] text-white'
-                                : 'bg-white text-stone-600 border border-stone-200/80'
-                            }`}
-                          >
-                            {formatDateWithWeekday(item.date, todayStr, tomorrowStr)}
-                          </span>
-                          <span
-                            className={`font-bold text-right truncate ${
-                              item.isRestDay ? 'text-stone-400 font-medium' : 'text-stone-700'
+                            className={`text-right truncate ${
+                              isTodayDone
+                                ? 'text-stone-500 font-medium'
+                                : item.isRestDay
+                                ? 'text-stone-400 font-medium'
+                                : 'text-stone-700 font-bold'
                             }`}
                           >
                             {item.summary}
