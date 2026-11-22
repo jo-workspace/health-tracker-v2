@@ -258,6 +258,21 @@ export interface GarminRunningActivity {
   calories?: number;
 }
 
+export interface GarminActivitySplit {
+  activityId: string;
+  date: string;
+  lapIndex: number;
+  intensityType: string; // 'ACTIVE' | 'RECOVERY' | 'WARMUP' | 'COOLDOWN' | string
+  distanceMeters: number;
+  durationSeconds: number;
+  pace: string; // e.g. "3'45\"/km"
+  averageHR?: number | string;
+  maxHR?: number | string;
+  cadence?: number | string;
+  strideLengthCm?: number | string;
+  lastUpdated?: string;
+}
+
 export interface GarminMenstrualCycle {
   startDate: string;
   dayInCycle: number;

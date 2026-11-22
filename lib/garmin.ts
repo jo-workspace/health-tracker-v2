@@ -1,6 +1,7 @@
 import type {
   GarminSleepData,
   GarminRunningActivity,
+  GarminActivitySplit,
   GarminMenstrualCycle,
 } from './types';
 
@@ -594,3 +595,104 @@ export async function fetchGarminCalendarWorkouts(
     return [];
   }
 }
+
+/**
+ * Fetches lap / split metrics for a specific running activity (intervals, kilometer splits, pace & heart rate).
+ */
+export async function fetchGarminActivitySplits(
+  token: string,
+  activityId: string | number,
+  activityDate: string
+): Promise<GarminActivitySplit[]> {
+  let res = await garminGet<any>(
+    token,
+    `/activity-service/activity/${activityId}/splits`
+  ).catch(() => null);
+
+  if (!res || (!res.lapDTOs && !Array.isArray(res) && !res.activityDetails?.lapDTOs)) {
+    res = await garminGet<any>(
+      token,
+      `/activity-service/activity/${activityId}/details`
+    ).catch(() => null);
+  }
+
+  if (!res || (!res.lapDTOs && !Array.isArray(res) && !res.activityDetails?.lapDTOs)) {
+    res = await garminGet<any>(
+      token,
+      `/activity-service/activity/${activityId}`
+    ).catch(() => null);
+  }
+
+  const rawLaps: any[] = Array.isArray(res)
+    ? res
+    : Array.isArray(res?.lapDTOs)
+    ? res.lapDTOs
+    : Array.isArray(res?.activityDetails?.lapDTOs)
+    ? res.activityDetails.lapDTOs
+    : Array.isArray(res?.splits)
+    ? res.splits
+    : [];
+
+  if (rawLaps.length === 0) return [];
+
+  return rawLaps.map((lap, idx) => {
+    const lapIndex = typeof lap.lapIndex === 'number' ? lap.lapIndex : idx + 1;
+    const distMeters = Math.round(Number(lap.distance || lap.distanceMeters || 0));
+    const durSec = Math.round(Number(lap.duration || lap.durationSeconds || lap.elapsedDuration || 0));
+    const rawIntensity = String(
+      lap.intensityType || lap.intensity || lap.lapType || ''
+    ).toUpperCase();
+
+    let intensityType = 'ACTIVE';
+    if (rawIntensity.includes('RECOVER') || rawIntensity.includes('REST')) {
+      intensityType = 'RECOVERY';
+    } else if (rawIntensity.includes('WARM')) {
+      intensityType = 'WARMUP';
+    } else if (rawIntensity.includes('COOL')) {
+      intensityType = 'COOLDOWN';
+    } else if (rawIntensity) {
+      intensityType = rawIntensity;
+    }
+
+    const pace = formatPacePerKm(distMeters, durSec);
+    const avgHR =
+      typeof lap.averageHR === 'number'
+        ? Math.round(lap.averageHR)
+        : typeof lap.avgHR === 'number'
+        ? Math.round(lap.avgHR)
+        : undefined;
+    const maxHR =
+      typeof lap.maxHR === 'number'
+        ? Math.round(lap.maxHR)
+        : typeof lap.maximumHR === 'number'
+        ? Math.round(lap.maximumHR)
+        : undefined;
+    const cadence =
+      typeof lap.averageRunCadence === 'number'
+        ? Math.round(lap.averageRunCadence)
+        : typeof lap.avgCadence === 'number'
+        ? Math.round(lap.avgCadence)
+        : typeof lap.averageCadence === 'number'
+        ? Math.round(lap.averageCadence)
+        : undefined;
+    const strideLengthCm =
+      typeof lap.strideLength === 'number'
+        ? Math.round(lap.strideLength > 5 ? lap.strideLength : lap.strideLength * 100)
+        : undefined;
+
+    return {
+      activityId: String(activityId),
+      date: activityDate,
+      lapIndex,
+      intensityType,
+      distanceMeters: distMeters,
+      durationSeconds: durSec,
+      pace,
+      averageHR: avgHR,
+      maxHR: maxHR,
+      cadence,
+      strideLengthCm,
+    };
+  });
+}
+

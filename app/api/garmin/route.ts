@@ -5,6 +5,7 @@ import {
   fetchGarminSleepForDate,
   fetchGarminWellnessRange,
   fetchGarminRunningActivities,
+  fetchGarminActivitySplits,
   fetchGarminMenstrualCycle,
   fetchGarminCalendarWorkouts,
 } from '@/lib/garmin';
@@ -30,6 +31,22 @@ const GARMIN_CONFIG_HEADERS = [
   'calendarIcsUrl',
   'lastSyncDate',
   'updatedAt',
+];
+
+const GARMIN_RUNNING_SPLITS_SHEET_TITLE = 'GarminRunningSplits';
+const GARMIN_RUNNING_SPLITS_HEADERS = [
+  'activityId',
+  'date',
+  'lapIndex',
+  'intensityType',
+  'distanceMeters',
+  'durationSeconds',
+  'pace',
+  'averageHR',
+  'maxHR',
+  'cadence',
+  'strideLengthCm',
+  'lastUpdated',
 ];
 
 function getEncryptionKeyBuffer(): Buffer {
@@ -417,6 +434,7 @@ async function syncGarminDataToGoogleSheets(params: {
   expiresAt: string;
   calendarIcsUrl: string;
   todayStr: string;
+  token?: string;
 }): Promise<void> {
   const {
     dailyWellnessList,
@@ -429,6 +447,7 @@ async function syncGarminDataToGoogleSheets(params: {
     expiresAt,
     calendarIcsUrl,
     todayStr,
+    token,
   } = params;
   const doc = await getGoogleSheet();
 
@@ -526,6 +545,66 @@ async function syncGarminDataToGoogleSheets(params: {
   if (sortedRuns.length > 0) {
     await runningSheet.clearRows();
     await runningSheet.addRows(sortedRuns);
+  }
+
+  // 2.5 Upsert GarminRunningSplits (incremental sync for laps/splits)
+  if (token && activities.length > 0) {
+    try {
+      const splitsSheet = await getOrCreateSheet(
+        doc,
+        GARMIN_RUNNING_SPLITS_SHEET_TITLE,
+        GARMIN_RUNNING_SPLITS_HEADERS
+      );
+      const existingSplitRows = await splitsSheet.getRows();
+      const existingSplitsActivityIds = new Set<string>();
+      existingSplitRows.forEach((r: any) => {
+        const actId = String(r.get('activityId') || '').trim();
+        if (actId) existingSplitsActivityIds.add(actId);
+      });
+
+      // Find activities that haven't had their splits fetched yet (limit to most recent 5 to preserve quota)
+      const missingActivities = activities
+        .filter(act => !existingSplitsActivityIds.has(String(act.activityId)))
+        .slice(0, 5);
+
+      if (missingActivities.length > 0) {
+        console.log(`[Garmin Splits] Fetching splits for ${missingActivities.length} activities...`);
+        const newSplitRows: any[] = [];
+        for (const act of missingActivities) {
+          try {
+            const splits = await fetchGarminActivitySplits(token, act.activityId, act.date);
+            splits.forEach(sp => {
+              newSplitRows.push({
+                activityId: sp.activityId,
+                date: sp.date,
+                lapIndex: sp.lapIndex,
+                intensityType: sp.intensityType,
+                distanceMeters: sp.distanceMeters,
+                durationSeconds: sp.durationSeconds,
+                pace: sp.pace,
+                averageHR: sp.averageHR !== undefined && sp.averageHR !== null ? String(sp.averageHR) : '',
+                maxHR: sp.maxHR !== undefined && sp.maxHR !== null ? String(sp.maxHR) : '',
+                cadence: sp.cadence !== undefined && sp.cadence !== null ? String(sp.cadence) : '',
+                strideLengthCm: sp.strideLengthCm !== undefined && sp.strideLengthCm !== null ? String(sp.strideLengthCm) : '',
+                lastUpdated: nowIso,
+              });
+            });
+            if (missingActivities.length > 1) {
+              await new Promise(r => setTimeout(r, 200));
+            }
+          } catch (err) {
+            console.warn(`[Garmin Splits] Failed to fetch splits for activity ${act.activityId}:`, err);
+          }
+        }
+
+        if (newSplitRows.length > 0) {
+          await withGarminApiRetry(() => splitsSheet.addRows(newSplitRows));
+          console.log(`[Garmin Splits] Successfully wrote ${newSplitRows.length} split rows to Google Sheets.`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Garmin Splits] Error syncing running splits:', err);
+    }
   }
 
   // 3. Upsert unified SleepLogs (1 Day = 1 Row, merge legacy naps, 180-day backfill)
@@ -1131,6 +1210,7 @@ export async function GET(request: NextRequest) {
         expiresAt: expiryInfo.expiresAt,
         calendarIcsUrl,
         todayStr,
+        token,
       });
     } catch (err) {
       console.error('[Garmin] Failed to sync to Google Sheets:', err);
