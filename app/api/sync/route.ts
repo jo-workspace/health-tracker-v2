@@ -8,7 +8,7 @@ const sheetsConfig: Record<string, { name: string; headers: string[] }> = {
   biteSplintLogs: { name: "BiteSplintLogs", headers: ["id", "date", "status", "lastUpdated"] },
   tmySymptomsLogs: { name: "TMJSymptomsLogs", headers: ["id", "date", "symptoms", "medication", "status", "lastUpdated", "side"] },
   allergyLogs: { name: "AllergyLogs", headers: ["id", "date", "timeSlot", "time", "locations", "severity", "trigger", "medication", "notes", "status", "lastUpdated", "sleepImpact"] },
-  sleepLogs: { name: "SleepLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "napMinutes", "deepSleep", "remSleep", "stress", "feeling", "hrv", "hrvStatus", "restingHeartRate", "avgRespiration", "avgStress", "bodyBatteryHigh", "bodyBatteryLow", "totalSteps", "activeCalories", "cycleDay", "cyclePhase", "cycleStartDate", "scheduledWorkout", "sleepScore", "notes", "status", "lastUpdated"] },
+  sleepLogs: { name: "WellnessLogs", headers: ["id", "date", "type", "bedtime", "fallAsleepTime", "wakeupTime", "sleepDuration", "napMinutes", "deepSleep", "remSleep", "stress", "feeling", "hrv", "hrvStatus", "restingHeartRate", "avgRespiration", "avgStress", "bodyBatteryHigh", "bodyBatteryLow", "totalSteps", "activeCalories", "cycleDay", "cyclePhase", "cycleStartDate", "scheduledWorkout", "sleepScore", "notes", "status", "lastUpdated"] },
   rainbowDietLogs: { name: "RainbowDietLogs", headers: ["id", "date", "plantName", "color", "status", "lastUpdated"] },
   supplementLogs: { name: "SupplementLogs", headers: ["id", "date", "items", "status", "lastUpdated"] },
   supplementSettings: { name: "SupplementSettings", headers: ["id", "name", "time", "targetAmount", "status", "lastUpdated", "category", "rotationGroup"] },
@@ -61,15 +61,23 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]): Pro
   const normTitle = title.trim().toLowerCase().replace(/[\s_-]+/g, '');
   const findSheet = () => {
     if (doc.sheetsByTitle[title]) return doc.sheetsByTitle[title];
-    return Object.values(doc.sheetsByTitle).find((s: any) => {
+    const exactMatch = Object.values(doc.sheetsByTitle).find((s: any) => {
       if (!s.title) return false;
       const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
-      if (sNorm === normTitle) return true;
-      if ((normTitle === 'sleeplogs' || normTitle === 'sleeplog') && (sNorm === 'sleeplogs' || sNorm === 'sleeplog')) {
-        return true;
-      }
-      return false;
+      return sNorm === normTitle;
     }) as GoogleSpreadsheetWorksheet | undefined;
+    if (exactMatch) return exactMatch;
+
+    if (normTitle === 'wellnesslogs' || normTitle === 'wellnesslog') {
+      const legacyMatch = Object.values(doc.sheetsByTitle).find((s: any) => {
+        if (!s.title) return false;
+        const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
+        return sNorm === 'wellness' || sNorm === 'sleeplogs' || sNorm === 'sleeplog';
+      }) as GoogleSpreadsheetWorksheet | undefined;
+      if (legacyMatch) return legacyMatch;
+    }
+
+    return undefined;
   };
 
   let sheet = findSheet();

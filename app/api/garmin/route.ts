@@ -125,7 +125,8 @@ const GARMIN_RUNNING_HEADERS = [
   'lastUpdated',
 ];
 
-const SLEEP_LOGS_SHEET_TITLE = 'SleepLogs';
+const WELLNESS_LOGS_SHEET_TITLE = 'WellnessLogs';
+const SLEEP_LOGS_SHEET_TITLE = WELLNESS_LOGS_SHEET_TITLE;
 const SLEEP_LOGS_HEADERS = [
   'id',
   'date',
@@ -217,15 +218,22 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]) {
   const normTitle = title.trim().toLowerCase().replace(/[\s_-]+/g, '');
   const findSheet = () => {
     if (doc.sheetsByTitle[title]) return doc.sheetsByTitle[title];
-    return Object.values(doc.sheetsByTitle).find((s: any) => {
+    const exactMatch = Object.values(doc.sheetsByTitle).find((s: any) => {
       if (!s.title) return false;
       const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
-      if (sNorm === normTitle) return true;
-      if ((normTitle === 'sleeplogs' || normTitle === 'sleeplog') && (sNorm === 'sleeplogs' || sNorm === 'sleeplog')) {
-        return true;
-      }
-      return false;
-    }) as any;
+      return sNorm === normTitle;
+    });
+    if (exactMatch) return exactMatch as any;
+
+    if (normTitle === 'wellnesslogs' || normTitle === 'wellnesslog') {
+      const legacyMatch = Object.values(doc.sheetsByTitle).find((s: any) => {
+        if (!s.title) return false;
+        const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
+        return sNorm === 'wellness' || sNorm === 'sleeplogs' || sNorm === 'sleeplog';
+      });
+      if (legacyMatch) return legacyMatch as any;
+    }
+    return undefined;
   };
 
   let sheet = findSheet();
@@ -711,15 +719,22 @@ async function readOverviewFromGoogleSheets(params: {
     const findSheet = (name: string) => {
       if (doc.sheetsByTitle[name]) return doc.sheetsByTitle[name];
       const norm = name.trim().toLowerCase().replace(/[\s_-]+/g, '');
-      return Object.values(doc.sheetsByTitle).find((s: any) => {
+      const exactMatch = Object.values(doc.sheetsByTitle).find((s: any) => {
         if (!s.title) return false;
         const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
-        if (sNorm === norm) return true;
-        if ((norm === 'sleeplogs' || norm === 'sleeplog') && (sNorm === 'sleeplogs' || sNorm === 'sleeplog')) {
-          return true;
-        }
-        return false;
-      }) as any;
+        return sNorm === norm;
+      });
+      if (exactMatch) return exactMatch as any;
+
+      if (norm === 'wellnesslogs' || norm === 'wellnesslog') {
+        const legacyMatch = Object.values(doc.sheetsByTitle).find((s: any) => {
+          if (!s.title) return false;
+          const sNorm = s.title.trim().toLowerCase().replace(/[\s_-]+/g, '');
+          return sNorm === 'wellness' || sNorm === 'sleeplogs' || sNorm === 'sleeplog';
+        });
+        if (legacyMatch) return legacyMatch as any;
+      }
+      return undefined;
     };
     const sleepSheet = findSheet(SLEEP_LOGS_SHEET_TITLE);
     const runningSheet = findSheet(GARMIN_RUNNING_SHEET_TITLE);
