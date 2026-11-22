@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Salad, ChevronRight, X, Plus, Check, Camera, Loader2, Sparkles, RotateCw } from 'lucide-react';
+import { Salad, ChevronRight, X, Plus, Check, Camera, Loader2, Sparkles, RotateCw, Lightbulb } from 'lucide-react';
 import type { SyncPayload, RainbowDietLog } from '@/lib/types';
 
 interface Props {
@@ -43,6 +43,163 @@ const COLOR_INFO = [
   { id: 'white-brown', label: '白褐', hex: '#e2ded5', textActive: 'text-stone-600' },
   { id: 'black', label: '黑', hex: '#4a4a4a', textActive: 'text-white' }
 ];
+
+export type PlantCategory = 'vegetables' | 'fruits' | 'grains' | 'legumes' | 'nuts-seeds' | 'spices';
+
+export const CATEGORY_LABELS: Record<PlantCategory, string> = {
+  'vegetables': '蔬菜',
+  'fruits': '水果',
+  'grains': '全穀雜糧',
+  'legumes': '豆類',
+  'nuts-seeds': '堅果種子',
+  'spices': '辛香料'
+};
+
+const CATEGORY_MAPPING: Record<string, PlantCategory> = {
+  // 堅果種子 (nuts-seeds)
+  "核桃": "nuts-seeds", "腰果": "nuts-seeds", "杏仁": "nuts-seeds", "花生": "nuts-seeds",
+  "南瓜子": "nuts-seeds", "葵花子": "nuts-seeds", "亞麻仁籽": "nuts-seeds", "奇亞籽": "nuts-seeds",
+  "黑芝麻": "nuts-seeds", "白芝麻": "nuts-seeds", "松子": "nuts-seeds", "夏威夷豆": "nuts-seeds",
+  "開心果": "nuts-seeds", "榛果": "nuts-seeds", "栗子": "nuts-seeds",
+
+  // 豆類 (legumes)
+  "毛豆": "legumes", "黑豆": "legumes", "黃豆": "legumes", "紅豆": "legumes", "綠豆": "legumes",
+  "豆腐": "legumes", "豆漿": "legumes", "豆乾": "legumes", "豆皮": "legumes", "鷹嘴豆": "legumes",
+  "扁豆": "legumes", "四季豆": "legumes", "豌豆": "legumes", "黃豆芽": "legumes", "綠豆芽": "legumes",
+
+  // 全穀雜糧 (grains)
+  "糙米": "grains", "紫米": "grains", "黑米": "grains", "紅米": "grains", "燕麥": "grains",
+  "燕麥片": "grains", "地瓜": "grains", "番薯": "grains", "甘薯": "grains", "南瓜": "grains",
+  "玉米": "grains", "芋頭": "grains", "山藥": "grains", "紫地瓜": "grains", "紫山藥": "grains",
+  "馬鈴薯": "grains", "洋芋": "grains", "小米": "grains", "蕎麥": "grains", "紅藜": "grains",
+  "藜麥": "grains", "薏仁": "grains", "蓮子": "grains",
+
+  // 水果 (fruits)
+  "蘋果": "fruits", "香蕉": "fruits", "奇異果": "fruits", "藍莓": "fruits", "葡萄": "fruits",
+  "綠葡萄": "fruits", "草莓": "fruits", "櫻桃": "fruits", "西瓜": "fruits", "無籽西瓜": "fruits",
+  "木瓜": "fruits", "芒果": "fruits", "柑橘": "fruits", "橘子": "fruits", "柳丁": "fruits",
+  "柳橙": "fruits", "鳳梨": "fruits", "檸檬": "fruits", "芭樂": "fruits", "蓮霧": "fruits",
+  "火龍果": "fruits", "紅火龍果": "fruits", "百香果": "fruits", "桑椹": "fruits", "柿子": "fruits",
+  "哈密瓜": "fruits", "酪梨": "fruits", "無花果": "fruits", "蔓越莓": "fruits", "黑莓": "fruits",
+  "李子": "fruits", "紅李": "fruits", "枇杷": "fruits", "黃金果": "fruits", "椰子": "fruits",
+
+  // 辛香料與香草 (spices)
+  "大蒜": "spices", "蒜頭": "spices", "生薑": "spices", "薑": "spices", "青蔥": "spices",
+  "蔥": "spices", "辣椒": "spices", "紅辣椒": "spices", "九層塔": "spices", "羅勒": "spices",
+  "香菜": "spices", "芫荽": "spices", "洋蔥": "spices", "紫洋蔥": "spices", "薑黃": "spices",
+  "肉桂": "spices", "黑胡椒": "spices", "白胡椒": "spices", "迷迭香": "spices", "薄荷": "spices",
+  "枸杞": "spices", "紅棗": "spices", "黑棗": "spices"
+};
+
+function getPlantCategory(name: string): PlantCategory {
+  if (!name) return 'vegetables';
+  const trimmed = name.trim();
+  if (CATEGORY_MAPPING[trimmed]) return CATEGORY_MAPPING[trimmed];
+
+  if (trimmed.endsWith('子') || trimmed.endsWith('籽') || trimmed.includes('芝麻') || trimmed.includes('堅果')) {
+    return 'nuts-seeds';
+  }
+  if (trimmed.includes('豆') && !trimmed.includes('地瓜')) {
+    return 'legumes';
+  }
+  if (trimmed.includes('米') || trimmed.includes('麥') || trimmed.includes('薯') || trimmed.includes('芋') || trimmed.includes('藜')) {
+    return 'grains';
+  }
+  if (trimmed.endsWith('莓') || trimmed.endsWith('果') || (trimmed.endsWith('瓜') && !['小黃瓜', '黃瓜', '苦瓜', '絲瓜', '冬瓜'].includes(trimmed))) {
+    return 'fruits';
+  }
+  if (trimmed.includes('蒜') || trimmed.includes('薑') || trimmed.includes('蔥') || trimmed.includes('椒') || trimmed.includes('香草') || trimmed.includes('桂')) {
+    return 'spices';
+  }
+  return 'vegetables';
+}
+
+function getDietSuggestion(
+  uniquePlants: RainbowDietLog[],
+  activeColors: Set<string>,
+  target: number
+): string {
+  if (uniquePlants.length === 0) {
+    return '補給靈感：本週開啟彩虹飲食，試試深綠蔬菜或全穀';
+  }
+
+  const categoryCounts: Record<PlantCategory, number> = {
+    'nuts-seeds': 0,
+    'legumes': 0,
+    'grains': 0,
+    'spices': 0,
+    'fruits': 0,
+    'vegetables': 0
+  };
+
+  uniquePlants.forEach(p => {
+    const cat = getPlantCategory(p.plantName);
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+  });
+
+  // 第一優先：類別為 0 的植物群 (順序: 堅果種子 -> 豆類 -> 全穀 -> 辛香料 -> 水果 -> 蔬菜)
+  if (categoryCounts['nuts-seeds'] === 0) {
+    return '補給靈感：堅果種子（如黑芝麻、核桃）';
+  }
+  if (categoryCounts['legumes'] === 0) {
+    return '補給靈感：少豆類（如黑豆、毛豆、豆腐）';
+  }
+  if (categoryCounts['grains'] === 0) {
+    return '補給靈感：全穀雜糧（如燕麥、糙米）';
+  }
+  if (categoryCounts['spices'] === 0) {
+    return '補給靈感：辛香料（如大蒜、薑黃、黑胡椒）';
+  }
+  if (categoryCounts['fruits'] === 0) {
+    return '補給靈感：水果（如藍莓、奇異果）';
+  }
+  if (categoryCounts['vegetables'] === 0) {
+    return '補給靈感：深色蔬菜（如菠菜、青花菜）';
+  }
+
+  // 第二優先：缺少特定顏色 (順序: 藍紫 -> 黑 -> 紅 -> 橘黃 -> 綠 -> 白褐)
+  if (!activeColors.has('blue-purple')) {
+    return '補給靈感：少藍紫色（如紫洋蔥、藍莓）';
+  }
+  if (!activeColors.has('black')) {
+    return '補給靈感：少黑色（如黑芝麻、黑木耳）';
+  }
+  if (!activeColors.has('red')) {
+    return '補給靈感：少紅色（如番茄、甜菜根）';
+  }
+  if (!activeColors.has('orange-yellow')) {
+    return '補給靈感：少橘黃色（如胡蘿蔔、南瓜）';
+  }
+  if (!activeColors.has('green')) {
+    return '補給靈感：少綠色（如青花菜、菠菜）';
+  }
+  if (!activeColors.has('white-brown')) {
+    return '補給靈感：少白褐色（如洋蔥、菇類）';
+  }
+
+  // 第三優先：六大類與各色皆已吃過至少 1 種
+  if (uniquePlants.length >= target) {
+    return '補給靈感：各類植物與各色系已均衡';
+  }
+
+  const lowestCat = (Object.entries(categoryCounts) as [PlantCategory, number][])
+    .sort((a, b) => a[1] - b[1])[0][0];
+
+  switch (lowestCat) {
+    case 'nuts-seeds':
+      return '補給靈感：多來點堅果種子（如奇亞籽、南瓜子）';
+    case 'legumes':
+      return '補給靈感：補充豆類（如毛豆、扁豆）';
+    case 'grains':
+      return '補給靈感：多些全穀（如紫米、藜麥）';
+    case 'spices':
+      return '補給靈感：增添辛香料（如羅勒、肉桂）';
+    case 'fruits':
+      return '補給靈感：補充水果（如芭樂、柑橘）';
+    default:
+      return '補給靈感：豐富多樣，朝目標 30 種邁進';
+  }
+}
 
 export default function RainbowDietCard({ data = [], updateData }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -121,6 +278,26 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
   const target = 30;
   const progressPercent = Math.min(100, (plantCount / target) * 100);
   const isGoalReached = plantCount >= target;
+
+  const categoryStats = useMemo(() => {
+    const counts: Record<PlantCategory, number> = {
+      'nuts-seeds': 0,
+      'legumes': 0,
+      'grains': 0,
+      'spices': 0,
+      'fruits': 0,
+      'vegetables': 0
+    };
+    uniquePlants.forEach(p => {
+      const cat = getPlantCategory(p.plantName);
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
+  }, [uniquePlants]);
+
+  const dietSuggestion = useMemo(() => {
+    return getDietSuggestion(uniquePlants, activeColors, target);
+  }, [uniquePlants, activeColors, target]);
 
   const getAchievementLabel = (count: number) => {
     if (count >= 30) return '👑 彩虹精靈';
@@ -370,6 +547,14 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
             })}
           </div>
 
+          {/* 補給靈感建議條 */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 mb-3 bg-stone-50 border border-stone-200/70 rounded-md text-stone-600">
+            <Lightbulb size={13} className="text-[#6ba388] shrink-0" />
+            <span className="text-[11px] font-medium leading-tight truncate">
+              {dietSuggestion}
+            </span>
+          </div>
+
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <form onSubmit={handleFormSubmit} className="relative">
               <input 
@@ -553,6 +738,34 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
             </div>
 
             <div className="p-4 overflow-y-auto">
+              {/* 六大植物群覆蓋狀況 */}
+              <div className="mb-4 p-3 bg-stone-50 border border-stone-200/60 rounded-xl">
+                <div className="text-xs font-bold text-stone-600 mb-2 flex items-center justify-between">
+                  <span>六大植物群覆蓋</span>
+                  <span className="text-[10px] text-stone-400 font-medium">
+                    {Object.values(categoryStats).filter(c => c > 0).length} / 6 群已點亮
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(Object.entries(CATEGORY_LABELS) as [PlantCategory, string][]).map(([catKey, label]) => {
+                    const count = categoryStats[catKey] || 0;
+                    return (
+                      <div 
+                        key={catKey} 
+                        className={`p-1.5 rounded-lg border text-center transition-all ${
+                          count > 0 
+                            ? 'bg-white border-stone-200 text-stone-700 font-bold shadow-xs' 
+                            : 'bg-transparent border-dashed border-stone-200 text-stone-400'
+                        }`}
+                      >
+                        <div className="text-[10px]">{label}</div>
+                        <div className="text-xs">{count} 種</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <h4 className="text-sm font-bold text-stone-700 mb-3 border-b border-stone-100 pb-2">本週已吃植物清單</h4>
               
               {plantCount === 0 ? (
@@ -573,11 +786,15 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
                           <span className="text-[10px] text-stone-400 font-medium ml-auto">{plantsInColor.length} 種</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5 pl-5">
-                          {plantsInColor.map(p => (
-                            <span key={p.id} className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-md border border-stone-200">
-                              {p.plantName}
-                            </span>
-                          ))}
+                          {plantsInColor.map(p => {
+                            const cat = getPlantCategory(p.plantName);
+                            return (
+                              <span key={p.id} className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded-md border border-stone-200 flex items-center gap-1">
+                                <span>{p.plantName}</span>
+                                <span className="text-[10px] text-stone-400">· {CATEGORY_LABELS[cat]}</span>
+                              </span>
+                            );
+                          })}
                         </div>
                       </div>
                     );
