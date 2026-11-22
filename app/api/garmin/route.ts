@@ -181,6 +181,7 @@ interface OverviewCache {
   dateStr: string;
   data: GarminOverviewData;
   timestamp: number;
+  hasSplits?: boolean;
 }
 
 interface StoredConfigCache {
@@ -562,10 +563,10 @@ async function syncGarminDataToGoogleSheets(params: {
         if (actId) existingSplitsActivityIds.add(actId);
       });
 
-      // Find activities that haven't had their splits fetched yet (limit to most recent 5 to preserve quota)
+      // Find activities that haven't had their splits fetched yet (batch up to 10 activities per sync)
       const missingActivities = activities
         .filter(act => !existingSplitsActivityIds.has(String(act.activityId)))
-        .slice(0, 5);
+        .slice(0, 10);
 
       if (missingActivities.length > 0) {
         console.log(`[Garmin Splits] Fetching splits for ${missingActivities.length} activities...`);
@@ -818,12 +819,14 @@ async function readOverviewFromGoogleSheets(params: {
     const sleepSheet = findSheet(SLEEP_LOGS_SHEET_TITLE);
     const runningSheet = findSheet(GARMIN_RUNNING_SHEET_TITLE);
     const scheduledSheet = findSheet(GARMIN_SCHEDULED_SHEET_TITLE);
+    const splitsSheet = findSheet(GARMIN_RUNNING_SPLITS_SHEET_TITLE);
     if (!sleepSheet || !runningSheet) return null;
 
-    const [sRows, rRows, sSchedRows] = await Promise.all([
+    const [sRows, rRows, sSchedRows, splitRows] = await Promise.all([
       sleepSheet.getRows(),
       runningSheet.getRows(),
       scheduledSheet ? scheduledSheet.getRows() : Promise.resolve([]),
+      splitsSheet ? splitsSheet.getRows() : Promise.resolve([]),
     ]);
     if (sRows.length === 0) return null;
 
@@ -943,7 +946,7 @@ async function readOverviewFromGoogleSheets(params: {
     const mondayStr = getMondayOfCurrentWeekTaipei(params.todayStr);
     const thisWeekRuns = activities.filter(a => a.date >= mondayStr);
 
-    return {
+    const overviewData: GarminOverviewData = {
       configured: true,
       ...params.expiryInfo,
       calendarIcsConfigured: Boolean(params.calendarIcsUrl),
@@ -968,6 +971,8 @@ async function readOverviewFromGoogleSheets(params: {
       recentSleepMap,
       fetchedAt: Date.now(),
     };
+    (overviewData as any).hasSplits = splitRows.length > 0;
+    return overviewData;
   } catch (err) {
     console.warn('[Garmin] Failed to read cached overview from Google Sheets:', err);
     return null;
@@ -1143,12 +1148,14 @@ export async function GET(request: NextRequest) {
         cachedOverview &&
         Object.values(cachedOverview.data?.recentSleepMap || {}).some(s => Boolean(s.hrvStatus)) &&
         Object.keys(cachedOverview.data?.recentSleepMap || {}).length >= 60;
+      const hasCachedSplits = Boolean(cachedOverview?.hasSplits);
 
       if (
         cachedOverview &&
         cachedOverview.keyHash === keyHash &&
         cachedOverview.dateStr === todayStr &&
-        hasCachedHrvStatus
+        hasCachedHrvStatus &&
+        hasCachedSplits
       ) {
         return NextResponse.json(cachedOverview.data);
       }
@@ -1164,20 +1171,23 @@ export async function GET(request: NextRequest) {
           sheetOverview && Object.values(sheetOverview.recentSleepMap).some(s => Boolean(s.hrvStatus));
         const hasEnoughHistory =
           sheetOverview && Object.keys(sheetOverview.recentSleepMap).length >= 60;
+        const hasSplits = Boolean((sheetOverview as any)?.hasSplits);
 
-        // Ensure today's sleep AND scheduled workouts were captured AND wellness has been backfilled (>= 60 days) AND HRV status present
+        // Ensure today's sleep AND scheduled workouts were captured AND wellness has been backfilled (>= 60 days) AND HRV status present AND running splits present
         if (
           sheetOverview &&
           sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours &&
           sheetOverview.running.scheduledWorkouts.length > 0 &&
           hasEnoughHistory &&
-          hasHrvStatus
+          hasHrvStatus &&
+          hasSplits
         ) {
           cachedOverview = {
             keyHash,
             dateStr: todayStr,
             data: sheetOverview,
             timestamp: Date.now(),
+            hasSplits: true,
           };
           return NextResponse.json(sheetOverview);
         }
@@ -1251,6 +1261,7 @@ export async function GET(request: NextRequest) {
       dateStr: todayStr,
       data: overviewData,
       timestamp: Date.now(),
+      hasSplits: true,
     };
 
     return NextResponse.json(overviewData);

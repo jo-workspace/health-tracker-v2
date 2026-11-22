@@ -4,6 +4,8 @@ import type {
   GarminActivitySplit,
   GarminMenstrualCycle,
 } from './types';
+import { Decoder, Stream } from '@garmin/fitsdk';
+import AdmZip from 'adm-zip';
 
 const GARMIN_BASE_URL = 'https://personal.connectapi.garmin.com';
 const TOKEN_ENDPOINT = `${GARMIN_BASE_URL}/personalapitoken-service/personal-api/personal-api-key/token`;
@@ -97,6 +99,29 @@ async function garminGet<T = any>(token: string, path: string): Promise<T | null
   const body = await res.text();
   if (!body || !body.trim()) return null;
   return JSON.parse(body) as T;
+}
+
+async function garminGetBinary(token: string, path: string): Promise<Buffer | null> {
+  const res = await fetch(`${GARMIN_BASE_URL}${path}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/octet-stream, application/zip, */*',
+    },
+    cache: 'no-store',
+  });
+
+  if (res.status === 204 || res.status === 404) {
+    return null;
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Garmin binary GET ${path} failed (${res.status}): ${text.slice(0, 120)}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
 
 /**
@@ -596,14 +621,134 @@ export async function fetchGarminCalendarWorkouts(
   }
 }
 
+function parseLapsFromFitBuffer(
+  fitBuffer: Buffer,
+  activityId: string | number,
+  activityDate: string
+): GarminActivitySplit[] {
+  try {
+    const stream = Stream.fromBuffer(fitBuffer);
+    const decoder = new Decoder(stream);
+    const { messages } = decoder.read({
+      applyScaleAndOffset: true,
+      convertTypesToStrings: true,
+    });
+
+    const lapMesgs: any[] = messages?.lapMesgs || [];
+    if (!Array.isArray(lapMesgs) || lapMesgs.length === 0) {
+      return [];
+    }
+
+    return lapMesgs.map((lap, idx) => {
+      const lapIndex = idx + 1;
+      const distMeters = Math.round(Number(lap.totalDistance || 0));
+      const durSec = Math.round(Number(lap.totalTimerTime || lap.totalElapsedTime || 0));
+
+      const rawIntensity = String(lap.intensity || '').toUpperCase();
+      let intensityType = 'ACTIVE';
+      if (rawIntensity.includes('RECOVER') || rawIntensity.includes('REST')) {
+        intensityType = 'RECOVERY';
+      } else if (rawIntensity.includes('WARM')) {
+        intensityType = 'WARMUP';
+      } else if (rawIntensity.includes('COOL')) {
+        intensityType = 'COOLDOWN';
+      } else if (rawIntensity) {
+        intensityType = rawIntensity;
+      }
+
+      const pace = formatPacePerKm(distMeters, durSec);
+      const avgHR = typeof lap.avgHeartRate === 'number' ? Math.round(lap.avgHeartRate) : undefined;
+      const maxHR = typeof lap.maxHeartRate === 'number' ? Math.round(lap.maxHeartRate) : undefined;
+
+      let cadence: number | undefined;
+      if (typeof lap.avgCadence === 'number') {
+        const c = Math.round(lap.avgCadence);
+        cadence = c > 0 && c < 120 ? c * 2 : c;
+      } else if (typeof lap.avgRunningCadence === 'number') {
+        cadence = Math.round(lap.avgRunningCadence);
+      }
+
+      let strideLengthCm: number | undefined;
+      if (typeof lap.avgStrokeDistance === 'number') {
+        strideLengthCm = Math.round(
+          lap.avgStrokeDistance > 5 ? lap.avgStrokeDistance : lap.avgStrokeDistance * 100
+        );
+      }
+
+      return {
+        activityId: String(activityId),
+        date: activityDate,
+        lapIndex,
+        intensityType,
+        distanceMeters: distMeters,
+        durationSeconds: durSec,
+        pace,
+        averageHR: avgHR,
+        maxHR: maxHR,
+        cadence,
+        strideLengthCm,
+      };
+    });
+  } catch (err) {
+    console.warn(`[Garmin FIT] Error parsing FIT buffer for activity ${activityId}:`, err);
+    return [];
+  }
+}
+
 /**
  * Fetches lap / split metrics for a specific running activity (intervals, kilometer splits, pace & heart rate).
+ * Downloads original .FIT file via Personal API (/download-service/files/activity/{id}) and decodes with @garmin/fitsdk,
+ * falling back to JSON endpoints if unavailable.
  */
 export async function fetchGarminActivitySplits(
   token: string,
   activityId: string | number,
   activityDate: string
 ): Promise<GarminActivitySplit[]> {
+  try {
+    const rawBuffer = await garminGetBinary(
+      token,
+      `/download-service/files/activity/${activityId}`
+    ).catch(err => {
+      console.warn(`[Garmin Activity FIT] Binary download failed for ${activityId}:`, err?.message);
+      return null;
+    });
+
+    if (rawBuffer && rawBuffer.length > 0) {
+      let fitBuffer: Buffer | null = null;
+      try {
+        const zip = new AdmZip(rawBuffer);
+        const zipEntries = zip.getEntries();
+        const fitEntry = zipEntries.find(entry => entry.entryName.toLowerCase().endsWith('.fit'));
+        if (fitEntry) {
+          fitBuffer = fitEntry.getData();
+        }
+      } catch {
+        // Not a zip archive
+      }
+
+      if (!fitBuffer) {
+        try {
+          const testStream = Stream.fromBuffer(rawBuffer);
+          if (Decoder.isFIT(testStream)) {
+            fitBuffer = rawBuffer;
+          }
+        } catch {}
+      }
+
+      if (fitBuffer) {
+        const fitLaps = parseLapsFromFitBuffer(fitBuffer, activityId, activityDate);
+        if (fitLaps.length > 0) {
+          console.log(`[Garmin FIT] Decoded ${fitLaps.length} laps from .FIT file for activity ${activityId}`);
+          return fitLaps;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[Garmin Splits] FIT download/decoding error for activity ${activityId}:`, err);
+  }
+
+  // Fallback to JSON endpoints
   let res = await garminGet<any>(
     token,
     `/activity-service/activity/${activityId}/splits`
