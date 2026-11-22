@@ -39,7 +39,25 @@ export function useGarminData() {
   }, []);
 
   useEffect(() => {
-    loadGarmin(false, false);
+    let shouldForce = false;
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        const hasHrvStatus =
+          parsed?.recentSleepMap &&
+          Object.values(parsed.recentSleepMap).some((s: any) => Boolean(s.hrvStatus));
+        const historyCount = parsed?.recentSleepMap ? Object.keys(parsed.recentSleepMap).length : 0;
+        if (!hasHrvStatus || historyCount < 60) {
+          shouldForce = true;
+        }
+      } catch {
+        shouldForce = true;
+      }
+    } else {
+      shouldForce = true;
+    }
+    loadGarmin(shouldForce, false);
   }, [loadGarmin]);
 
   useEffect(() => {

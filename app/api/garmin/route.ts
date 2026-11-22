@@ -187,28 +187,64 @@ function enqueueGarminSheetOp<T>(op: () => Promise<T>): Promise<T> {
   return res;
 }
 
+async function withGarminApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      attempt++;
+      const msg = String(err?.message || '');
+      const isTransient =
+        msg.includes('429') ||
+        msg.includes('Quota exceeded') ||
+        msg.includes('503') ||
+        msg.includes('502') ||
+        msg.includes('Service Unavailable');
+
+      if (isTransient && attempt < maxRetries) {
+        const delay = 1500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 500);
+        console.warn(`[Garmin Google Sheets API] Transient error (429/503), retrying ${attempt}/${maxRetries} after ${delay}ms...`);
+        await new Promise(res => setTimeout(res, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
 async function getOrCreateSheet(doc: any, title: string, headers: string[]) {
-  let sheet = doc.sheetsByTitle[title];
+  const findSheet = () => {
+    if (doc.sheetsByTitle[title]) return doc.sheetsByTitle[title];
+    const normalized = title.trim().toLowerCase();
+    return Object.values(doc.sheetsByTitle).find(
+      (s: any) => s.title && s.title.trim().toLowerCase() === normalized
+    ) as any;
+  };
+
+  let sheet = findSheet();
   if (!sheet) {
     try {
-      sheet = await doc.addSheet({ title, headerValues: headers });
+      sheet = await withGarminApiRetry(() => doc.addSheet({ title, headerValues: headers }));
     } catch {
-      await doc.loadInfo();
-      sheet = doc.sheetsByTitle[title];
+      await withGarminApiRetry(() => doc.loadInfo());
+      sheet = findSheet();
     }
   } else {
     try {
-      await sheet.loadHeaderRow();
+      await withGarminApiRetry(() => sheet.loadHeaderRow());
       const existing = sheet.headerValues || [];
       const missing = headers.filter(h => !existing.includes(h));
       if (missing.length > 0) {
         const merged = [...existing, ...missing];
         if (merged.length > sheet.columnCount) {
-          await sheet.resize({ rowCount: sheet.rowCount, columnCount: merged.length });
+          await withGarminApiRetry(() => sheet.resize({ rowCount: sheet.rowCount, columnCount: merged.length }));
         }
-        await sheet.setHeaderRow(merged);
+        await withGarminApiRetry(() => sheet.setHeaderRow(merged));
       }
-    } catch {}
+    } catch (err) {
+      console.warn(`[getOrCreateSheet] Failed to update headers for ${title}:`, err);
+    }
   }
   return sheet;
 }
@@ -601,16 +637,34 @@ async function syncGarminDataToGoogleSheets(params: {
   );
 
   if (sortedSleepLogs.length > 0) {
-    await sleepSheet.clearRows();
-    await sleepSheet.addRows(sortedSleepLogs);
+    const sanitizedRows = sortedSleepLogs.map(item => {
+      const rowObj: any = {};
+      SLEEP_LOGS_HEADERS.forEach(h => {
+        const val = item[h];
+        rowObj[h] = val !== undefined && val !== null ? String(val) : '';
+      });
+      return rowObj;
+    });
+
+    await withGarminApiRetry(() => sleepSheet.clearRows());
+    const chunkSize = 100;
+    for (let i = 0; i < sanitizedRows.length; i += chunkSize) {
+      const chunk = sanitizedRows.slice(i, i + chunkSize);
+      await withGarminApiRetry(() => sleepSheet.addRows(chunk));
+    }
   }
 
   // Clear obsolete GarminDailyWellness sheet rows to complete migration
-  const oldWellnessSheet = doc.sheetsByTitle[GARMIN_WELLNESS_SHEET_TITLE];
+  const normalizedWellnessTitle = GARMIN_WELLNESS_SHEET_TITLE.trim().toLowerCase();
+  const oldWellnessSheet = Object.values(doc.sheetsByTitle).find(
+    (s: any) => s.title && s.title.trim().toLowerCase() === normalizedWellnessTitle
+  ) as any;
   if (oldWellnessSheet) {
     try {
-      await oldWellnessSheet.clearRows();
-    } catch {}
+      await withGarminApiRetry(() => oldWellnessSheet.clearRows());
+    } catch (err) {
+      console.warn('[Garmin] Failed to clear obsolete GarminDailyWellness rows:', err);
+    }
   }
 
   // 4. Record todayStr as lastSyncDate in GarminConfig
@@ -629,9 +683,16 @@ async function readOverviewFromGoogleSheets(params: {
 }): Promise<GarminOverviewData | null> {
   try {
     const doc = await getGoogleSheet();
-    const sleepSheet = doc.sheetsByTitle[SLEEP_LOGS_SHEET_TITLE];
-    const runningSheet = doc.sheetsByTitle[GARMIN_RUNNING_SHEET_TITLE];
-    const scheduledSheet = doc.sheetsByTitle[GARMIN_SCHEDULED_SHEET_TITLE];
+    const findSheet = (name: string) => {
+      if (doc.sheetsByTitle[name]) return doc.sheetsByTitle[name];
+      const norm = name.trim().toLowerCase();
+      return Object.values(doc.sheetsByTitle).find(
+        (s: any) => s.title && s.title.trim().toLowerCase() === norm
+      ) as any;
+    };
+    const sleepSheet = findSheet(SLEEP_LOGS_SHEET_TITLE);
+    const runningSheet = findSheet(GARMIN_RUNNING_SHEET_TITLE);
+    const scheduledSheet = findSheet(GARMIN_SCHEDULED_SHEET_TITLE);
     if (!sleepSheet || !runningSheet) return null;
 
     const [sRows, rRows, sSchedRows] = await Promise.all([
@@ -647,7 +708,7 @@ async function readOverviewFromGoogleSheets(params: {
     // Filter active night rows and sort rows by date ascending so latestCycle is guaranteed to be the most recent day
     const sortedSleepRows = sRows
       .filter((r: any) => String(r.get('status') || 'active') !== 'deleted' && String(r.get('type') || 'night') === 'night')
-      .sort((a, b) =>
+      .sort((a: any, b: any) =>
         String(a.get('date') || '').localeCompare(String(b.get('date') || ''))
       );
 
@@ -953,10 +1014,16 @@ export async function GET(request: NextRequest) {
 
     // Daily Gatekeeper: If already synced today and not forced, return in-memory or Google Sheets snapshot without calling Garmin API!
     if (!forceRefresh) {
+      const hasCachedHrvStatus =
+        cachedOverview &&
+        Object.values(cachedOverview.data?.recentSleepMap || {}).some(s => Boolean(s.hrvStatus)) &&
+        Object.keys(cachedOverview.data?.recentSleepMap || {}).length >= 60;
+
       if (
         cachedOverview &&
         cachedOverview.keyHash === keyHash &&
-        cachedOverview.dateStr === todayStr
+        cachedOverview.dateStr === todayStr &&
+        hasCachedHrvStatus
       ) {
         return NextResponse.json(cachedOverview.data);
       }
@@ -970,12 +1037,15 @@ export async function GET(request: NextRequest) {
         });
         const hasHrvStatus =
           sheetOverview && Object.values(sheetOverview.recentSleepMap).some(s => Boolean(s.hrvStatus));
-        // Ensure today's sleep AND scheduled workouts were captured AND wellness has been backfilled (>= 30 days) AND HRV status present
+        const hasEnoughHistory =
+          sheetOverview && Object.keys(sheetOverview.recentSleepMap).length >= 60;
+
+        // Ensure today's sleep AND scheduled workouts were captured AND wellness has been backfilled (>= 60 days) AND HRV status present
         if (
           sheetOverview &&
           sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours &&
           sheetOverview.running.scheduledWorkouts.length > 0 &&
-          Object.keys(sheetOverview.recentSleepMap).length >= 30 &&
+          hasEnoughHistory &&
           hasHrvStatus
         ) {
           cachedOverview = {
@@ -989,8 +1059,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Perform the once-a-day Garmin fetch & Google Sheets sync!
-    const lookbackDays = !lastSyncDate ? -29 : -9;
+    // Perform Garmin fetch & Google Sheets sync (fetch 30 days detailed sleep & 180 days HRV history)
+    const lookbackDays = -29;
     const startDate = getTaipeiDateStr(lookbackDays);
     const hrvStartDate = getTaipeiDateStr(-180); // 回補過去 180 天的 HRV 歷史數據
 
@@ -998,25 +1068,27 @@ export async function GET(request: NextRequest) {
     const cycle = await fetchGarminMenstrualCycle(token, todayStr);
     const [{ sleepMap, dailyWellnessList, hrvByDate }, activities, allScheduledWorkouts] = await Promise.all([
       fetchGarminWellnessRange(token, startDate, todayStr, cycle, hrvStartDate),
-      fetchGarminRunningActivities(token, !lastSyncDate ? 35 : 20),
+      fetchGarminRunningActivities(token, 35),
       fetchGarminCalendarWorkouts(calendarIcsUrl),
     ]);
 
-    // Sync to Google Sheets (GarminDailyWellness, GarminScheduledWorkouts, GarminRunningLogs, SleepLogs)
-    await syncGarminDataToGoogleSheets({
-      dailyWellnessList,
-      sleepMap,
-      hrvByDate,
-      activities,
-      scheduledWorkouts: allScheduledWorkouts,
-      cycle,
-      apiKey,
-      expiresAt: expiryInfo.expiresAt,
-      calendarIcsUrl,
-      todayStr,
-    }).catch(err => {
-      console.warn('[Garmin] Failed to sync to Google Sheets:', err);
-    });
+    // Sync to Google Sheets (SleepLogs, GarminScheduledWorkouts, GarminRunningLogs)
+    try {
+      await syncGarminDataToGoogleSheets({
+        dailyWellnessList,
+        sleepMap,
+        hrvByDate,
+        activities,
+        scheduledWorkouts: allScheduledWorkouts,
+        cycle,
+        apiKey,
+        expiresAt: expiryInfo.expiresAt,
+        calendarIcsUrl,
+        todayStr,
+      });
+    } catch (err) {
+      console.error('[Garmin] Failed to sync to Google Sheets:', err);
+    }
 
     const mondayStr = getMondayOfCurrentWeekTaipei(todayStr);
     const thisWeekRuns = activities.filter(a => a.date >= mondayStr);

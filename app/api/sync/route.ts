@@ -150,9 +150,10 @@ export async function POST(request: NextRequest) {
 
       const responsePayload: Record<string, any[]> = {};
 
-      const payloadKeys = Object.keys(payload).filter(k => k !== 'clientTimestamp');
+      const payloadKeys = Object.keys(payload).filter(k => k !== 'clientTimestamp' && k !== 'bypassCache');
       const isFullSync = payloadKeys.length === 0;
       const keysToSync = Object.keys(sheetsConfig).filter(key => isFullSync || payloadKeys.includes(key));
+      const bypassCache = request.headers.get('x-bypass-cache') === '1' || payload.bypassCache === true;
 
       for (const key of keysToSync) {
         const config = sheetsConfig[key];
@@ -164,7 +165,7 @@ export async function POST(request: NextRequest) {
 
         // 若為純讀取且內存快取仍新鮮，直接使用快取資料，避免觸發 Google 60 req/min 限流
         const cached = serverLogsCache.get(key);
-        if (!isMutating && cached && Date.now() - cached.timestamp < SERVER_LOGS_CACHE_TTL) {
+        if (!bypassCache && !isMutating && cached && Date.now() - cached.timestamp < SERVER_LOGS_CACHE_TTL) {
           serverLogs = cached.data;
         } else {
           sheet = await getOrCreateSheet(doc, config.name, config.headers);
