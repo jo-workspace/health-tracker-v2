@@ -62,7 +62,7 @@ Categorize each identified plant item into EXACTLY ONE of the following 6 Rainbo
 - "orange-yellow": e.g. 胡蘿蔔, 南瓜, 木瓜, 芒果, 香蕉, 地瓜, 柑橘, 黃甜椒, 玉米, 鳳梨, 檸檬, 燕麥, 百香果, etc.
 - "green": e.g. 菠菜, 綠花椰菜, 青江菜, 奇異果, 小黃瓜, 蘆筍, 青椒, 芹菜, 芭樂, 高麗菜, 萵苣, 毛豆, 秋葵, 酪梨, 綠葡萄, 香菜, 蔥, etc.
 - "blue-purple": e.g. 藍莓, 茄子, 紫甘藍, 葡萄, 桑椹, 紫地瓜, 黑莓, 紫洋蔥, 紫米, 紫山藥, etc.
-- "white-brown": e.g. 洋蔥, 大蒜, 白蘿蔔, 菇類 (杏鮑菇/金針菇/蘑菇/香菇), 豆腐, 豆芽 (綠豆芽/黃豆芽), 糙米, 薏仁, 白木耳, 馬鈴薯, 竹筍, 花生, 核桃, 腰果, 杏仁, etc.
+- "white-brown": e.g. 洋蔥, 大蒜, 白蘿蔔, 菇類 (杏鮑菇/金針菇/蘑菇/香菇), 豆腐, 豆芽 (綠豆芽/黃豆芽), 糙米, 薏仁, 白木耳, 馬鈴薯, 竹筍, 花生, 核桃, 腰果, 杏仁, 榛果, 夏威夷豆, 夏威夷果, etc.
 - "black": e.g. 黑木耳, 黑豆, 黑芝麻, 黑米, 海帶, 紫菜, 昆布, 奇亞籽, etc.
 
 STRICT EXCLUSION RULES (DO NOT OUTPUT ANY OF THE FOLLOWING):

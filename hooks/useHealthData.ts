@@ -167,9 +167,24 @@ export function useHealthData() {
     try {
       const res = await syncBatch(payload);
       setData(prev => {
-        const newData = prev ? { ...prev, ...res } as HealthData : res;
-        localStorage.setItem('health_data_cache', JSON.stringify(newData));
-        return newData;
+        if (!prev) return res;
+        const merged: HealthData = { ...prev };
+        (Object.keys(res) as (keyof HealthData)[]).forEach(k => {
+          if (Array.isArray(res[k]) && Array.isArray(prev[k])) {
+            const serverArr = res[k] as any[];
+            const prevArr = prev[k] as any[];
+            // 防禦性檢查：若伺服器回傳空陣列但本地已有紀錄，保留本地紀錄避免畫面閃爍歸零
+            if (serverArr.length === 0 && prevArr.length > 0) {
+              (merged as any)[k] = prevArr;
+            } else {
+              (merged as any)[k] = serverArr;
+            }
+          } else if (res[k] !== undefined) {
+            (merged as any)[k] = res[k];
+          }
+        });
+        localStorage.setItem('health_data_cache', JSON.stringify(merged));
+        return merged;
       });
       lastSyncTimeRef.current = Date.now();
     } catch (e: any) {

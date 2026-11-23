@@ -30,7 +30,7 @@ const COLOR_MAPPING: Record<string, string> = {
   // 藍紫色 (blue-purple)
   "藍莓": "blue-purple", "茄子": "blue-purple", "紫甘藍": "blue-purple", "葡萄": "blue-purple", "桑椹": "blue-purple", "紫地瓜": "blue-purple", "黑莓": "blue-purple", "李子": "blue-purple", "紫洋蔥": "blue-purple", "紫米": "blue-purple", "無花果": "blue-purple", "黑醋栗": "blue-purple", "甜菜": "blue-purple", "紫高麗菜": "blue-purple", "紫山藥": "blue-purple",
   // 白褐色 (white-brown)
-  "洋蔥": "white-brown", "大蒜": "white-brown", "蒜頭": "white-brown", "白蘿蔔": "white-brown", "蘿蔔": "white-brown", "椰子": "white-brown", "山藥": "white-brown", "白花椰菜": "white-brown", "白花菜": "white-brown", "蘑菇": "white-brown", "金針菇": "white-brown", "杏鮑菇": "white-brown", "香菇": "white-brown", "豆腐": "white-brown", "豆芽": "white-brown", "綠豆芽": "white-brown", "黃豆芽": "white-brown", "豆芽菜": "white-brown", "銀芽": "white-brown", "糙米": "white-brown", "薏仁": "white-brown", "蓮子": "white-brown", "百合": "white-brown", "銀耳": "white-brown", "白木耳": "white-brown", "馬鈴薯": "white-brown", "洋芋": "white-brown", "竹筍": "white-brown", "白芝麻": "white-brown", "花生": "white-brown", "核桃": "white-brown", "腰果": "white-brown", "杏仁": "white-brown", "無籽西瓜": "white-brown", "白精靈菇": "white-brown", "燕麥片": "white-brown",
+  "洋蔥": "white-brown", "大蒜": "white-brown", "蒜頭": "white-brown", "白蘿蔔": "white-brown", "蘿蔔": "white-brown", "椰子": "white-brown", "山藥": "white-brown", "白花椰菜": "white-brown", "白花菜": "white-brown", "蘑菇": "white-brown", "金針菇": "white-brown", "杏鮑菇": "white-brown", "香菇": "white-brown", "豆腐": "white-brown", "豆芽": "white-brown", "綠豆芽": "white-brown", "黃豆芽": "white-brown", "豆芽菜": "white-brown", "銀芽": "white-brown", "糙米": "white-brown", "薏仁": "white-brown", "蓮子": "white-brown", "百合": "white-brown", "銀耳": "white-brown", "白木耳": "white-brown", "馬鈴薯": "white-brown", "洋芋": "white-brown", "竹筍": "white-brown", "白芝麻": "white-brown", "花生": "white-brown", "核桃": "white-brown", "腰果": "white-brown", "杏仁": "white-brown", "榛果": "white-brown", "夏威夷豆": "white-brown", "夏威夷果": "white-brown", "無籽西瓜": "white-brown", "白精靈菇": "white-brown", "燕麥片": "white-brown",
   // 黑色 (black)
   "黑木耳": "black", "木耳": "black", "黑豆": "black", "黑芝麻": "black", "黑米": "black", "海帶": "black", "紫菜": "black", "昆布": "black", "黑棗": "black", "奇亞籽": "black", "黑香菇": "black", "髮菜": "black"
 };
@@ -59,7 +59,7 @@ const CATEGORY_MAPPING: Record<string, PlantCategory> = {
   // 堅果種子 (nuts-seeds)
   "核桃": "nuts-seeds", "腰果": "nuts-seeds", "杏仁": "nuts-seeds", "花生": "nuts-seeds",
   "南瓜子": "nuts-seeds", "葵花子": "nuts-seeds", "亞麻仁籽": "nuts-seeds", "奇亞籽": "nuts-seeds",
-  "黑芝麻": "nuts-seeds", "白芝麻": "nuts-seeds", "松子": "nuts-seeds", "夏威夷豆": "nuts-seeds",
+  "黑芝麻": "nuts-seeds", "白芝麻": "nuts-seeds", "松子": "nuts-seeds", "夏威夷豆": "nuts-seeds", "夏威夷果": "nuts-seeds",
   "開心果": "nuts-seeds", "榛果": "nuts-seeds", "栗子": "nuts-seeds",
 
   // 豆類 (legumes)

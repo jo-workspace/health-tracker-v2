@@ -232,43 +232,72 @@ export async function POST(request: NextRequest) {
           if (!sheet) {
             sheet = await getOrCreateSheet(doc, config.name, config.headers, true);
           }
+          const targetSheet = sheet;
 
           const clientLogs = payload[key];
-          const mergedMap: Record<string, any> = {};
+          const serverIdMap = new Map(serverLogs.map(r => [r.id, r]));
 
-          serverLogs.forEach(item => {
-            if (item.id) mergedMap[item.id] = item;
-          });
+          // 純新增模式檢測：若所有客戶端傳入之紀錄皆為新 ID 且非刪除操作，走高效增量 append
+          // 徹底根除 clearRows() 清空 600+ 筆資料時引發的耗時超時、並行查詢歸零與資料遺失問題
+          const isPureAppend =
+            clientLogs.length > 0 &&
+            clientLogs.every((item: any) => !serverIdMap.has(item.id) && item.status !== 'deleted');
 
-          clientLogs.forEach((item: any) => {
-            if (!item.id || deletedSet.has(item.id)) return;
+          if (isPureAppend) {
+            const newRows = clientLogs.map((log: any) => {
+              const rowObj: any = {};
+              config.headers.forEach(header => {
+                const val = log[header];
+                if (val !== undefined && val !== null) {
+                  rowObj[header] = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                } else {
+                  rowObj[header] = "";
+                }
+              });
+              return rowObj;
+            });
 
-            if (item.status === 'deleted') {
-              newDeletedIdRows.push({ sheetKey: key, id: item.id, deletedAt: String(Date.now()) });
-              deletedSet.add(item.id);
-              delete mergedMap[item.id];
-              return;
-            }
-
-            const existing = mergedMap[item.id];
-            if (!existing || Number(item.lastUpdated) > Number(existing.lastUpdated)) {
-              mergedMap[item.id] = item;
-            }
-          });
-
-          const mergedList = Object.values(mergedMap);
-          const sheetList = mergedList.filter(item => item.status !== "deleted");
-
-          // 防禦性檢查：若伺服器原先有資料，但合併結果意外為 0 筆，禁止抹除雲端資料
-          if (sheetList.length === 0 && serverLogs.length > 0) {
-            console.warn(`[Sync Safety] Aborted empty overwrite for ${config.name} (server had ${serverLogs.length} rows)`);
-            responsePayload[key] = serverLogs;
+            await withApiRetry(() => targetSheet.addRows(newRows));
+            const updatedList = [...serverLogs, ...clientLogs];
+            serverLogsCache.set(key, { data: updatedList, timestamp: Date.now() });
+            responsePayload[key] = updatedList;
           } else {
-            // 寫入 Google Sheets
-            await saveLogsToSheet(sheet, sheetList, config.headers);
-            // Write-through 更新內存快取
-            serverLogsCache.set(key, { data: sheetList, timestamp: Date.now() });
-            responsePayload[key] = mergedList;
+            const mergedMap: Record<string, any> = {};
+
+            serverLogs.forEach(item => {
+              if (item.id) mergedMap[item.id] = item;
+            });
+
+            clientLogs.forEach((item: any) => {
+              if (!item.id || deletedSet.has(item.id)) return;
+
+              if (item.status === 'deleted') {
+                newDeletedIdRows.push({ sheetKey: key, id: item.id, deletedAt: String(Date.now()) });
+                deletedSet.add(item.id);
+                delete mergedMap[item.id];
+                return;
+              }
+
+              const existing = mergedMap[item.id];
+              if (!existing || Number(item.lastUpdated) > Number(existing.lastUpdated)) {
+                mergedMap[item.id] = item;
+              }
+            });
+
+            const mergedList = Object.values(mergedMap);
+            const sheetList = mergedList.filter(item => item.status !== "deleted");
+
+            // 防禦性檢查：若伺服器原先有資料，但合併結果意外為 0 筆，禁止抹除雲端資料
+            if (sheetList.length === 0 && serverLogs.length > 0) {
+              console.warn(`[Sync Safety] Aborted empty overwrite for ${config.name} (server had ${serverLogs.length} rows)`);
+              responsePayload[key] = serverLogs;
+            } else {
+              // 寫入 Google Sheets
+              await saveLogsToSheet(sheet, sheetList, config.headers);
+              // Write-through 更新內存快取
+              serverLogsCache.set(key, { data: sheetList, timestamp: Date.now() });
+              responsePayload[key] = mergedList;
+            }
           }
         } else {
           const activeLogs = serverLogs.filter(item => item.status !== "deleted");
