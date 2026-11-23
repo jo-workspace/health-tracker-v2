@@ -240,27 +240,27 @@ export default function RainbowDietCard({ data = [], updateData }: Props) {
     setOptimisticLogs([]);
   }, [data]);
 
-  // 取得本週的起迄日期 (週一 ~ 週日)
+  // 取得本週的起迄日期字串 (週一 ~ 週日，格式 YYYY-MM-DD)
   const getWeekDates = () => {
     const now = new Date();
     const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay(); 
     const monday = new Date(now);
     monday.setDate(now.getDate() - dayOfWeek + 1);
-    monday.setHours(0, 0, 0, 0);
     
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
     
-    return { monday, sunday };
+    return {
+      mondayStr: monday.toLocaleDateString('en-CA'),
+      sundayStr: sunday.toLocaleDateString('en-CA'),
+    };
   };
 
-  const { monday, sunday } = getWeekDates();
+  const { mondayStr, sundayStr } = getWeekDates();
 
-  // 過濾出本週的紀錄 (包含樂觀更新)
+  // 過濾出本週的紀錄 (包含樂觀更新，使用 ISO 字典序比對排除時區偏差陷阱)
   const thisWeekLogs = [...data, ...optimisticLogs].filter(log => {
-    const logDate = new Date(log.date);
-    return logDate >= monday && logDate <= sunday && log.status !== 'deleted';
+    return log.date >= mondayStr && log.date <= sundayStr && log.status !== 'deleted';
   });
 
   // 計算 unique 植物種類與涵蓋顏色

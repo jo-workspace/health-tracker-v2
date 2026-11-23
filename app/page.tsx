@@ -18,18 +18,6 @@ export default function Dashboard() {
   const { data, loading, syncing, initialSynced, updateData, forceSync } = useHealthData();
   const { garminData, garminLoading, garminRefreshing, refreshGarmin } = useGarminData();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const syncedRef = useRef(false);
-  useEffect(() => {
-    if (
-      !syncedRef.current &&
-      garminData &&
-      Object.keys(garminData.recentSleepMap || {}).length >= 60 &&
-      Object.values(garminData.recentSleepMap || {}).some(s => Boolean(s.hrvStatus))
-    ) {
-      syncedRef.current = true;
-      forceSync();
-    }
-  }, [garminData, forceSync]);
   const [activeTab, setActiveTab] = useState<NavTabId>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('health_active_tab') as NavTabId | null;
