@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { syncBatch } from '@/lib/api';
 import type { HealthData, SyncPayload } from '@/lib/types';
 
-const THROTTLE_INTERVAL_MS = 30 * 1000; // 喚醒自動同步間隔至少 30 秒
+const THROTTLE_INTERVAL_MS = 180 * 1000; // 喚醒自動同步間隔至少 3 分鐘 (180s)，防止頻繁切換 App 燒光 60 req/min 配額
 
 export function useHealthData() {
   const [data, setData] = useState<HealthData | null>(null);

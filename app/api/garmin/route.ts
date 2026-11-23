@@ -1144,18 +1144,10 @@ export async function GET(request: NextRequest) {
 
     // Daily Gatekeeper: If already synced today and not forced, return in-memory or Google Sheets snapshot without calling Garmin API!
     if (!forceRefresh) {
-      const hasCachedHrvStatus =
-        cachedOverview &&
-        Object.values(cachedOverview.data?.recentSleepMap || {}).some(s => Boolean(s.hrvStatus)) &&
-        Object.keys(cachedOverview.data?.recentSleepMap || {}).length >= 60;
-      const hasCachedSplits = Boolean(cachedOverview?.hasSplits);
-
       if (
         cachedOverview &&
         cachedOverview.keyHash === keyHash &&
-        cachedOverview.dateStr === todayStr &&
-        hasCachedHrvStatus &&
-        hasCachedSplits
+        cachedOverview.dateStr === todayStr
       ) {
         return NextResponse.json(cachedOverview.data);
       }
@@ -1167,27 +1159,14 @@ export async function GET(request: NextRequest) {
           lastSyncDate,
           calendarIcsUrl,
         });
-        const hasHrvStatus =
-          sheetOverview && Object.values(sheetOverview.recentSleepMap).some(s => Boolean(s.hrvStatus));
-        const hasEnoughHistory =
-          sheetOverview && Object.keys(sheetOverview.recentSleepMap).length >= 60;
-        const hasSplits = Boolean((sheetOverview as any)?.hasSplits);
 
-        // Ensure today's sleep AND scheduled workouts were captured AND wellness has been backfilled (>= 60 days) AND HRV status present AND running splits present
-        if (
-          sheetOverview &&
-          sheetOverview.recentSleepMap[todayStr]?.sleepDurationHours &&
-          sheetOverview.running.scheduledWorkouts.length > 0 &&
-          hasEnoughHistory &&
-          hasHrvStatus &&
-          hasSplits
-        ) {
+        if (sheetOverview) {
           cachedOverview = {
             keyHash,
             dateStr: todayStr,
             data: sheetOverview,
             timestamp: Date.now(),
-            hasSplits: true,
+            hasSplits: Boolean((sheetOverview as any)?.hasSplits),
           };
           return NextResponse.json(sheetOverview);
         }

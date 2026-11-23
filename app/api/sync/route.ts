@@ -46,7 +46,7 @@ async function withApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T>
         msg.includes('Service Unavailable');
 
       if (isTransient && attempt < maxRetries) {
-        const delay = 1500 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 500);
+        const delay = 3000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 1000);
         console.warn(`[Google Sheets API] 暫態限流 (429/503)，等待 ${delay}ms 進行第 ${attempt}/${maxRetries} 次重試...`);
         await new Promise(res => setTimeout(res, delay));
       } else {
@@ -57,7 +57,7 @@ async function withApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T>
 }
 
 /** 安全取得或建立工作表，防止並行請求或重試時觸發 Google API 400 "already exists" 錯誤 */
-async function getOrCreateSheet(doc: any, title: string, headers: string[]): Promise<GoogleSpreadsheetWorksheet> {
+async function getOrCreateSheet(doc: any, title: string, headers: string[], ensureHeaders = false): Promise<GoogleSpreadsheetWorksheet> {
   const normTitle = title.trim().toLowerCase().replace(/[\s_-]+/g, '');
   const findSheet = () => {
     if (doc.sheetsByTitle[title]) return doc.sheetsByTitle[title];
@@ -104,7 +104,8 @@ async function getOrCreateSheet(doc: any, title: string, headers: string[]): Pro
       }
     }
 
-    if (!verifiedHeadersSheets.has(title)) {
+    // 僅在寫入模式 (ensureHeaders = true) 且尚未驗證過表頭時才進行 header 檢查，避免純讀取時消耗額外 11+ 次 read quota
+    if (ensureHeaders && !verifiedHeadersSheets.has(title)) {
       try {
         await sheet.loadHeaderRow();
         const existing = sheet.headerValues || [];
@@ -229,7 +230,7 @@ export async function POST(request: NextRequest) {
 
         if (isMutating) {
           if (!sheet) {
-            sheet = await getOrCreateSheet(doc, config.name, config.headers);
+            sheet = await getOrCreateSheet(doc, config.name, config.headers, true);
           }
 
           const clientLogs = payload[key];

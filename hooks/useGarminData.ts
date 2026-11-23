@@ -4,7 +4,7 @@ import { fetchGarminOverview } from '@/lib/api';
 import type { GarminOverviewData } from '@/lib/types';
 
 const CACHE_KEY = 'garmin_overview_cache_v1';
-const THROTTLE_MS = 120 * 1000; // 2 minutes throttle on window focus
+const THROTTLE_MS = 300 * 1000; // 5 分鐘節流，防止切換視窗頻繁重試
 
 export function useGarminData() {
   const [garminData, setGarminData] = useState<GarminOverviewData | null>(null);
@@ -39,24 +39,9 @@ export function useGarminData() {
   }, []);
 
   useEffect(() => {
-    let shouldForce = false;
     const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        const hasHrvStatus =
-          parsed?.recentSleepMap &&
-          Object.values(parsed.recentSleepMap).some((s: any) => Boolean(s.hrvStatus));
-        const historyCount = parsed?.recentSleepMap ? Object.keys(parsed.recentSleepMap).length : 0;
-        if (!hasHrvStatus || historyCount < 60) {
-          shouldForce = true;
-        }
-      } catch {
-        shouldForce = true;
-      }
-    } else {
-      shouldForce = true;
-    }
+    // 只有在完全無本地快取時才進行首次強制抓取；已有快取時一律走標準同步，避免每次重載頁面燒光 Sheets 配額
+    const shouldForce = !cached;
     loadGarmin(shouldForce, false);
   }, [loadGarmin]);
 

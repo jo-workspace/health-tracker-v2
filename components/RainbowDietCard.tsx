@@ -65,7 +65,10 @@ const CATEGORY_MAPPING: Record<string, PlantCategory> = {
   // 豆類 (legumes)
   "毛豆": "legumes", "黑豆": "legumes", "黃豆": "legumes", "紅豆": "legumes", "綠豆": "legumes",
   "豆腐": "legumes", "豆漿": "legumes", "豆乾": "legumes", "豆皮": "legumes", "鷹嘴豆": "legumes",
-  "扁豆": "legumes", "四季豆": "legumes", "豌豆": "legumes", "黃豆芽": "legumes", "綠豆芽": "legumes",
+  "扁豆": "legumes", "四季豆": "legumes", "豌豆": "legumes",
+
+  // 蔬菜類芽菜 (vegetables)
+  "豆芽": "vegetables", "豆芽菜": "vegetables", "黃豆芽": "vegetables", "綠豆芽": "vegetables", "銀芽": "vegetables",
 
   // 全穀雜糧 (grains)
   "糙米": "grains", "紫米": "grains", "黑米": "grains", "紅米": "grains", "燕麥": "grains",
@@ -95,6 +98,11 @@ function getPlantCategory(name: string): PlantCategory {
   if (!name) return 'vegetables';
   const trimmed = name.trim();
   if (CATEGORY_MAPPING[trimmed]) return CATEGORY_MAPPING[trimmed];
+
+  // 豆芽菜等發芽蔬菜在營養分類上為蔬菜類
+  if (trimmed.includes('豆芽') || trimmed.includes('芽菜') || trimmed === '銀芽') {
+    return 'vegetables';
+  }
 
   if (trimmed.endsWith('子') || trimmed.endsWith('籽') || trimmed.includes('芝麻') || trimmed.includes('堅果')) {
     return 'nuts-seeds';
