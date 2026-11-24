@@ -425,7 +425,7 @@ export async function fetchGarminRunningActivities(
   const list = await garminGet<any[]>(
     token,
     `/activitylist-service/activities/search/activities?start=0&limit=${limit}`
-  ).catch(() => []);
+  );
 
   if (!Array.isArray(list)) return [];
 

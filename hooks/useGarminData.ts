@@ -27,8 +27,15 @@ export function useGarminData() {
     setGarminRefreshing(true);
     try {
       const res = await fetchGarminOverview(forceRefresh);
-      setGarminData(res);
-      localStorage.setItem(CACHE_KEY, JSON.stringify(res));
+      if (res.configured) {
+        setGarminData(res);
+        localStorage.setItem(CACHE_KEY, JSON.stringify(res));
+      } else {
+        localStorage.removeItem(CACHE_KEY);
+        if (!silent) {
+          setGarminData(prev => (prev?.configured ? prev : res));
+        }
+      }
       lastFetchRef.current = Date.now();
     } catch (e) {
       console.warn('[useGarminData] Failed to load Garmin overview:', e);
@@ -40,9 +47,14 @@ export function useGarminData() {
 
   useEffect(() => {
     const cached = localStorage.getItem(CACHE_KEY);
-    // 只有在完全無本地快取時才進行首次強制抓取；已有快取時一律走標準同步，避免每次重載頁面燒光 Sheets 配額
-    const shouldForce = !cached;
-    loadGarmin(shouldForce, false);
+    let hasConfiguredCache = false;
+    if (cached) {
+      try {
+        hasConfiguredCache = Boolean(JSON.parse(cached)?.configured);
+      } catch {}
+    }
+    // 只有在完全無有效快取時才進行首次強制抓取；已有快取時一律走標準同步，避免每次重載頁面燒光 Sheets 配額
+    loadGarmin(!hasConfiguredCache, false);
   }, [loadGarmin]);
 
   useEffect(() => {

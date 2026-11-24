@@ -311,52 +311,49 @@ async function getGarminConfigFromSheet(): Promise<{
   }
 
   return enqueueGarminSheetOp(async () => {
-    try {
-      const doc = await getGoogleSheet();
-      const sheet = await getOrCreateSheet(doc, GARMIN_CONFIG_SHEET_TITLE, GARMIN_CONFIG_HEADERS);
-      if (!sheet) return null;
-      const rows = await sheet.getRows();
-      if (rows.length === 0) return null;
-      const latestRow = rows[rows.length - 1];
-      const rawStoredKey = String(latestRow.get('apiKey') || '').trim();
-      const rawStoredIcs = String(latestRow.get('calendarIcsUrl') || '').trim();
-      const apiKey = decryptSecretFromSheet(rawStoredKey);
-      const calendarIcsUrl =
-        decryptSecretFromSheet(rawStoredIcs) || DEFAULT_CALENDAR_ICS_URL;
-      const expiresAt = String(latestRow.get('expiresAt') || DEFAULT_EXPIRES_AT).trim();
-      const lastSyncDate = String(latestRow.get('lastSyncDate') || '').trim();
+    const doc = await withGarminApiRetry(() => getGoogleSheet());
+    const sheet = await getOrCreateSheet(doc, GARMIN_CONFIG_SHEET_TITLE, GARMIN_CONFIG_HEADERS);
+    if (!sheet) return null;
+    const rows = await withGarminApiRetry(() => sheet.getRows());
+    if (rows.length === 0) return null;
+    const latestRow = rows[rows.length - 1];
+    const rawStoredKey = String(latestRow.get('apiKey') || '').trim();
+    const rawStoredIcs = String(latestRow.get('calendarIcsUrl') || '').trim();
+    const apiKey = decryptSecretFromSheet(rawStoredKey);
+    const calendarIcsUrl =
+      decryptSecretFromSheet(rawStoredIcs) || DEFAULT_CALENDAR_ICS_URL;
+    const expiresAt = String(latestRow.get('expiresAt') || DEFAULT_EXPIRES_AT).trim();
+    const lastSyncDate = String(latestRow.get('lastSyncDate') || '').trim();
 
-      // If multiple duplicate rows exist or plain-text secret was stored, clean up to a single encrypted row
-      const needsKeyEnc = rawStoredKey && !rawStoredKey.startsWith('ENC:');
-      const needsIcsEnc = !rawStoredIcs || !rawStoredIcs.startsWith('ENC:');
-      if (apiKey && (rows.length > 1 || needsKeyEnc || needsIcsEnc)) {
-        const encryptedKey = encryptSecretForSheet(apiKey);
-        const encryptedIcs = encryptSecretForSheet(calendarIcsUrl);
-        await sheet.clearRows();
-        await sheet.addRow({
+    // If multiple duplicate rows exist or plain-text secret was stored, clean up to a single encrypted row
+    const needsKeyEnc = rawStoredKey && !rawStoredKey.startsWith('ENC:');
+    const needsIcsEnc = !rawStoredIcs || !rawStoredIcs.startsWith('ENC:');
+    if (apiKey && (rows.length > 1 || needsKeyEnc || needsIcsEnc)) {
+      const encryptedKey = encryptSecretForSheet(apiKey);
+      const encryptedIcs = encryptSecretForSheet(calendarIcsUrl);
+      await withGarminApiRetry(() => sheet.clearRows());
+      await withGarminApiRetry(() =>
+        sheet.addRow({
           apiKey: encryptedKey,
           expiresAt,
           calendarIcsUrl: encryptedIcs,
           lastSyncDate,
           updatedAt: new Date().toISOString(),
-        });
-      }
-
-      if (apiKey) {
-        cachedSheetConfig = {
-          apiKey,
-          expiresAt,
-          calendarIcsUrl,
-          lastSyncDate,
-          timestamp: Date.now(),
-        };
-        return { apiKey, expiresAt, calendarIcsUrl, lastSyncDate };
-      }
-      return null;
-    } catch (err) {
-      console.warn('[GarminConfig] Failed to read from Google Sheets:', err);
-      return null;
+        })
+      );
     }
+
+    if (apiKey) {
+      cachedSheetConfig = {
+        apiKey,
+        expiresAt,
+        calendarIcsUrl,
+        lastSyncDate,
+        timestamp: Date.now(),
+      };
+      return { apiKey, expiresAt, calendarIcsUrl, lastSyncDate };
+    }
+    return null;
   });
 }
 
@@ -388,12 +385,12 @@ async function saveGarminConfigToSheet(
   }
 
   return enqueueGarminSheetOp(async () => {
-    const doc = await getGoogleSheet();
+    const doc = await withGarminApiRetry(() => getGoogleSheet());
     const sheet = await getOrCreateSheet(doc, GARMIN_CONFIG_SHEET_TITLE, GARMIN_CONFIG_HEADERS);
-    const rows = await sheet.getRows();
+    const rows = await withGarminApiRetry(() => sheet.getRows());
 
     if (!cleanKey) {
-      if (rows.length > 0) await sheet.clearRows();
+      if (rows.length > 0) await withGarminApiRetry(() => sheet.clearRows());
       return;
     }
 
@@ -407,16 +404,18 @@ async function saveGarminConfigToSheet(
       rows[0].set('calendarIcsUrl', encryptedIcs);
       rows[0].set('lastSyncDate', cleanSyncDate);
       rows[0].set('updatedAt', nowIso);
-      await rows[0].save();
+      await withGarminApiRetry(() => rows[0].save());
     } else {
-      if (rows.length > 0) await sheet.clearRows();
-      await sheet.addRow({
-        apiKey: encryptedKey,
-        expiresAt: cleanExp,
-        calendarIcsUrl: encryptedIcs,
-        lastSyncDate: cleanSyncDate,
-        updatedAt: nowIso,
-      });
+      if (rows.length > 0) await withGarminApiRetry(() => sheet.clearRows());
+      await withGarminApiRetry(() =>
+        sheet.addRow({
+          apiKey: encryptedKey,
+          expiresAt: cleanExp,
+          calendarIcsUrl: encryptedIcs,
+          lastSyncDate: cleanSyncDate,
+          updatedAt: nowIso,
+        })
+      );
     }
   });
 }
@@ -450,7 +449,7 @@ async function syncGarminDataToGoogleSheets(params: {
     todayStr,
     token,
   } = params;
-  const doc = await getGoogleSheet();
+  const doc = await withGarminApiRetry(() => getGoogleSheet());
 
   const workoutByDate = new Map<string, string>();
   scheduledWorkouts.forEach(w => {
@@ -465,7 +464,7 @@ async function syncGarminDataToGoogleSheets(params: {
     GARMIN_SCHEDULED_SHEET_TITLE,
     GARMIN_SCHEDULED_HEADERS
   );
-  const existingScheduledRows = await scheduledSheet.getRows();
+  const existingScheduledRows = await withGarminApiRetry(() => scheduledSheet.getRows());
   const scheduledMap = new Map<string, any>();
 
   existingScheduledRows.forEach((r: any) => {
@@ -493,8 +492,8 @@ async function syncGarminDataToGoogleSheets(params: {
     String(a.date).localeCompare(String(b.date))
   );
   if (sortedScheduled.length > 0) {
-    await scheduledSheet.clearRows();
-    await scheduledSheet.addRows(sortedScheduled);
+    await withGarminApiRetry(() => scheduledSheet.clearRows());
+    await withGarminApiRetry(() => scheduledSheet.addRows(sortedScheduled));
   }
 
   // 2. Upsert GarminRunningLogs
@@ -503,7 +502,7 @@ async function syncGarminDataToGoogleSheets(params: {
     GARMIN_RUNNING_SHEET_TITLE,
     GARMIN_RUNNING_HEADERS
   );
-  const existingRunRows = await runningSheet.getRows();
+  const existingRunRows = await withGarminApiRetry(() => runningSheet.getRows());
   const runMap = new Map<string, any>();
 
   existingRunRows.forEach((r: any) => {
@@ -544,8 +543,8 @@ async function syncGarminDataToGoogleSheets(params: {
     String(b.date).localeCompare(String(a.date))
   );
   if (sortedRuns.length > 0) {
-    await runningSheet.clearRows();
-    await runningSheet.addRows(sortedRuns);
+    await withGarminApiRetry(() => runningSheet.clearRows());
+    await withGarminApiRetry(() => runningSheet.addRows(sortedRuns));
   }
 
   // 2.5 Upsert GarminRunningSplits (incremental sync for laps/splits)
@@ -556,7 +555,7 @@ async function syncGarminDataToGoogleSheets(params: {
         GARMIN_RUNNING_SPLITS_SHEET_TITLE,
         GARMIN_RUNNING_SPLITS_HEADERS
       );
-      const existingSplitRows = await splitsSheet.getRows();
+      const existingSplitRows = await withGarminApiRetry(() => splitsSheet.getRows());
       const existingSplitsActivityIds = new Set<string>();
       existingSplitRows.forEach((r: any) => {
         const actId = String(r.get('activityId') || '').trim();
@@ -610,7 +609,7 @@ async function syncGarminDataToGoogleSheets(params: {
 
   // 3. Upsert unified SleepLogs (1 Day = 1 Row, merge legacy naps, 180-day backfill)
   const sleepSheet = await getOrCreateSheet(doc, SLEEP_LOGS_SHEET_TITLE, SLEEP_LOGS_HEADERS);
-  const existingSleepRows = await sleepSheet.getRows();
+  const existingSleepRows = await withGarminApiRetry(() => sleepSheet.getRows());
 
   const existingMap = new Map<string, any>();
   const legacyNapMinutesByDate = new Map<string, number>();
@@ -795,7 +794,7 @@ async function readOverviewFromGoogleSheets(params: {
   calendarIcsUrl: string;
 }): Promise<GarminOverviewData | null> {
   try {
-    const doc = await getGoogleSheet();
+    const doc = await withGarminApiRetry(() => getGoogleSheet());
     const findSheet = (name: string) => {
       if (doc.sheetsByTitle[name]) return doc.sheetsByTitle[name];
       const norm = name.trim().toLowerCase().replace(/[\s_-]+/g, '');
@@ -823,10 +822,10 @@ async function readOverviewFromGoogleSheets(params: {
     if (!sleepSheet || !runningSheet) return null;
 
     const [sRows, rRows, sSchedRows, splitRows] = await Promise.all([
-      sleepSheet.getRows(),
-      runningSheet.getRows(),
-      scheduledSheet ? scheduledSheet.getRows() : Promise.resolve([]),
-      splitsSheet ? splitsSheet.getRows() : Promise.resolve([]),
+      withGarminApiRetry(() => sleepSheet.getRows()),
+      withGarminApiRetry(() => runningSheet.getRows()),
+      scheduledSheet ? withGarminApiRetry(() => scheduledSheet.getRows()) : Promise.resolve([]),
+      splitsSheet ? withGarminApiRetry(() => splitsSheet.getRows()) : Promise.resolve([]),
     ]);
     if (sRows.length === 0) return null;
 
@@ -1089,7 +1088,14 @@ export async function GET(request: NextRequest) {
     const customExpiresAt = request.headers.get('x-garmin-expires-at')?.trim();
     const customCalendarIcs = request.headers.get('x-garmin-calendar-ics')?.trim();
 
-    const sheetConfig = await getGarminConfigFromSheet();
+    let sheetConfig: Awaited<ReturnType<typeof getGarminConfigFromSheet>> = null;
+    let sheetConfigError: unknown = null;
+    try {
+      sheetConfig = await getGarminConfigFromSheet();
+    } catch (err) {
+      sheetConfigError = err;
+      console.warn('[GarminConfig] Failed to read from Google Sheets:', err);
+    }
 
     const apiKey =
       customApiKey || process.env.GARMIN_PERSONAL_API_KEY || sheetConfig?.apiKey || '';
@@ -1108,6 +1114,12 @@ export async function GET(request: NextRequest) {
     const todayStr = getTaipeiDateStr(0);
 
     if (!apiKey) {
+      if (sheetConfigError) {
+        return NextResponse.json(
+          { error: '暫時無法讀取 Garmin 設定，請稍後再試' },
+          { status: 503 }
+        );
+      }
       if (mode === 'sleep') {
         return NextResponse.json({ configured: false, sleep: null });
       }
