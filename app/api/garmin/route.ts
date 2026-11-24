@@ -232,6 +232,10 @@ async function withGarminApiRetry<T>(fn: () => Promise<T>, maxRetries = 3): Prom
   }
 }
 
+async function getSheetRows(sheet: any): Promise<any[]> {
+  return withGarminApiRetry<any[]>(() => sheet.getRows());
+}
+
 async function getOrCreateSheet(doc: any, title: string, headers: string[]) {
   const normTitle = title.trim().toLowerCase().replace(/[\s_-]+/g, '');
   const findSheet = () => {
@@ -314,7 +318,7 @@ async function getGarminConfigFromSheet(): Promise<{
     const doc = await withGarminApiRetry(() => getGoogleSheet());
     const sheet = await getOrCreateSheet(doc, GARMIN_CONFIG_SHEET_TITLE, GARMIN_CONFIG_HEADERS);
     if (!sheet) return null;
-    const rows = await withGarminApiRetry(() => sheet.getRows());
+    const rows = await getSheetRows(sheet);
     if (rows.length === 0) return null;
     const latestRow = rows[rows.length - 1];
     const rawStoredKey = String(latestRow.get('apiKey') || '').trim();
@@ -387,7 +391,7 @@ async function saveGarminConfigToSheet(
   return enqueueGarminSheetOp(async () => {
     const doc = await withGarminApiRetry(() => getGoogleSheet());
     const sheet = await getOrCreateSheet(doc, GARMIN_CONFIG_SHEET_TITLE, GARMIN_CONFIG_HEADERS);
-    const rows = await withGarminApiRetry(() => sheet.getRows());
+    const rows = await getSheetRows(sheet);
 
     if (!cleanKey) {
       if (rows.length > 0) await withGarminApiRetry(() => sheet.clearRows());
@@ -464,7 +468,7 @@ async function syncGarminDataToGoogleSheets(params: {
     GARMIN_SCHEDULED_SHEET_TITLE,
     GARMIN_SCHEDULED_HEADERS
   );
-  const existingScheduledRows = await withGarminApiRetry(() => scheduledSheet.getRows());
+  const existingScheduledRows = await getSheetRows(scheduledSheet);
   const scheduledMap = new Map<string, any>();
 
   existingScheduledRows.forEach((r: any) => {
@@ -502,7 +506,7 @@ async function syncGarminDataToGoogleSheets(params: {
     GARMIN_RUNNING_SHEET_TITLE,
     GARMIN_RUNNING_HEADERS
   );
-  const existingRunRows = await withGarminApiRetry(() => runningSheet.getRows());
+  const existingRunRows = await getSheetRows(runningSheet);
   const runMap = new Map<string, any>();
 
   existingRunRows.forEach((r: any) => {
@@ -555,7 +559,7 @@ async function syncGarminDataToGoogleSheets(params: {
         GARMIN_RUNNING_SPLITS_SHEET_TITLE,
         GARMIN_RUNNING_SPLITS_HEADERS
       );
-      const existingSplitRows = await withGarminApiRetry(() => splitsSheet.getRows());
+      const existingSplitRows = await getSheetRows(splitsSheet);
       const existingSplitsActivityIds = new Set<string>();
       existingSplitRows.forEach((r: any) => {
         const actId = String(r.get('activityId') || '').trim();
@@ -609,7 +613,7 @@ async function syncGarminDataToGoogleSheets(params: {
 
   // 3. Upsert unified SleepLogs (1 Day = 1 Row, merge legacy naps, 180-day backfill)
   const sleepSheet = await getOrCreateSheet(doc, SLEEP_LOGS_SHEET_TITLE, SLEEP_LOGS_HEADERS);
-  const existingSleepRows = await withGarminApiRetry(() => sleepSheet.getRows());
+  const existingSleepRows = await getSheetRows(sleepSheet);
 
   const existingMap = new Map<string, any>();
   const legacyNapMinutesByDate = new Map<string, number>();
@@ -822,10 +826,10 @@ async function readOverviewFromGoogleSheets(params: {
     if (!sleepSheet || !runningSheet) return null;
 
     const [sRows, rRows, sSchedRows, splitRows] = await Promise.all([
-      withGarminApiRetry(() => sleepSheet.getRows()),
-      withGarminApiRetry(() => runningSheet.getRows()),
-      scheduledSheet ? withGarminApiRetry(() => scheduledSheet.getRows()) : Promise.resolve([]),
-      splitsSheet ? withGarminApiRetry(() => splitsSheet.getRows()) : Promise.resolve([]),
+      getSheetRows(sleepSheet),
+      getSheetRows(runningSheet),
+      scheduledSheet ? getSheetRows(scheduledSheet) : Promise.resolve([]),
+      splitsSheet ? getSheetRows(splitsSheet) : Promise.resolve([]),
     ]);
     if (sRows.length === 0) return null;
 
