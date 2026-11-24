@@ -10,16 +10,23 @@ export function useGarminData() {
   const [garminData, setGarminData] = useState<GarminOverviewData | null>(null);
   const [garminLoading, setGarminLoading] = useState(true);
   const [garminRefreshing, setGarminRefreshing] = useState(false);
+  const [garminError, setGarminError] = useState<string | null>(null);
 
   const lastFetchRef = useRef<number>(0);
 
   const loadGarmin = useCallback(async (forceRefresh = false, silent = false) => {
+    if (!silent) {
+      setGarminError(null);
+    }
     if (!silent && !forceRefresh) {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         try {
-          setGarminData(JSON.parse(cached));
-          setGarminLoading(false);
+          const parsed = JSON.parse(cached) as GarminOverviewData;
+          if (parsed?.configured) {
+            setGarminData(parsed);
+            setGarminLoading(false);
+          }
         } catch {}
       }
     }
@@ -28,17 +35,31 @@ export function useGarminData() {
     try {
       const res = await fetchGarminOverview(forceRefresh);
       if (res.configured) {
-        setGarminData(res);
-        localStorage.setItem(CACHE_KEY, JSON.stringify(res));
+        setGarminData(prev => {
+          if (
+            prev?.configured &&
+            prev.fetchedAt &&
+            res.fetchedAt &&
+            res.fetchedAt < prev.fetchedAt
+          ) {
+            return prev;
+          }
+          localStorage.setItem(CACHE_KEY, JSON.stringify(res));
+          return res;
+        });
       } else {
         localStorage.removeItem(CACHE_KEY);
         if (!silent) {
           setGarminData(prev => (prev?.configured ? prev : res));
         }
       }
+      setGarminError(null);
       lastFetchRef.current = Date.now();
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[useGarminData] Failed to load Garmin overview:', e);
+      if (!silent) {
+        setGarminError(e?.message || 'Garmin 同步失敗');
+      }
     } finally {
       setGarminLoading(false);
       setGarminRefreshing(false);
@@ -77,6 +98,7 @@ export function useGarminData() {
     garminData,
     garminLoading,
     garminRefreshing,
+    garminError,
     refreshGarmin: (force = true) => loadGarmin(force, false),
   };
 }

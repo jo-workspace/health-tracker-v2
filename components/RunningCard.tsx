@@ -13,6 +13,7 @@ interface Props {
   scheduledWorkouts?: GarminScheduledWorkout[];
   loading?: boolean;
   refreshing?: boolean;
+  syncError?: string | null;
   onRefresh?: () => void;
 }
 
@@ -39,6 +40,7 @@ export default function RunningCard({
   scheduledWorkouts = [],
   loading = false,
   refreshing = false,
+  syncError = null,
   onRefresh,
 }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -208,6 +210,7 @@ export default function RunningCard({
         scheduledWorkouts={scheduledWorkouts}
         onRefresh={onRefresh}
         refreshing={refreshing}
+        syncError={syncError}
       />
     </>
   );

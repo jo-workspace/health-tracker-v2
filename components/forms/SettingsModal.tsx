@@ -24,6 +24,7 @@ interface SettingsModalProps {
   garminData?: GarminOverviewData | null;
   onRefreshGarmin?: (force?: boolean) => void;
   garminRefreshing?: boolean;
+  garminError?: string | null;
 }
 
 export default function SettingsModal({
@@ -34,6 +35,7 @@ export default function SettingsModal({
   garminData,
   onRefreshGarmin,
   garminRefreshing = false,
+  garminError = null,
 }: SettingsModalProps) {
   const [password, setPassword] = useState('');
   const [saved, setSaved] = useState(false);
@@ -204,6 +206,12 @@ export default function SettingsModal({
                     )}
                   </div>
                 </div>
+
+                {garminError && (
+                  <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+                    同步失敗：{garminError}
+                  </div>
+                )}
 
                 {/* 到期日狀態框 */}
                 <div

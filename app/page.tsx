@@ -16,7 +16,7 @@ import { Settings, Heart, KeyRound } from 'lucide-react';
 
 export default function Dashboard() {
   const { data, loading, syncing, initialSynced, updateData, forceSync } = useHealthData();
-  const { garminData, garminLoading, garminRefreshing, refreshGarmin } = useGarminData();
+  const { garminData, garminLoading, garminRefreshing, garminError, refreshGarmin } = useGarminData();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTabId>(() => {
     if (typeof window !== 'undefined') {
@@ -160,6 +160,7 @@ export default function Dashboard() {
         garminData={garminData}
         onRefreshGarmin={refreshGarmin}
         garminRefreshing={garminRefreshing}
+        garminError={garminError}
       />
 
       <main className="w-full max-w-md space-y-0 pb-32">
@@ -202,6 +203,7 @@ export default function Dashboard() {
                     scheduledWorkouts={garminData?.running?.scheduledWorkouts}
                     loading={garminLoading}
                     refreshing={garminRefreshing}
+                    syncError={garminError}
                     onRefresh={() => refreshGarmin(true)}
                   />
                 )}
